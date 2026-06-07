@@ -87,58 +87,97 @@ document.head.appendChild(styleEl);
 function injectTheme(t) {
   styleEl.textContent = `
     *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
-    body { background:${t.bg}; color:${t.text}; font-family:${t.font}; }
+    body { background:${t.bg}; color:${t.text}; font-family:${t.font}; scroll-behavior:smooth; }
     ::-webkit-scrollbar{width:5px} ::-webkit-scrollbar-track{background:transparent} ::-webkit-scrollbar-thumb{background:${t.scrollThumb};border-radius:3px}
-    @keyframes fadeInUp{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
-    @keyframes shimmer{0%,100%{opacity:.3}50%{opacity:.65}}
+    /* ── Keyframes ── */
+    @keyframes fadeInUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+    @keyframes fadeInDown{from{opacity:0;transform:translateY(-16px)}to{opacity:1;transform:translateY(0)}}
+    @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+    @keyframes shimmer{0%,100%{opacity:.3}50%{opacity:.7}}
+    @keyframes shimmerMove{0%{background-position:200% 0}100%{background-position:-200% 0}}
     @keyframes spin{to{transform:rotate(360deg)}}
-    @keyframes glow{0%,100%{text-shadow:0 0 20px ${t.glowC}}50%{text-shadow:0 0 40px ${t.glowC2},0 0 70px ${t.glowC}}}
-    @keyframes revealCard{from{opacity:0;transform:scale(.96) translateY(14px)}to{opacity:1;transform:scale(1) translateY(0)}}
-    @keyframes titlePop{0%{opacity:0;transform:scale(.8)}65%{transform:scale(1.05)}100%{opacity:1;transform:scale(1)}}
-    @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
-    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
-    .fi{animation:fadeInUp .45s ease both}
-    .skel{background:linear-gradient(90deg,${t.skA} 25%,${t.skB} 50%,${t.skA} 75%);background-size:200% 100%;animation:shimmer 1.4s infinite;border-radius:6px}
-    .tab-btn{background:none;border:1px solid transparent;cursor:pointer;font-family:${t.font};font-size:13px;font-weight:500;padding:8px 15px;border-radius:6px;transition:all .2s;color:${t.textDim};white-space:nowrap}
-    .tab-btn:hover{color:${t.accent};background:${t.accent}12}
+    @keyframes spinSlow{to{transform:rotate(360deg)}}
+    @keyframes glow{0%,100%{text-shadow:0 0 18px ${t.glowC}}50%{text-shadow:0 0 36px ${t.glowC2},0 0 60px ${t.glowC}}}
+    @keyframes glowPulse{0%,100%{box-shadow:0 0 0 0 ${t.glowC}}50%{box-shadow:0 0 20px 4px ${t.glowC}}}
+    @keyframes revealCard{from{opacity:0;transform:scale(.94) translateY(18px)}to{opacity:1;transform:scale(1) translateY(0)}}
+    @keyframes revealCardLeft{from{opacity:0;transform:scale(.95) translateX(-16px)}to{opacity:1;transform:scale(1) translateX(0)}}
+    @keyframes float{0%,100%{transform:translateY(0px)}50%{transform:translateY(-7px)}}
+    @keyframes floatSlow{0%,100%{transform:translateY(0px)}50%{transform:translateY(-4px)}}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.55}}
+    @keyframes slideInLeft{from{opacity:0;transform:translateX(-22px)}to{opacity:1;transform:translateX(0)}}
+    @keyframes slideInRight{from{opacity:0;transform:translateX(22px)}to{opacity:1;transform:translateX(0)}}
+    @keyframes scaleIn{from{opacity:0;transform:scale(.88)}to{opacity:1;transform:scale(1)}}
+    @keyframes countUp{from{opacity:0;transform:translateY(10px) scale(.95)}to{opacity:1;transform:translateY(0) scale(1)}}
+    @keyframes barGrow{from{transform:scaleX(0);transform-origin:left}to{transform:scaleX(1);transform-origin:left}}
+    @keyframes ringPop{0%{transform:scale(0);opacity:0}70%{transform:scale(1.12)}100%{transform:scale(1);opacity:1}}
+    @keyframes borderFlow{0%,100%{border-color:${t.cardBorder}}50%{border-color:${t.accent}45}}
+    @keyframes heroChess{0%{transform:translateY(0) rotate(0deg)}33%{transform:translateY(-8px) rotate(-3deg)}66%{transform:translateY(-4px) rotate(2deg)}100%{transform:translateY(0) rotate(0deg)}}
+    @keyframes tabSlideIn{from{opacity:0;transform:translateX(8px)}to{opacity:1;transform:translateX(0)}}
+    @keyframes wdlBar{from{width:0}to{width:100%}}
+
+    /* ── Stagger classes ── */
+    .stagger-1{animation:fadeInUp .45s .04s cubic-bezier(.22,1,.36,1) both}
+    .stagger-2{animation:fadeInUp .45s .10s cubic-bezier(.22,1,.36,1) both}
+    .stagger-3{animation:fadeInUp .45s .16s cubic-bezier(.22,1,.36,1) both}
+    .stagger-4{animation:fadeInUp .45s .22s cubic-bezier(.22,1,.36,1) both}
+    .stagger-5{animation:fadeInUp .45s .28s cubic-bezier(.22,1,.36,1) both}
+    .stagger-6{animation:fadeInUp .45s .34s cubic-bezier(.22,1,.36,1) both}
+
+    /* ── Skeleton ── */
+    .skel{background:linear-gradient(90deg,${t.skA} 25%,${t.skB} 50%,${t.skA} 75%);background-size:200% 100%;animation:shimmerMove 1.6s ease infinite;border-radius:8px}
+
+    /* ── Cards ── */
+    .card-hover{transition:transform .25s cubic-bezier(.22,1,.36,1),box-shadow .25s ease,border-color .25s ease}
+    .card-hover:hover{transform:translateY(-3px) scale(1.004);box-shadow:0 12px 48px rgba(0,0,0,.6),0 0 0 1px ${t.accent}18!important}
+
+    /* ── Tabs ── */
+    .tab-btn{background:none;border:1px solid transparent;cursor:pointer;font-family:${t.font};font-size:13px;font-weight:500;padding:8px 15px;border-radius:6px;color:${t.textDim};white-space:nowrap;transition:color .18s cubic-bezier(.4,0,.2,1),background .18s cubic-bezier(.4,0,.2,1),border-color .18s cubic-bezier(.4,0,.2,1),transform .15s ease}
+    .tab-btn:hover{color:${t.accent};background:${t.accent}10;transform:translateY(-1px)}
     .tab-btn.active{color:${t.accent};background:${t.accent}16;border-color:${t.accent}40;font-weight:600}
-    input{background:${t.inputBg};border:1px solid ${t.cardBorder};border-radius:10px;color:${t.text};font-family:${t.font};font-size:15px;padding:13px 16px;outline:none;transition:all .2s;width:100%}
-    input:focus{border-color:${t.accent}80;box-shadow:0 0 0 3px ${t.glowC}}
-    input::placeholder{color:${t.textDim}90}
-    button.primary{background:${t.btnGrad};border:none;border-radius:10px;color:${t.btnColor};cursor:pointer;font-family:${t.font};font-size:15px;font-weight:700;padding:13px 28px;transition:all .2s;white-space:nowrap}
-    button.primary:hover{transform:translateY(-1px);box-shadow:0 4px 24px ${t.glowC}}
-    button.primary:disabled{opacity:.4;cursor:not-allowed;transform:none}
-    button.secondary{background:${t.accent}14;border:1px solid ${t.accent}40;border-radius:8px;color:${t.accent};cursor:pointer;font-family:${t.font};font-size:13px;font-weight:600;padding:8px 16px;transition:all .2s}
-    button.secondary:hover{background:${t.accent}22}
-    select{background:${t.inputBg};border:1px solid ${t.cardBorder};border-radius:6px;color:${t.text};font-family:${t.font};font-size:13px;padding:7px 10px;outline:none;cursor:pointer}
+    .tab-btn:active{transform:scale(.97)}
+
+    /* ── Inputs ── */
+    input{background:${t.inputBg};border:1px solid ${t.cardBorder};border-radius:10px;color:${t.text};font-family:${t.font};font-size:15px;padding:13px 16px;outline:none;width:100%;transition:border-color .2s cubic-bezier(.4,0,.2,1),box-shadow .2s cubic-bezier(.4,0,.2,1),transform .2s cubic-bezier(.22,1,.36,1)}
+    input:focus{border-color:${t.accent}80;box-shadow:0 0 0 3px ${t.glowC},0 2px 12px rgba(0,0,0,.3);transform:translateY(-1px)}
+    input::placeholder{color:${t.textDim}80;transition:opacity .2s}
+    input:focus::placeholder{opacity:.5}
+
+    /* ── Buttons ── */
+    button.primary{background:${t.btnGrad};border:none;border-radius:10px;color:${t.btnColor};cursor:pointer;font-family:${t.font};font-size:15px;font-weight:700;padding:13px 28px;white-space:nowrap;transition:transform .2s cubic-bezier(.22,1,.36,1),box-shadow .2s ease,opacity .15s ease;position:relative;overflow:hidden}
+    button.primary::after{content:"";position:absolute;inset:0;background:rgba(255,255,255,.12);opacity:0;transition:opacity .15s}
+    button.primary:hover{transform:translateY(-2px) scale(1.02);box-shadow:0 6px 28px ${t.glowC}}
+    button.primary:hover::after{opacity:1}
+    button.primary:active{transform:translateY(0) scale(.98)}
+    button.primary:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
+    button.secondary{background:${t.accent}12;border:1px solid ${t.accent}35;border-radius:8px;color:${t.accent};cursor:pointer;font-family:${t.font};font-size:13px;font-weight:600;padding:8px 16px;transition:all .18s cubic-bezier(.4,0,.2,1)}
+    button.secondary:hover{background:${t.accent}22;border-color:${t.accent}55;transform:translateY(-1px)}
+    button.secondary:active{transform:scale(.97)}
+
+    /* ── Select ── */
+    select{background:${t.inputBg};border:1px solid ${t.cardBorder};border-radius:6px;color:${t.text};font-family:${t.font};font-size:13px;padding:7px 10px;outline:none;cursor:pointer;transition:border-color .18s,box-shadow .18s}
+    select:hover{border-color:${t.accent}40}
+    select:focus{border-color:${t.accent}70;box-shadow:0 0 0 2px ${t.glowC}}
+
+    /* ── Table ── */
     table{width:100%;border-collapse:collapse;font-size:13px}
-    th{color:${t.accent};font-weight:600;font-size:11px;letter-spacing:.07em;text-transform:uppercase;padding:10px;border-bottom:1px solid ${t.cardBorder};text-align:left;cursor:pointer;user-select:none}
+    th{color:${t.accent};font-weight:600;font-size:11px;letter-spacing:.07em;text-transform:uppercase;padding:10px;border-bottom:1px solid ${t.cardBorder};text-align:left;cursor:pointer;user-select:none;transition:color .15s}
     th:hover{color:${t.hl}}
-    td{padding:8px 10px;border-bottom:1px solid ${t.cardBorder}40;color:${t.textMid};vertical-align:middle}
+    td{padding:8px 10px;border-bottom:1px solid ${t.cardBorder}35;color:${t.textMid};vertical-align:middle;transition:background .15s}
+    tr{transition:background .15s}
     tr:hover td{background:${t.skA}}
-    .badge{display:inline-flex;align-items:center;border-radius:4px;font-size:11px;font-weight:700;padding:2px 9px;letter-spacing:.03em}
+
+    /* ── Badges ── */
+    .badge{display:inline-flex;align-items:center;border-radius:4px;font-size:11px;font-weight:700;padding:2px 9px;letter-spacing:.03em;transition:transform .15s,box-shadow .15s}
+    .badge:hover{transform:scale(1.05)}
     .badge.green{background:${t.win}18;color:${t.win};border:1px solid ${t.win}40}
     .badge.yellow{background:rgba(255,200,0,.1);color:#ffc800;border:1px solid rgba(255,200,0,.3)}
     .badge.red{background:${t.loss}18;color:${t.loss};border:1px solid ${t.loss}40}
+
+    /* ── Misc ── */
+    .fi{animation:fadeInUp .4s cubic-bezier(.22,1,.36,1) both}
+    * {-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+    ::selection{background:${t.accent}30;color:${t.text}}
     @media(max-width:700px){.three-col{flex-direction:column!important}.hide-mobile{display:none!important}}
-    @keyframes slideInLeft{from{opacity:0;transform:translateX(-20px)}to{opacity:1;transform:translateX(0)}}
-    @keyframes slideInRight{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
-    @keyframes scaleIn{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:scale(1)}}
-    @keyframes countUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-    @keyframes borderPulse{0%,100%{border-color:${t.cardBorder}}50%{border-color:${t.accent}50}}
-    .stagger-1{animation:fadeInUp .4s .05s ease both}
-    .stagger-2{animation:fadeInUp .4s .12s ease both}
-    .stagger-3{animation:fadeInUp .4s .19s ease both}
-    .stagger-4{animation:fadeInUp .4s .26s ease both}
-    .stagger-5{animation:fadeInUp .4s .33s ease both}
-    .stagger-6{animation:fadeInUp .4s .40s ease both}
-    .card-hover{transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease}
-    .card-hover:hover{transform:translateY(-2px);box-shadow:0 8px 40px rgba(0,0,0,.55)!important}
-    .tab-btn{transition:all .18s cubic-bezier(.4,0,.2,1)}
-    .insight-expand{transition:all .22s cubic-bezier(.4,0,.2,1)}
-    input{transition:border-color .2s,box-shadow .2s,transform .15s}
-    input:focus{transform:scaleX(1.005)}
-    button.primary{transition:all .18s cubic-bezier(.4,0,.2,1)}
   `;
 }
 
@@ -454,6 +493,59 @@ function Donut({wins,losses,draws,size=100,t}) {
   </PieChart>;
 }
 
+// ── Animated counter ──────────────────────────────────────────────────────────
+function AnimatedNumber({value, duration=800, style={}}) {
+  const [display, setDisplay] = useState(0);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (value === 0 || value === null || value === undefined) { setDisplay(value); return; }
+    const start = Date.now();
+    const from = 0;
+    const to = typeof value === "number" ? value : parseFloat(value) || 0;
+    const isFloat = String(value).includes(".");
+    const tick = () => {
+      const elapsed = Date.now() - start;
+      const progress = Math.min(elapsed / duration, 1);
+      // Ease out cubic
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const current = from + (to - from) * eased;
+      setDisplay(isFloat ? current.toFixed(1) : Math.round(current));
+      if (progress < 1) ref.current = requestAnimationFrame(tick);
+    };
+    ref.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(ref.current);
+  }, [value]);
+  return <span style={style}>{display}</span>;
+}
+
+// ── Page transition wrapper ───────────────────────────────────────────────────
+function PageTransition({children, keyVal}) {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    setVisible(false);
+    const t = setTimeout(() => setVisible(true), 20);
+    return () => clearTimeout(t);
+  }, [keyVal]);
+  return <div style={{opacity: visible ? 1 : 0, transform: visible ? "translateY(0)" : "translateY(12px)", transition:"opacity .3s cubic-bezier(.22,1,.36,1), transform .3s cubic-bezier(.22,1,.36,1)"}}>{children}</div>;
+}
+
+// ── Loading bar ───────────────────────────────────────────────────────────────
+function LoadingBar({active, t}) {
+  const [width, setWidth] = useState(0);
+  useEffect(() => {
+    if (!active) { setWidth(0); return; }
+    setWidth(20);
+    const t1 = setTimeout(() => setWidth(55), 400);
+    const t2 = setTimeout(() => setWidth(75), 1200);
+    const t3 = setTimeout(() => setWidth(88), 2500);
+    return () => [t1,t2,t3].forEach(clearTimeout);
+  }, [active]);
+  if (!active && width === 0) return null;
+  return <div style={{position:"fixed",top:0,left:0,right:0,zIndex:9999,height:3,background:`${t.glowC}30`,transition:"all .3s ease"}}>
+    <div style={{height:"100%",width:`${active ? width : 100}%`,background:`linear-gradient(90deg,${t.accent2},${t.accent},${t.hl})`,borderRadius:"0 3px 3px 0",transition:active?"width 0.8s cubic-bezier(.4,0,.2,1)":"width .3s ease",boxShadow:`0 0 10px ${t.glowC}`}}/>
+  </div>;
+}
+
 // ── Theme picker ──────────────────────────────────────────────────────────────
 function ThemePicker({current,onChange}) {
   const [open,setOpen]=useState(false);
@@ -462,7 +554,7 @@ function ThemePicker({current,onChange}) {
     <button onClick={()=>setOpen(o=>!o)} style={{background:"none",border:`1px solid ${t.cardBorder}`,borderRadius:8,color:t.text,cursor:"pointer",fontSize:13,fontFamily:t.font,padding:"6px 12px",display:"flex",alignItems:"center",gap:6}}>
       {t.icon} {t.name} <span style={{opacity:.5,fontSize:10}}>▼</span>
     </button>
-    {open && <div style={{position:"absolute",top:"110%",right:0,background:t.card,border:`1px solid ${t.cardBorder}`,borderRadius:10,padding:8,zIndex:99,minWidth:160,boxShadow:"0 8px 32px rgba(0,0,0,.6)"}}>
+    {open && <div style={{position:"absolute",top:"110%",right:0,background:t.card,border:`1px solid ${t.cardBorder}`,borderRadius:10,padding:8,zIndex:99,minWidth:160,boxShadow:"0 8px 32px rgba(0,0,0,.6)",animation:"scaleIn .18s cubic-bezier(.22,1,.36,1) both",transformOrigin:"top right"}}>
       <div style={{fontSize:10,color:t.textDim,textTransform:"uppercase",letterSpacing:".08em",padding:"4px 8px 8px",fontFamily:t.font}}>Theme</div>
       {Object.entries(THEMES).map(([k,th])=>(
         <div key={k} onClick={()=>{onChange(k);setOpen(false);}} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",borderRadius:7,cursor:"pointer",background:current===k?`${th.accent}18`:"none",color:current===k?th.accent:t.textMid,fontSize:13,fontFamily:t.font,transition:"all .15s"}}>
@@ -664,8 +756,8 @@ function PlayerHeroCard({data,loading,t}) {
 
         {/* Rating pills */}
         <div style={{display:"flex",flexWrap:"wrap",gap:7,marginTop:12}}>
-          {ratings.map(r=>(
-            <div key={r.tc} style={{background:`${t.accent}0e`,border:`1px solid ${t.accent}20`,borderRadius:8,padding:"6px 12px",textAlign:"center",minWidth:64}}>
+          {ratings.map((r,ri)=>(
+            <div key={r.tc} style={{background:`${t.accent}0e`,border:`1px solid ${t.accent}20`,borderRadius:8,padding:"6px 12px",textAlign:"center",minWidth:64,animation:`scaleIn .3s ${.08+ri*.07}s cubic-bezier(.22,1,.36,1) both`}}>
               <div style={{fontSize:9,color:t.textDim,textTransform:"uppercase",letterSpacing:".07em"}}>{r.tc}</div>
               <div style={{fontSize:20,fontWeight:700,color:t.accent,fontFamily:t.headingFont}}>{r.last}</div>
               {r.best&&r.best>r.last&&<div style={{fontSize:9,color:t.textDim}}>↑{r.best}</div>}
@@ -764,7 +856,7 @@ function InsightCard({item,t}) {
       <div style={{fontSize:10,color:t.textDim,textTransform:"uppercase",letterSpacing:".07em",marginBottom:3,fontFamily:t.font}}>{item.label}</div>
       <div style={{fontSize:14,fontWeight:600,color:item.color||t.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.value}</div>
       {!hovered&&item.sub&&<div style={{fontSize:11,color:t.textDim,marginTop:2}}>{item.sub}</div>}
-      {hovered&&<div style={{fontSize:12,color:t.textMid,marginTop:6,lineHeight:1.55,whiteSpace:"normal",animation:"fadeInUp .15s ease both"}}>{item.detail}</div>}
+      {hovered&&<div style={{fontSize:12,color:t.textMid,marginTop:6,lineHeight:1.55,whiteSpace:"normal",animation:"fadeInUp .2s cubic-bezier(.22,1,.36,1) both"}}>{item.detail}</div>}
     </div>
     <div style={{fontSize:10,color:t.textDim,flexShrink:0,marginTop:2}}>{hovered?"▲":"▼"}</div>
   </div>;
@@ -1050,7 +1142,7 @@ function OverviewTab({data,loading,t}) {
   const StatCard=({label,value,color,sub,i})=>(
     <Card t={t} className={`stagger-${i+1}`} style={{padding:"16px 18px",textAlign:"center",minWidth:100}}>
       <div style={{fontSize:10,color:t.textDim,textTransform:"uppercase",letterSpacing:".07em",marginBottom:6,fontFamily:t.font}}>{label}</div>
-      <div style={{fontSize:28,fontWeight:700,color:color||t.text,fontFamily:t.headingFont}}>{value}</div>
+      <div style={{fontSize:28,fontWeight:700,color:color||t.text,fontFamily:t.headingFont}}>{typeof value==="number"?<AnimatedNumber value={value} duration={600}/>:value}</div>
       {sub&&<div style={{fontSize:11,color:t.textDim,marginTop:3}}>{sub}</div>}
     </Card>
   );
@@ -1286,6 +1378,7 @@ export default function App() {
     {/* Background */}
     <div style={{position:"fixed",inset:0,zIndex:0,background:t.bg,pointerEvents:"none"}}/>
     <ThemeBg t={t}/>
+    <LoadingBar active={l1} t={t}/>
 
     <div style={{position:"relative",zIndex:1,maxWidth:960,margin:"0 auto",padding:"0 16px 80px"}}>
 
@@ -1294,9 +1387,9 @@ export default function App() {
         <div style={{display:"flex",justifyContent:"flex-end",marginBottom:16}}>
           <ThemePicker current={themeKey} onChange={setThemeKey}/>
         </div>
-        <div style={{fontSize:52,marginBottom:12,animation:"float 3s ease-in-out infinite"}}>♟</div>
-        <h1 style={{fontFamily:t.headingFont,fontSize:48,fontWeight:900,color:t.accent,letterSpacing:"-.03em",lineHeight:1,animation:"glow 3s ease-in-out infinite"}}>Chess DNA</h1>
-        <p style={{fontSize:18,color:t.textMid,marginTop:10,fontFamily:t.font}}>Discover your chess identity</p>
+        <div style={{fontSize:56,marginBottom:12,animation:"heroChess 4s ease-in-out infinite",display:"inline-block",filter:`drop-shadow(0 0 24px ${t.glowC})`}}>♟</div>
+        <h1 style={{fontFamily:t.headingFont,fontSize:48,fontWeight:900,color:t.accent,letterSpacing:"-.03em",lineHeight:1,animation:"glow 3s ease-in-out infinite, scaleIn .6s cubic-bezier(.22,1,.36,1) both"}}>Chess DNA</h1>
+        <p style={{fontSize:18,color:t.textMid,marginTop:10,fontFamily:t.font,animation:"fadeInDown .7s .2s cubic-bezier(.22,1,.36,1) both"}}>Discover your chess identity</p>
 
         {/* Search */}
         <div style={{display:"flex",gap:10,maxWidth:560,margin:"28px auto 0",alignItems:"center",flexWrap:"wrap"}}>
@@ -1362,14 +1455,14 @@ export default function App() {
       </div>}
 
       {/* ── Tab Content ── */}
-      {(p1||l1)&&<div key={tab} style={{animation:"fadeInUp .3s ease both"}}>
+      {(p1||l1)&&<PageTransition keyVal={tab}>
         {tab===0&&<OverviewTab data={p1} loading={l1} t={t}/>}
         {tab===1&&<OpeningsTab games={p1?.games} loading={l1} t={t}/>}
         {tab===2&&<ColorTab games={p1?.games} loading={l1} t={t}/>}
         {tab===3&&<EloTab games={p1?.games} stats={p1?.stats} loading={l1} t={t}/>}
         {tab===4&&<CompareTab p1={p1} p2={p2} l1={l1} l2={l2} p2In={p2In} setP2In={setP2In} loadP2={load2} t={t}/>}
         {tab===5&&<DnaTab games={p1?.games} stats={p1?.stats} loading={l1} t={t} profile={p1?.profile}/>}
-      </div>}
+      </PageTransition>}
 
       {/* ── Empty state ── */}
       {!p1&&!l1&&!e1&&<div style={{textAlign:"center",padding:"40px 0 60px",animation:"fadeInUp .5s .2s ease both"}}>
