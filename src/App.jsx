@@ -12,14 +12,69 @@ fl.href = "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;60
 document.head.appendChild(fl);
 
 // ── Themes ────────────────────────────────────────────────────────────────────
+// bgType controls the SVG/CSS background pattern rendered per theme
 const THEMES = {
-  slate:    { name:"Slate",    icon:"🎯", bg:"#0d1117", card:"linear-gradient(135deg,rgba(20,26,36,.92),rgba(10,14,20,.96))",  cardBorder:"rgba(139,148,158,0.15)", accent:"#58a6ff", accent2:"#1f6feb", hl:"#79c0ff", text:"#c9d1d9", textDim:"#4a5568", textMid:"#8b949e", win:"#3fb950", loss:"#f85149", draw:"#6e7681", inputBg:"rgba(20,26,36,.9)",     btnGrad:"linear-gradient(135deg,#1f6feb,#58a6ff)", btnColor:"#0d1117", skA:"rgba(88,166,255,.04)",  skB:"rgba(88,166,255,.1)",  font:"'DM Sans',sans-serif",        headingFont:"'Playfair Display',serif", scrollThumb:"#58a6ff28", glowC:"#58a6ff35", glowC2:"#58a6ff70", checker:"rgba(88,166,255,.010)",  pat:"rgba(88,166,255,.008)" },
-  forest:   { name:"Forest",   icon:"🌲", bg:"#040f08", card:"linear-gradient(135deg,rgba(0,44,22,.9),rgba(0,18,9,.96))",    cardBorder:"rgba(0,255,136,0.13)",   accent:"#00ff88", accent2:"#00c860", hl:"#39ffa0", text:"#c8f0dc", textDim:"#3a6048", textMid:"#7ab898", win:"#00ff88", loss:"#ff5555", draw:"#5a8e6e", inputBg:"rgba(0,40,20,.85)",     btnGrad:"linear-gradient(135deg,#00c860,#00ff88)", btnColor:"#030e06", skA:"rgba(0,255,136,.04)",   skB:"rgba(0,255,136,.1)",   font:"'DM Sans',sans-serif",          headingFont:"'Playfair Display',serif", scrollThumb:"#00ff8828", glowC:"#00ff8840", glowC2:"#00ff8880", checker:"rgba(0,255,136,.013)",   pat:"rgba(0,255,136,.010)" },
-  midnight: { name:"Midnight", icon:"🌙", bg:"#06070f", card:"linear-gradient(135deg,rgba(15,18,50,.9),rgba(6,7,25,.96))",   cardBorder:"rgba(100,120,255,0.15)", accent:"#7b8fff", accent2:"#5060dd", hl:"#a0aaff", text:"#d0d4f8", textDim:"#404880", textMid:"#8890cc", win:"#7b8fff", loss:"#ff6b8a", draw:"#5a6090", inputBg:"rgba(15,18,50,.85)",    btnGrad:"linear-gradient(135deg,#5060dd,#7b8fff)", btnColor:"#06070f", skA:"rgba(123,143,255,.04)", skB:"rgba(123,143,255,.1)", font:"'Space Grotesk',sans-serif",   headingFont:"'Syne',sans-serif",        scrollThumb:"#7b8fff28", glowC:"#7b8fff40", glowC2:"#7b8fff80", checker:"rgba(100,120,255,.010)", pat:"rgba(100,120,255,.008)" },
-  gold:     { name:"Gold",     icon:"👑", bg:"#0c0a02", card:"linear-gradient(135deg,rgba(35,28,4,.92),rgba(18,14,2,.96))",  cardBorder:"rgba(255,200,0,0.14)",   accent:"#ffd700", accent2:"#cc9900", hl:"#ffe566", text:"#f0e8c0", textDim:"#6a5a18", textMid:"#c0a840", win:"#ffd700", loss:"#ff6060", draw:"#8a7830", inputBg:"rgba(35,28,4,.85)",     btnGrad:"linear-gradient(135deg,#cc9900,#ffd700)", btnColor:"#0c0a02", skA:"rgba(255,215,0,.04)",   skB:"rgba(255,215,0,.1)",   font:"'DM Sans',sans-serif",          headingFont:"'Playfair Display',serif", scrollThumb:"#ffd70028", glowC:"#ffd70040", glowC2:"#ffd70080", checker:"rgba(255,200,0,.010)",   pat:"rgba(255,200,0,.008)" },
-  crimson:  { name:"Crimson",  icon:"🔴", bg:"#0f0608", card:"linear-gradient(135deg,rgba(40,8,12,.9),rgba(20,4,6,.96))",    cardBorder:"rgba(255,80,80,0.13)",   accent:"#ff5c5c", accent2:"#cc3333", hl:"#ff9090", text:"#f0d0d0", textDim:"#6a2838", textMid:"#c07080", win:"#ff5c5c", loss:"#5caaff", draw:"#8a5060", inputBg:"rgba(40,8,12,.85)",     btnGrad:"linear-gradient(135deg,#cc3333,#ff5c5c)", btnColor:"#0f0608", skA:"rgba(255,92,92,.04)",   skB:"rgba(255,92,92,.1)",   font:"'DM Sans',sans-serif",          headingFont:"'Playfair Display',serif", scrollThumb:"#ff5c5c28", glowC:"#ff5c5c40", glowC2:"#ff5c5c80", checker:"rgba(255,80,80,.010)",   pat:"rgba(255,80,80,.008)" },
-  obsidian: { name:"Obsidian", icon:"🖤", bg:"#080808", card:"linear-gradient(135deg,rgba(22,22,22,.92),rgba(10,10,10,.96))",cardBorder:"rgba(200,200,200,0.1)",  accent:"#e0e0e0", accent2:"#999999", hl:"#ffffff", text:"#d8d8d8", textDim:"#444444", textMid:"#999999", win:"#e0e0e0", loss:"#ff6060", draw:"#666666", inputBg:"rgba(22,22,22,.9)",     btnGrad:"linear-gradient(135deg,#555,#e0e0e0)",    btnColor:"#080808", skA:"rgba(200,200,200,.04)", skB:"rgba(200,200,200,.09)",font:"'Space Grotesk',sans-serif",   headingFont:"'Syne',sans-serif",        scrollThumb:"#ffffff18", glowC:"#ffffff28", glowC2:"#ffffff60", checker:"rgba(180,180,180,.010)", pat:"rgba(180,180,180,.008)" },
+  slate:    { name:"Slate",    icon:"🎯", bg:"#0d1117", bgType:"circuit",  card:"linear-gradient(135deg,rgba(20,26,36,.92),rgba(10,14,20,.96))",  cardBorder:"rgba(139,148,158,0.15)", accent:"#58a6ff", accent2:"#1f6feb", hl:"#79c0ff", text:"#c9d1d9", textDim:"#4a5568", textMid:"#8b949e", win:"#3fb950", loss:"#f85149", draw:"#6e7681", inputBg:"rgba(20,26,36,.9)",     btnGrad:"linear-gradient(135deg,#1f6feb,#58a6ff)", btnColor:"#0d1117", skA:"rgba(88,166,255,.04)",  skB:"rgba(88,166,255,.1)",  font:"'DM Sans',sans-serif",        headingFont:"'Playfair Display',serif", scrollThumb:"#58a6ff28", glowC:"#58a6ff35", glowC2:"#58a6ff70" },
+  forest:   { name:"Forest",   icon:"🌲", bg:"#040f08", bgType:"chess",    card:"linear-gradient(135deg,rgba(0,44,22,.9),rgba(0,18,9,.96))",    cardBorder:"rgba(0,255,136,0.13)",   accent:"#00ff88", accent2:"#00c860", hl:"#39ffa0", text:"#c8f0dc", textDim:"#3a6048", textMid:"#7ab898", win:"#00ff88", loss:"#ff5555", draw:"#5a8e6e", inputBg:"rgba(0,40,20,.85)",     btnGrad:"linear-gradient(135deg,#00c860,#00ff88)", btnColor:"#030e06", skA:"rgba(0,255,136,.04)",   skB:"rgba(0,255,136,.1)",   font:"'DM Sans',sans-serif",          headingFont:"'Playfair Display',serif", scrollThumb:"#00ff8828", glowC:"#00ff8840", glowC2:"#00ff8880" },
+  midnight: { name:"Midnight", icon:"🌙", bg:"#06070f", bgType:"stars",    card:"linear-gradient(135deg,rgba(15,18,50,.9),rgba(6,7,25,.96))",   cardBorder:"rgba(100,120,255,0.15)", accent:"#7b8fff", accent2:"#5060dd", hl:"#a0aaff", text:"#d0d4f8", textDim:"#404880", textMid:"#8890cc", win:"#7b8fff", loss:"#ff6b8a", draw:"#5a6090", inputBg:"rgba(15,18,50,.85)",    btnGrad:"linear-gradient(135deg,#5060dd,#7b8fff)", btnColor:"#06070f", skA:"rgba(123,143,255,.04)", skB:"rgba(123,143,255,.1)", font:"'Space Grotesk',sans-serif",   headingFont:"'Syne',sans-serif",        scrollThumb:"#7b8fff28", glowC:"#7b8fff40", glowC2:"#7b8fff80" },
+  gold:     { name:"Gold",     icon:"👑", bg:"#0c0a02", bgType:"diamonds", card:"linear-gradient(135deg,rgba(35,28,4,.92),rgba(18,14,2,.96))",  cardBorder:"rgba(255,200,0,0.14)",   accent:"#ffd700", accent2:"#cc9900", hl:"#ffe566", text:"#f0e8c0", textDim:"#6a5a18", textMid:"#c0a840", win:"#ffd700", loss:"#ff6060", draw:"#8a7830", inputBg:"rgba(35,28,4,.85)",     btnGrad:"linear-gradient(135deg,#cc9900,#ffd700)", btnColor:"#0c0a02", skA:"rgba(255,215,0,.04)",   skB:"rgba(255,215,0,.1)",   font:"'DM Sans',sans-serif",          headingFont:"'Playfair Display',serif", scrollThumb:"#ffd70028", glowC:"#ffd70040", glowC2:"#ffd70080" },
+  crimson:  { name:"Crimson",  icon:"🔴", bg:"#0f0608", bgType:"hex",      card:"linear-gradient(135deg,rgba(40,8,12,.9),rgba(20,4,6,.96))",    cardBorder:"rgba(255,80,80,0.13)",   accent:"#ff5c5c", accent2:"#cc3333", hl:"#ff9090", text:"#f0d0d0", textDim:"#6a2838", textMid:"#c07080", win:"#ff5c5c", loss:"#5caaff", draw:"#8a5060", inputBg:"rgba(40,8,12,.85)",     btnGrad:"linear-gradient(135deg,#cc3333,#ff5c5c)", btnColor:"#0f0608", skA:"rgba(255,92,92,.04)",   skB:"rgba(255,92,92,.1)",   font:"'DM Sans',sans-serif",          headingFont:"'Playfair Display',serif", scrollThumb:"#ff5c5c28", glowC:"#ff5c5c40", glowC2:"#ff5c5c80" },
+  obsidian: { name:"Obsidian", icon:"🖤", bg:"#080808", bgType:"noise",    card:"linear-gradient(135deg,rgba(22,22,22,.92),rgba(10,10,10,.96))",cardBorder:"rgba(200,200,200,0.1)",  accent:"#e0e0e0", accent2:"#999999", hl:"#ffffff", text:"#d8d8d8", textDim:"#444444", textMid:"#999999", win:"#e0e0e0", loss:"#ff6060", draw:"#666666", inputBg:"rgba(22,22,22,.9)",     btnGrad:"linear-gradient(135deg,#555,#e0e0e0)",    btnColor:"#080808", skA:"rgba(200,200,200,.04)", skB:"rgba(200,200,200,.09)",font:"'Space Grotesk',sans-serif",   headingFont:"'Syne',sans-serif",        scrollThumb:"#ffffff18", glowC:"#ffffff28", glowC2:"#ffffff60" },
 };
+
+// Per-theme background renderer
+function ThemeBg({t}) {
+  const a = t.accent;
+  const patterns = {
+    // Slate: circuit board lines
+    circuit: <svg style={{position:"fixed",inset:0,width:"100%",height:"100%",zIndex:0,pointerEvents:"none",opacity:.07}} xmlns="http://www.w3.org/2000/svg">
+      <defs><pattern id="circuit" width="80" height="80" patternUnits="userSpaceOnUse">
+        <path d="M0 40h20M60 40h20M40 0v20M40 60v20M20 40h20v-20M40 20h20v20" stroke={a} strokeWidth="1" fill="none"/>
+        <circle cx="20" cy="40" r="2.5" fill={a}/><circle cx="60" cy="40" r="2.5" fill={a}/>
+        <circle cx="40" cy="20" r="2.5" fill={a}/><circle cx="40" cy="60" r="2.5" fill={a}/>
+      </pattern></defs>
+      <rect width="100%" height="100%" fill="url(#circuit)"/>
+    </svg>,
+    // Forest: checkerboard (chess board feel)
+    chess: <svg style={{position:"fixed",inset:0,width:"100%",height:"100%",zIndex:0,pointerEvents:"none",opacity:.05}} xmlns="http://www.w3.org/2000/svg">
+      <defs><pattern id="chess" width="48" height="48" patternUnits="userSpaceOnUse">
+        <rect width="24" height="24" fill={a}/><rect x="24" y="24" width="24" height="24" fill={a}/>
+      </pattern></defs>
+      <rect width="100%" height="100%" fill="url(#chess)"/>
+    </svg>,
+    // Midnight: star field
+    stars: <svg style={{position:"fixed",inset:0,width:"100%",height:"100%",zIndex:0,pointerEvents:"none"}} xmlns="http://www.w3.org/2000/svg">
+      {[...Array(80)].map((_,i)=>{
+        const x=(i*137.5)%100, y=(i*97.3+23)%100;
+        const r=i%5===0?.9:i%3===0?.6:.35;
+        return <circle key={i} cx={`${x}%`} cy={`${y}%`} r={r} fill={a} opacity={.2+(.6*(i%7)/7)}/>
+      })}
+    </svg>,
+    // Gold: diagonal diamond grid
+    diamonds: <svg style={{position:"fixed",inset:0,width:"100%",height:"100%",zIndex:0,pointerEvents:"none",opacity:.08}} xmlns="http://www.w3.org/2000/svg">
+      <defs><pattern id="diamonds" width="40" height="40" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+        <rect width="40" height="40" fill="none" stroke={a} strokeWidth=".8"/>
+        <rect x="10" y="10" width="20" height="20" fill="none" stroke={a} strokeWidth=".4"/>
+      </pattern></defs>
+      <rect width="100%" height="100%" fill="url(#diamonds)"/>
+    </svg>,
+    // Crimson: hexagon grid
+    hex: <svg style={{position:"fixed",inset:0,width:"100%",height:"100%",zIndex:0,pointerEvents:"none",opacity:.07}} xmlns="http://www.w3.org/2000/svg">
+      <defs><pattern id="hex" width="56" height="48" patternUnits="userSpaceOnUse">
+        <path d="M14 0l14 8v16l-14 8-14-8V8zM42 0l14 8v16l-14 8-14-8V8zM28 24l14 8v16l-14 8-14-8v-16z" stroke={a} strokeWidth=".8" fill="none"/>
+      </pattern></defs>
+      <rect width="100%" height="100%" fill="url(#hex)"/>
+    </svg>,
+    // Obsidian: subtle dot grid
+    noise: <svg style={{position:"fixed",inset:0,width:"100%",height:"100%",zIndex:0,pointerEvents:"none",opacity:.06}} xmlns="http://www.w3.org/2000/svg">
+      <defs><pattern id="dots" width="24" height="24" patternUnits="userSpaceOnUse">
+        <circle cx="12" cy="12" r=".8" fill={a}/>
+      </pattern></defs>
+      <rect width="100%" height="100%" fill="url(#dots)"/>
+    </svg>,
+  };
+  return <>{patterns[t.bgType]||null}</>;
+}
 
 // ── Player comparison colors (theme-independent, always high contrast) ──────
 // P1 = vivid orange-amber, P2 = vivid violet — contrast on every theme
@@ -68,6 +123,24 @@ function injectTheme(t) {
     .badge.yellow{background:rgba(255,200,0,.1);color:#ffc800;border:1px solid rgba(255,200,0,.3)}
     .badge.red{background:${t.loss}18;color:${t.loss};border:1px solid ${t.loss}40}
     @media(max-width:700px){.three-col{flex-direction:column!important}.hide-mobile{display:none!important}}
+    @keyframes slideInLeft{from{opacity:0;transform:translateX(-20px)}to{opacity:1;transform:translateX(0)}}
+    @keyframes slideInRight{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
+    @keyframes scaleIn{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:scale(1)}}
+    @keyframes countUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+    @keyframes borderPulse{0%,100%{border-color:${t.cardBorder}}50%{border-color:${t.accent}50}}
+    .stagger-1{animation:fadeInUp .4s .05s ease both}
+    .stagger-2{animation:fadeInUp .4s .12s ease both}
+    .stagger-3{animation:fadeInUp .4s .19s ease both}
+    .stagger-4{animation:fadeInUp .4s .26s ease both}
+    .stagger-5{animation:fadeInUp .4s .33s ease both}
+    .stagger-6{animation:fadeInUp .4s .40s ease both}
+    .card-hover{transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease}
+    .card-hover:hover{transform:translateY(-2px);box-shadow:0 8px 40px rgba(0,0,0,.55)!important}
+    .tab-btn{transition:all .18s cubic-bezier(.4,0,.2,1)}
+    .insight-expand{transition:all .22s cubic-bezier(.4,0,.2,1)}
+    input{transition:border-color .2s,box-shadow .2s,transform .15s}
+    input:focus{transform:scaleX(1.005)}
+    button.primary{transition:all .18s cubic-bezier(.4,0,.2,1)}
   `;
 }
 
@@ -114,21 +187,20 @@ function parsePGN(pgn, user) {
     let timeControl = "other";
     if (tc) { const s=parseInt(tc.split("+")[0]); if(s<=180)timeControl="bullet"; else if(s<=600)timeControl="blitz"; else if(s<=1800)timeControl="rapid"; else if(tc==="-"||isNaN(s))timeControl="daily"; else timeControl="rapid"; }
     const dateStr = ex(g,"Date");
-    const endTime = ex(g,"EndTime");
-    let hour = null;
-    if (endTime) { hour = parseInt(endTime.split(":")[0]); }
-    return { opening:ex(g,"Opening")||"Unknown", eco:ex(g,"ECO")||"?", color, result, oppElo:(!oppElo||isNaN(oppElo))?null:oppElo, timeControl, date:dateStr, hour, opponent:color==="white"?b:w };
+    return { opening:ex(g,"Opening")||"Unknown", eco:ex(g,"ECO")||"?", color, result, oppElo:(!oppElo||isNaN(oppElo))?null:oppElo, timeControl, date:dateStr, opponent:color==="white"?b:w };
   }).filter(Boolean);
 }
 
-async function loadPlayer(user) {
+async function loadPlayer(user, months=3) {
   const base = `https://api.chess.com/pub/player/${user}`;
   const [profile, stats, archives] = await Promise.all([fetchJSON(base), fetchJSON(`${base}/stats`), fetchJSON(`${base}/games/archives`)]);
   if (!profile.username) throw new Error(`Player "${user}" not found on Chess.com`);
-  const urls = (archives.archives||[]).slice(-3);
+  const allUrls = archives.archives || [];
+  // months=0 means all time
+  const urls = months === 0 ? allUrls : allUrls.slice(-months);
   const pgns = await Promise.all(urls.map(u => fetchText(u+"/pgn")));
   const games = pgns.flatMap(p => parsePGN(p, user));
-  return { profile, stats, games };
+  return { profile, stats, games, monthsLoaded: urls.length };
 }
 
 // ── Analytics helpers ─────────────────────────────────────────────────────────
@@ -175,126 +247,151 @@ function computeInsights(games) {
   const wins = games.filter(g=>g.result==="win").length;
   const losses = games.filter(g=>g.result==="loss").length;
   const draws = games.filter(g=>g.result==="draw").length;
-  const winPct = wins/total;
   const openings = aggOpenings(games);
   const streak = computeStreak(games);
-  const formatHour = h => { const ampm=h>=12?"pm":"am"; const h12=h%12||12; return `${h12}${ampm}`; };
-
-  // ── Build every possible insight, each with: icon, label, value, sub, color, detail, score (higher = more interesting) ──
   const all = [];
 
-  // 1. Best hour
-  const hourMap = {};
-  games.filter(g=>g.hour!=null).forEach(g=>{
-    if(!hourMap[g.hour])hourMap[g.hour]={wins:0,total:0,losses:0};
-    hourMap[g.hour].total++;
-    if(g.result==="win")hourMap[g.hour].wins++;
-    if(g.result==="loss")hourMap[g.hour].losses++;
-  });
-  const hourEntries = Object.entries(hourMap).filter(([,d])=>d.total>=4);
-  if (hourEntries.length) {
-    const [bh,bd] = hourEntries.sort((a,b)=>(b[1].wins/b[1].total)-(a[1].wins/a[1].total))[0];
-    const hwp = Math.round(bd.wins/bd.total*100);
-    const [wh,wd] = hourEntries.sort((a,b)=>(b[1].losses/b[1].total)-(a[1].losses/a[1].total))[0];
-    const wwp = Math.round(wd.losses/wd.total*100);
-    all.push({ id:"best_hour", icon:"🕐", label:"Peak hour", value:`You peak at ${formatHour(parseInt(bh))}`, sub:`${hwp}% win rate · ${bd.total} games played at this hour`, color:null, detail:`You've played ${bd.total} games at ${formatHour(parseInt(bh))} with a ${hwp}% win rate. ${hwp>65?"This is where you're most dangerous.":hwp>50?"Solid performance at this hour.":"Consider playing at different times."} Your worst hour is ${formatHour(parseInt(wh))} (${wwp}% loss rate).`, score: hwp > 55 ? hwp : 20 });
-  }
-
-  // 2. Current streak
+  // 1. Current streak (always reliable)
   if (streak.count >= 2) {
     const sc = streak.type==="win"?"#3fb950":streak.type==="loss"?"#f85149":"#6e7681";
-    all.push({ id:"streak", icon: streak.type==="win"?"🔥":streak.type==="loss"?"❄️":"➖", label:"Current streak", value:`${streak.count} ${streak.type}s in a row`, sub:`Active ${streak.type} streak`, color:sc, detail:`You're on a ${streak.count}-game ${streak.type} streak. ${streak.type==="win"&&streak.count>=5?"You're on fire right now — capitalize on this momentum.":streak.type==="win"?"Keep it going!":streak.type==="loss"&&streak.count>=4?"Consider taking a break and coming back fresh.":"These things happen — shake it off."}`, score: streak.type==="win" ? streak.count*12 : streak.type==="loss" ? streak.count*8 : 5 });
+    all.push({ id:"streak", icon:streak.type==="win"?"🔥":streak.type==="loss"?"❄️":"➖", label:"Current streak",
+      value:`${streak.count} ${streak.type}s in a row`, sub:`Active ${streak.type} streak`, color:sc,
+      detail:`You're on a ${streak.count}-game ${streak.type} streak. ${streak.type==="win"&&streak.count>=5?"You're on fire — capitalize on this momentum.":streak.type==="win"?"Keep it going!":streak.type==="loss"&&streak.count>=4?"Consider a short break and come back fresh.":"These things happen — shake it off."}`,
+      score: streak.type==="win"?streak.count*14:streak.type==="loss"?streak.count*9:2 });
   }
 
-  // 3. Nemesis opening
+  // 2. Nemesis opening — highest loss% with min 4 games (ECO always present)
   const nemesis = openings.filter(o=>o.games>=4).sort((a,b)=>b.lossPct-a.lossPct)[0];
-  if (nemesis) {
-    all.push({ id:"nemesis", icon:"💀", label:"Nemesis opening", value:nemesis.opening.length>26?nemesis.opening.slice(0,24)+"…":nemesis.opening, sub:`${nemesis.losses} losses in ${nemesis.games} games`, color:"#f85149", detail:`You struggle badly against ${nemesis.opening} — a ${nemesis.lossPct}% loss rate over ${nemesis.games} games. ${nemesis.eco!=="?"?`ECO code: ${nemesis.eco}. `:""}Consider studying this line or avoiding it altogether.`, score: nemesis.lossPct > 60 ? nemesis.lossPct : 30 });
+  if (nemesis && nemesis.lossPct >= 45) {
+    all.push({ id:"nemesis", icon:"💀", label:"Nemesis opening",
+      value:nemesis.opening.length>26?nemesis.opening.slice(0,24)+"…":nemesis.opening,
+      sub:`${nemesis.losses} losses in ${nemesis.games} games (${nemesis.lossPct}%)`, color:"#f85149",
+      detail:`You lose ${nemesis.lossPct}% of games in ${nemesis.opening} — ${nemesis.losses} losses over ${nemesis.games} games. ${nemesis.eco!=="?"?`ECO: ${nemesis.eco}. `:""}${nemesis.lossPct>65?"This line is actively hurting your rating. Study it or sidestep it.":"Worth spending some time on this one."}`,
+      score: nemesis.lossPct + nemesis.games });
   }
 
-  // 4. Signature opening (best win rate, min 5 games)
+  // 3. Signature opening — best win rate, min 5 games
   const signature = openings.filter(o=>o.games>=5).sort((a,b)=>b.winPct-a.winPct)[0];
-  if (signature) {
-    all.push({ id:"signature", icon:"⭐", label:"Signature opening", value:signature.opening.length>26?signature.opening.slice(0,24)+"…":signature.opening, sub:`${signature.winPct}% win rate · ${signature.games} games`, color:"#f8c840", detail:`Your best opening is ${signature.opening} with a ${signature.winPct}% win rate over ${signature.games} games. ${signature.winPct>70?"You clearly know this line deeply — it's your weapon.":"This is your most reliable choice right now."} Avg opponent: ${signature.avgOpp||"unknown"}.`, score: signature.winPct > 60 ? signature.winPct : 25 });
+  if (signature && signature.winPct >= 50) {
+    all.push({ id:"signature", icon:"⭐", label:"Signature opening",
+      value:signature.opening.length>26?signature.opening.slice(0,24)+"…":signature.opening,
+      sub:`${signature.winPct}% win rate · ${signature.games} games`, color:"#f8c840",
+      detail:`${signature.opening} is your strongest weapon — ${signature.winPct}% win rate over ${signature.games} games. ${signature.winPct>=70?"You clearly know this deeply. This is your go-to.":"Solid choice. Keep refining it."} Avg opponent rating: ${signature.avgOpp||"unknown"}.`,
+      score: signature.winPct + signature.games*0.5 });
   }
 
-  // 5. Color preference
-  const wGames = games.filter(g=>g.color==="white").length;
-  const bGames = games.filter(g=>g.color==="black").length;
-  const wWins = games.filter(g=>g.color==="white"&&g.result==="win").length;
-  const bWins = games.filter(g=>g.color==="black"&&g.result==="win").length;
-  const wWp = wGames ? Math.round(wWins/wGames*100) : 0;
-  const bWp = bGames ? Math.round(bWins/bGames*100) : 0;
-  const colorDiff = Math.abs(wWp - bWp);
-  if (colorDiff >= 8 && Math.max(wGames,bGames) >= 10) {
-    const better = wWp > bWp ? "White" : "Black";
-    const betterWp = wWp > bWp ? wWp : bWp;
-    const worseWp = wWp > bWp ? bWp : wWp;
-    all.push({ id:"color_pref", icon: better==="White"?"♙":"♟", label:"Color advantage", value:`${colorDiff}% better with ${better}`, sub:`${better} ${betterWp}% vs ${better==="White"?"Black":"White"} ${worseWp}%`, color: better==="White"?"#f8c840":"#6e7ff3", detail:`You win ${betterWp}% of games as ${better} but only ${worseWp}% as ${better==="White"?"Black":"White"}. That's a ${colorDiff}-point gap. ${colorDiff>15?"This is a significant imbalance worth addressing.":"Slight preference but not alarming."}`, score: colorDiff * 3 });
+  // 4. Color gap — always in PGN (White/Black tags)
+  const wGames=games.filter(g=>g.color==="white"), bGames=games.filter(g=>g.color==="black");
+  const wWp=wGames.length?Math.round(wGames.filter(g=>g.result==="win").length/wGames.length*100):0;
+  const bWp=bGames.length?Math.round(bGames.filter(g=>g.result==="win").length/bGames.length*100):0;
+  const colorDiff=Math.abs(wWp-bWp);
+  if (colorDiff>=10 && Math.min(wGames.length,bGames.length)>=8) {
+    const better=wWp>bWp?"White":"Black", betterWp=Math.max(wWp,bWp), worseWp=Math.min(wWp,bWp);
+    all.push({ id:"color_gap", icon:better==="White"?"♙":"♟", label:"Color advantage",
+      value:`${colorDiff}% stronger with ${better}`,
+      sub:`${better} ${betterWp}% · ${better==="White"?"Black":"White"} ${worseWp}%`,
+      color:better==="White"?"#f8c840":"#6e7ff3",
+      detail:`You win ${betterWp}% as ${better} but only ${worseWp}% as ${better==="White"?"Black":"White"}. ${colorDiff>20?"This is a significant gap worth addressing — study your weaker color's openings.":"A moderate imbalance — worth being aware of."}`,
+      score: colorDiff*3 });
   }
 
-  // 6. Time control mastery
-  const tcWin = {};
-  games.forEach(g=>{ if(!tcWin[g.timeControl])tcWin[g.timeControl]={w:0,t:0}; tcWin[g.timeControl].t++; if(g.result==="win")tcWin[g.timeControl].w++; });
-  const tcRanked = Object.entries(tcWin).filter(([,d])=>d.t>=8).map(([tc,d])=>({tc,wp:Math.round(d.w/d.t*100),games:d.t})).sort((a,b)=>b.wp-a.wp);
-  if (tcRanked.length >= 2) {
-    const best = tcRanked[0], worst = tcRanked[tcRanked.length-1];
-    if (best.wp - worst.wp >= 10) {
-      all.push({ id:"tc_master", icon:"⏱️", label:"Time control edge", value:`${best.tc} is your strongest`, sub:`${best.wp}% wins vs ${worst.wp}% in ${worst.tc}`, color:null, detail:`You win ${best.wp}% in ${best.tc} (${best.games} games) but only ${worst.wp}% in ${worst.tc}. ${best.wp-worst.wp>20?"Stick to your strength — queue more "+best.tc+".":"Worth knowing when choosing time controls."}`, score: (best.wp - worst.wp) * 2 });
+  // 5. Time control gap — TimeControl tag always in PGN
+  const tcWin={};
+  games.forEach(g=>{if(!tcWin[g.timeControl])tcWin[g.timeControl]={w:0,t:0};tcWin[g.timeControl].t++;if(g.result==="win")tcWin[g.timeControl].w++;});
+  const tcR=Object.entries(tcWin).filter(([k,d])=>k!=="other"&&d.t>=8).map(([tc,d])=>({tc,wp:Math.round(d.w/d.t*100),games:d.t})).sort((a,b)=>b.wp-a.wp);
+  if (tcR.length>=2 && tcR[0].wp-tcR[tcR.length-1].wp>=12) {
+    const best=tcR[0], worst=tcR[tcR.length-1];
+    all.push({ id:"tc_gap", icon:"⏱️", label:"Time control edge",
+      value:`${best.tc} is your best format`,
+      sub:`${best.wp}% in ${best.tc} vs ${worst.wp}% in ${worst.tc}`,
+      color:null,
+      detail:`You win ${best.wp}% in ${best.tc} (${best.games} games) vs ${worst.wp}% in ${worst.tc}. ${best.wp-worst.wp>20?"Play to your strengths — queue more "+best.tc+".":"Worth considering when you pick a time control."}`,
+      score:(best.wp-worst.wp)*2 });
+  }
+
+  // 6. Upset specialist — wins vs 150+ above avg (oppElo always in PGN via WhiteElo/BlackElo)
+  const elos=games.filter(g=>g.oppElo).map(g=>g.oppElo);
+  const avgOpp=elos.length?Math.round(elos.reduce((a,b)=>a+b,0)/elos.length):0;
+  if (avgOpp>0) {
+    const upsets=games.filter(g=>g.result==="win"&&g.oppElo&&g.oppElo>avgOpp+150).length;
+    if (upsets>=2) {
+      all.push({ id:"upset", icon:"🎯", label:"Upset specialist",
+        value:`${upsets} wins vs much stronger players`,
+        sub:`Beat opponents 150+ points above your avg`, color:"#a78bfa",
+        detail:`You've beaten ${upsets} opponents rated 150+ above your average (${avgOpp}). ${upsets>=5?"You clearly don't let ratings intimidate you — a great mental strength.":"Shows you can punch above your weight when it matters."}`,
+        score:upsets*15 });
     }
   }
 
-  // 7. Upset king (wins vs much higher rated)
-  const upsets = games.filter(g=>g.result==="win"&&g.oppElo).map(g=>g.oppElo);
-  const ownElos = games.filter(g=>g.oppElo).map(g=>g.oppElo);
-  const avgOpp = ownElos.length ? Math.round(ownElos.reduce((a,b)=>a+b,0)/ownElos.length) : 0;
-  const bigUpsets = games.filter(g=>g.result==="win"&&g.oppElo&&g.oppElo>avgOpp+150).length;
-  if (bigUpsets >= 2) {
-    all.push({ id:"upset", icon:"🎯", label:"Upset specialist", value:`${bigUpsets} upsets vs stronger players`, sub:`Beat opponents 150+ points above avg`, color:"#a78bfa", detail:`You've pulled off ${bigUpsets} upsets against opponents rated 150+ above your average. ${bigUpsets>=5?"You clearly don't care about ratings — you just play chess.":"Shows you can compete above your level when it matters."}`, score: bigUpsets * 15 });
+  // 7. Draw machine or draw avoider
+  const drawPct=draws/total;
+  if (drawPct>0.18 && draws>=6) {
+    all.push({ id:"draw_high", icon:"🤝", label:"Draw specialist",
+      value:`${Math.round(drawPct*100)}% draw rate`,
+      sub:`${draws} draws from ${total} games`, color:"#6e7681",
+      detail:`${Math.round(drawPct*100)}% of your games end in draws — ${drawPct>0.28?"unusually high":"above average"}. This often means you're good at holding difficult positions. Against stronger opponents this is a real skill.`,
+      score:drawPct*120 });
+  } else if (drawPct<0.03 && total>=30) {
+    all.push({ id:"draw_low", icon:"⚔️", label:"No draws — ever",
+      value:`Only ${draws} draws in ${total} games`,
+      sub:"Pure decisive chess — win or lose", color:"#fb923c",
+      detail:`You almost never draw — just ${Math.round(drawPct*100)}% draw rate. You play decisive chess. Whether that's aggression, time pressure, or fighting spirit, you're never settling for half a point.`,
+      score:60 });
   }
 
-  // 8. Consistency score (how stable is day-to-day win%)
-  const byDate = {};
-  games.forEach(g=>{ if(g.date&&g.date!=="?"){if(!byDate[g.date])byDate[g.date]={w:0,t:0}; byDate[g.date].t++; if(g.result==="win")byDate[g.date].w++; } });
-  const dayWps = Object.values(byDate).filter(d=>d.t>=3).map(d=>Math.round(d.w/d.t*100));
-  if (dayWps.length >= 5) {
-    const avg = dayWps.reduce((a,b)=>a+b,0)/dayWps.length;
-    const variance = Math.sqrt(dayWps.reduce((a,b)=>a+(b-avg)**2,0)/dayWps.length);
-    if (variance < 15) {
-      all.push({ id:"consistent", icon:"📐", label:"Rock solid", value:`${Math.round(avg)}% avg with low variance`, sub:`Very consistent day-to-day performance`, color:"#34d399", detail:`Your daily win% rarely swings wildly — variance of just ${Math.round(variance)}%. Avg: ${Math.round(avg)}% per session. This suggests emotional stability and steady preparation rather than hot/cold streaks.`, score: 60 - variance });
-    } else if (variance > 30) {
-      all.push({ id:"streaky", icon:"🎢", label:"Streaky player", value:"Wild swings in performance", sub:`High variance day-to-day`, color:"#fb923c", detail:`Your win% varies wildly between sessions (variance: ${Math.round(variance)}%). You're capable of brilliant days (${Math.max(...dayWps)}%) and terrible ones (${Math.min(...dayWps)}%). External factors like mood or time of day may affect you more than most.`, score: variance * 0.8 });
+  // 8. Day-to-day consistency from Date tag (always reliable)
+  const byDate={};
+  games.forEach(g=>{if(g.date&&g.date!=="?"){if(!byDate[g.date])byDate[g.date]={w:0,t:0};byDate[g.date].t++;if(g.result==="win")byDate[g.date].w++;}});
+  const dayWps=Object.values(byDate).filter(d=>d.t>=3).map(d=>Math.round(d.w/d.t*100));
+  if (dayWps.length>=6) {
+    const avg=dayWps.reduce((a,b)=>a+b,0)/dayWps.length;
+    const variance=Math.sqrt(dayWps.reduce((a,b)=>a+(b-avg)**2,0)/dayWps.length);
+    if (variance<14) {
+      all.push({ id:"consistent", icon:"📐", label:"Extremely consistent",
+        value:`${Math.round(avg)}% win rate, low variance`,
+        sub:"Steady performance across sessions", color:"#34d399",
+        detail:`Your day-to-day win% is remarkably stable (variance: ${Math.round(variance)}%). You perform at ${Math.round(avg)}% regardless of the day. This points to good mental habits and reliable preparation.`,
+        score:65-variance });
+    } else if (variance>32) {
+      all.push({ id:"streaky_days", icon:"🎢", label:"Streaky player",
+        value:"Big performance swings by session",
+        sub:`Best day: ${Math.max(...dayWps)}% · Worst: ${Math.min(...dayWps)}%`, color:"#fb923c",
+        detail:`Your win% swings wildly — from ${Math.min(...dayWps)}% on bad days to ${Math.max(...dayWps)}% on good ones. External factors (mood, time, fatigue) likely affect your game more than average. Consider tracking when you play best.`,
+        score:variance*0.8 });
     }
   }
 
-  // 9. Draw tendency
-  const drawRate = draws/total;
-  if (drawRate > 0.15 && draws >= 5) {
-    all.push({ id:"draw_master", icon:"🤝", label:"Draw specialist", value:`${Math.round(drawRate*100)}% draw rate`, sub:`${draws} draws from ${total} games`, color:"#6e7681", detail:`You draw ${Math.round(drawRate*100)}% of your games — ${drawRate>0.25?"unusually high":"above average"}. This often means you're good at holding difficult positions and know when to split the point. Against stronger players this could be a strength.`, score: drawRate > 0.2 ? drawRate * 150 : 10 });
+  // 9. Opening diversity
+  const uniqueOpenings=new Set(games.filter(g=>g.opening!=="Unknown").map(g=>g.opening)).size;
+  if (uniqueOpenings>=25 && total>=40) {
+    all.push({ id:"explorer", icon:"🗺️", label:"Opening explorer",
+      value:`${uniqueOpenings} different openings played`,
+      sub:"Wide repertoire across all games", color:"#67e8f9",
+      detail:`You've played ${uniqueOpenings} distinct openings — a very wide repertoire. You're not afraid to experiment. This shows curiosity and adaptability, though a narrower focus might boost results in your best lines.`,
+      score:uniqueOpenings });
+  } else if (uniqueOpenings<=4 && total>=20) {
+    all.push({ id:"specialist", icon:"📌", label:"Opening specialist",
+      value:`Only ${uniqueOpenings} openings in rotation`,
+      sub:"Laser-focused repertoire", color:"#39ffa0",
+      detail:`You stick to just ${uniqueOpenings} openings — highly focused. You probably know these lines deeply. Opponents who haven't prepared for your specific lines will struggle.`,
+      score:60 });
   }
 
-  // 10. Volume / grind stat
-  if (total >= 100) {
-    const gamesPerDay = (() => { const dates = new Set(games.filter(g=>g.date&&g.date!=="?").map(g=>g.date)); return dates.size > 0 ? (total/dates.size).toFixed(1) : null; })();
-    all.push({ id:"volume", icon:"⚙️", label:"High volume player", value:`${total} games analyzed`, sub: gamesPerDay ? `~${gamesPerDay} games per active day` : `${total} total games`, color:null, detail:`You've played ${total} games in the last 3 months${gamesPerDay?` — averaging ${gamesPerDay} games per day you play`:""}. ${total>300?"You're extremely active. Volume at this level builds deep pattern recognition.":total>150?"Solid playing frequency — enough to improve quickly.":"Good sample size for meaningful analysis."}`, score: Math.min(total/5, 40) });
-  }
-
-  // 11. Endgame conversion
-  const longGames = games.filter(g=>g.timeControl==="rapid"||g.timeControl==="daily");
-  if (longGames.length >= 10) {
-    const lgWp = Math.round(longGames.filter(g=>g.result==="win").length/longGames.length*100);
-    const shortGames = games.filter(g=>g.timeControl==="bullet"||g.timeControl==="blitz");
-    const sgWp = shortGames.length >= 10 ? Math.round(shortGames.filter(g=>g.result==="win").length/shortGames.length*100) : null;
-    if (sgWp && lgWp - sgWp >= 10) {
-      all.push({ id:"slow_expert", icon:"🧠", label:"Slow game expert", value:`${lgWp}% in long games`, sub:`vs ${sgWp}% in fast games`, color:"#60a5fa", detail:`You win ${lgWp}% in rapid/daily but only ${sgWp}% in fast formats. A ${lgWp-sgWp}-point gap. Your strength is deep calculation and planning — you shine when given time to think.`, score: (lgWp - sgWp) * 3 });
-    } else if (sgWp && sgWp - lgWp >= 10) {
-      all.push({ id:"speed_expert", icon:"⚡", label:"Speed demon", value:`${sgWp}% in fast games`, sub:`vs ${lgWp}% in slow games`, color:"#ffdd00", detail:`You win ${sgWp}% in bullet/blitz but only ${lgWp}% in longer formats. Speed suits your instinctive style — you play better under pressure than when over-thinking.`, score: (sgWp - lgWp) * 3 });
+  // 10. Opponent level — are they punching up or down?
+  if (avgOpp>0 && total>=20) {
+    const highOppGames=games.filter(g=>g.oppElo&&g.oppElo>avgOpp+100).length;
+    const pctHigh=highOppGames/total;
+    if (pctHigh>0.3) {
+      const wpHighOpp=Math.round(games.filter(g=>g.result==="win"&&g.oppElo&&g.oppElo>avgOpp+100).length/Math.max(highOppGames,1)*100);
+      all.push({ id:"challenger", icon:"🏔️", label:"Seeks stronger opponents",
+        value:`${Math.round(pctHigh*100)}% of games vs higher-rated`,
+        sub:`${wpHighOpp}% win rate against them`, color:"#a78bfa",
+        detail:`${Math.round(pctHigh*100)}% of your games are against opponents rated 100+ above your average. You're actively seeking harder competition — and winning ${wpHighOpp}% of those. ${wpHighOpp>=40?"Impressive — you're learning fast.":"Tough road but the fastest way to improve."}`,
+        score:pctHigh*80+wpHighOpp*0.5 });
     }
   }
 
-  // ── Pick top 3 by score, always unique categories ──
-  const sorted = [...all].sort((a,b)=>b.score-a.score);
-  return sorted.slice(0,3);
+  return [...all].sort((a,b)=>b.score-a.score).slice(0,3);
 }
 
 function computePersonality(games, stats) {
@@ -331,8 +428,8 @@ function computePersonality(games, stats) {
 // ── UI Primitives ─────────────────────────────────────────────────────────────
 const Sk = ({w="100%",h=18,style={}}) => <div className="skel" style={{width:w,height:h,...style}}/>;
 
-function Card({children,style={},t,glow=false}) {
-  return <div style={{background:t.card,border:`1px solid ${glow?t.accent+"40":t.cardBorder}`,borderRadius:14,boxShadow:`inset 0 1px 0 ${t.accent}08,0 4px 28px rgba(0,0,0,.45)${glow?`,0 0 40px ${t.glowC}`:""}`,padding:22,...style}}>{children}</div>;
+function Card({children,style={},t,glow=false,hover=true,className=""}) {
+  return <div className={`${hover?"card-hover":""} ${className}`} style={{background:t.card,border:`1px solid ${glow?t.accent+"40":t.cardBorder}`,borderRadius:14,boxShadow:`inset 0 1px 0 ${t.accent}08,0 4px 28px rgba(0,0,0,.45)${glow?`,0 0 40px ${t.glowC}`:""}`,padding:22,...style}}>{children}</div>;
 }
 
 function SecTitle({children,sub,t}) {
@@ -522,7 +619,7 @@ function OpeningDNA({games,loading,t,tc="all"}) {
       <div key={i} style={{background:`${t.accent}06`,border:`1px solid ${t.cardBorder}`,borderRadius:10,padding:"10px 12px",display:"flex",alignItems:"center",gap:10}}>
         <div style={{width:22,height:22,borderRadius:"50%",background:i===0?t.accent:`${t.accent}20`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:i===0?t.bg:t.textDim,flexShrink:0,fontFamily:t.font}}>{i+1}</div>
         <div style={{flex:1,minWidth:0}}>
-          <div style={{fontSize:12,color:t.text,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{o.opening.length>28?o.opening.slice(0,26)+"…":o.opening}</div>
+          <a href={`https://www.chess.com/openings/${o.opening.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")}`} target="_blank" rel="noopener noreferrer" style={{fontSize:12,color:t.text,fontWeight:500,textDecoration:"none",display:"block",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",transition:"color .15s"}} onMouseEnter={e=>e.target.style.color=t.accent} onMouseLeave={e=>e.target.style.color=t.text}>{o.opening.length>28?o.opening.slice(0,26)+"…":o.opening}</a>
           <div style={{fontSize:11,color:t.textDim}}>{o.games} games</div>
         </div>
         <span className={`badge ${o.winPct>=55?"green":o.winPct>=45?"yellow":"red"}`}>{o.winPct}%</span>
@@ -646,7 +743,10 @@ function OpeningsTab({games,loading,t}) {
           <thead><tr>{[["opening","Opening"],["games","Games"],["winPct","Win%"],["lossPct","Loss%"],["drawPct","Draw%"],["avgOpp","Avg Opp"]].map(([k,l])=><th key={k} onClick={()=>toggleSort(k)}>{l}{sort.key===k?sort.dir===1?" ↑":" ↓":""}</th>)}</tr></thead>
           <tbody>{sorted.map((o,i)=>(
             <tr key={i}>
-              <td style={{color:t.text,maxWidth:240,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}><span style={{fontSize:10,color:t.textDim,marginRight:5}}>{o.eco}</span>{o.opening}</td>
+              <td style={{maxWidth:240,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                <span style={{fontSize:10,color:t.textDim,marginRight:5}}>{o.eco}</span>
+                <a href={`https://www.chess.com/openings/${o.opening.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")}`} target="_blank" rel="noopener noreferrer" style={{color:t.text,textDecoration:"none",transition:"color .15s"}} onMouseEnter={e=>e.target.style.color=t.accent} onMouseLeave={e=>e.target.style.color=t.text}>{o.opening} ↗</a>
+              </td>
               <td style={{fontWeight:600,color:t.text}}>{o.games}</td>
               <td><span style={{color:t.win,fontWeight:700}}>{o.winPct}%</span></td>
               <td><span style={{color:t.loss}}>{o.lossPct}%</span></td>
@@ -821,6 +921,202 @@ function DnaTab({games,stats,loading,t,profile}) {
   </div>;
 }
 
+// ── Overview Tab (rich dashboard) ────────────────────────────────────────────
+function OverviewTab({data,loading,t}) {
+  const tip=(props)=><ChartTip {...props} t={t}/>;
+  if (loading) return <div style={{display:"flex",flexDirection:"column",gap:14}}>{[...Array(4)].map((_,i)=><Sk key={i} h={90}/>)}</div>;
+  if (!data) return null;
+  const {games,stats}=data;
+  const total=games.length;
+  const wins=games.filter(g=>g.result==="win").length;
+  const losses=games.filter(g=>g.result==="loss").length;
+  const draws=games.filter(g=>g.result==="draw").length;
+  const winPct=total?Math.round(wins/total*100):0;
+  const lossPct=total?Math.round(losses/total*100):0;
+  const drawPct=total?Math.round(draws/total*100):0;
+
+  // Per-opening data for mini chart
+  const openings=aggOpenings(games).sort((a,b)=>b.games-a.games).slice(0,6);
+
+  // Color stats
+  const wG=games.filter(g=>g.color==="white"), bG=games.filter(g=>g.color==="black");
+  const wW=wG.filter(g=>g.result==="win").length, bW=bG.filter(g=>g.result==="win").length;
+  const wWp=wG.length?Math.round(wW/wG.length*100):0, bWp=bG.length?Math.round(bW/bG.length*100):0;
+
+  // Rating bar data
+  const rBar=["rapid","blitz","bullet","daily"].map(tc=>({name:tc,rating:getRating(stats,tc).last,best:getRating(stats,tc).best})).filter(d=>d.rating);
+
+  // Time control data
+  const tcMap={}; games.forEach(g=>{tcMap[g.timeControl]=(tcMap[g.timeControl]||0)+1;});
+  const tcData=Object.entries(tcMap).filter(([k])=>k!=="other").map(([name,value])=>({name,value}));
+
+  // Elo brackets mini
+  const brackets=eloBrackets(games).slice(0,5);
+
+  // Recent form (last 20 games)
+  const recent=games.slice(0,20);
+  const recentWins=recent.filter(g=>g.result==="win").length;
+  const recentForm=Math.round(recentWins/Math.max(recent.length,1)*100);
+  const formTrend=recentForm>winPct?"↑ Better than avg":recentForm<winPct-5?"↓ Below avg":"→ On pace";
+  const formColor=recentForm>winPct?t.win:recentForm<winPct-5?t.loss:t.textMid;
+
+  // Avg opponent
+  const elos=games.filter(g=>g.oppElo).map(g=>g.oppElo);
+  const avgOpp=elos.length?Math.round(elos.reduce((a,b)=>a+b,0)/elos.length):null;
+  const bestWin=games.filter(g=>g.result==="win"&&g.oppElo).sort((a,b)=>b.oppElo-a.oppElo)[0];
+
+  // Opening diversity
+  const uniqueO=new Set(games.filter(g=>g.opening!=="Unknown").map(g=>g.opening)).size;
+
+  const StatCard=({label,value,color,sub,i})=>(
+    <Card t={t} className={`stagger-${i+1}`} style={{padding:"16px 18px",textAlign:"center",minWidth:100}}>
+      <div style={{fontSize:10,color:t.textDim,textTransform:"uppercase",letterSpacing:".07em",marginBottom:6,fontFamily:t.font}}>{label}</div>
+      <div style={{fontSize:28,fontWeight:700,color:color||t.text,fontFamily:t.headingFont}}>{value}</div>
+      {sub&&<div style={{fontSize:11,color:t.textDim,marginTop:3}}>{sub}</div>}
+    </Card>
+  );
+
+  return <div style={{display:"flex",flexDirection:"column",gap:16}}>
+
+    {/* Row 1 — 6 key stats */}
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(100px,1fr))",gap:10}}>
+      <StatCard i={1} label="Total Games" value={total} color={t.accent}/>
+      <StatCard i={2} label="Wins" value={wins} color={t.win} sub={winPct+"%"}/>
+      <StatCard i={3} label="Losses" value={losses} color={t.loss} sub={lossPct+"%"}/>
+      <StatCard i={4} label="Draws" value={draws} color={t.draw} sub={drawPct+"%"}/>
+      <StatCard i={5} label="Avg Opponent" value={avgOpp||"—"} color={t.textMid}/>
+      <StatCard i={6} label="Openings Used" value={uniqueO} color={t.hl}/>
+    </div>
+
+    {/* Row 2 — WDL bar + recent form + best win */}
+    <div style={{display:"flex",gap:14,flexWrap:"wrap"}}>
+      <Card t={t} style={{flex:2,minWidth:220}}>
+        <SecTitle t={t} sub="All games">Win / Draw / Loss</SecTitle>
+        <div style={{display:"flex",height:14,borderRadius:8,overflow:"hidden",gap:2,marginBottom:10}}>
+          <div style={{width:`${winPct}%`,background:t.win,transition:"width .8s cubic-bezier(.4,0,.2,1)"}}/>
+          <div style={{width:`${drawPct}%`,background:t.draw,transition:"width .8s cubic-bezier(.4,0,.2,1)"}}/>
+          <div style={{width:`${lossPct}%`,background:t.loss,transition:"width .8s cubic-bezier(.4,0,.2,1)"}}/>
+        </div>
+        <div style={{display:"flex",gap:20,fontSize:13}}>
+          {[["W",winPct,t.win],["D",drawPct,t.draw],["L",lossPct,t.loss]].map(([l,v,c])=>(
+            <div key={l} style={{display:"flex",alignItems:"center",gap:6}}>
+              <div style={{width:8,height:8,borderRadius:2,background:c}}/>
+              <span style={{color:t.textDim}}>{l}</span>
+              <span style={{color:c,fontWeight:700}}>{v}%</span>
+            </div>
+          ))}
+        </div>
+        <div style={{marginTop:16,paddingTop:14,borderTop:`1px solid ${t.cardBorder}40`}}>
+          <div style={{fontSize:11,color:t.textDim,textTransform:"uppercase",letterSpacing:".07em",marginBottom:8}}>Recent form (last 20)</div>
+          <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+            {recent.map((g,i)=>(
+              <div key={i} style={{width:16,height:16,borderRadius:3,background:g.result==="win"?t.win:g.result==="loss"?t.loss:t.draw,opacity:.85,title:g.result}}/>
+            ))}
+          </div>
+          <div style={{fontSize:12,color:formColor,marginTop:8,fontWeight:600}}>{formTrend} · {recentForm}% last 20 games</div>
+        </div>
+      </Card>
+      <Card t={t} style={{flex:1,minWidth:180}}>
+        <SecTitle t={t} sub="Color performance">White vs Black</SecTitle>
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          {[["♙ White",wWp,wG.length,"#f8c840"],["♟ Black",bWp,bG.length,"#6e7ff3"]].map(([l,wp,g,c])=>(
+            <div key={l}>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:5}}>
+                <span style={{color:t.textMid}}>{l}</span>
+                <span style={{color:c,fontWeight:700}}>{wp}%</span>
+              </div>
+              <div style={{height:8,borderRadius:4,background:`${c}20`,overflow:"hidden"}}>
+                <div style={{height:"100%",width:`${wp}%`,background:c,borderRadius:4,transition:"width .7s ease"}}/>
+              </div>
+              <div style={{fontSize:11,color:t.textDim,marginTop:3}}>{g} games</div>
+            </div>
+          ))}
+        </div>
+        {bestWin&&<div style={{marginTop:14,paddingTop:12,borderTop:`1px solid ${t.cardBorder}40`,fontSize:12}}>
+          <span style={{color:t.textDim}}>Best win: </span>
+          <span style={{color:t.win,fontWeight:600}}>{bestWin.opponent}</span>
+          <span style={{color:t.textDim}}> ({bestWin.oppElo})</span>
+        </div>}
+      </Card>
+    </div>
+
+    {/* Row 3 — Ratings + Time Controls */}
+    <div style={{display:"flex",gap:14,flexWrap:"wrap"}}>
+      <Card t={t} style={{flex:2,minWidth:220}}>
+        <SecTitle t={t} sub="Current · Peak">Ratings</SecTitle>
+        <ResponsiveContainer width="100%" height={130}>
+          <BarChart data={rBar} barCategoryGap="30%">
+            <XAxis dataKey="name" tick={{fill:t.textDim,fontSize:12}} axisLine={false} tickLine={false}/>
+            <YAxis tick={{fill:t.textDim,fontSize:10}} axisLine={false} tickLine={false} domain={["auto","auto"]}/>
+            <Tooltip content={tip}/>
+            <Bar dataKey="rating" name="Current" fill={t.accent} radius={[5,5,0,0]}/>
+          </BarChart>
+        </ResponsiveContainer>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:8}}>
+          {rBar.map(r=><div key={r.name} style={{background:`${t.accent}0e`,border:`1px solid ${t.accent}20`,borderRadius:7,padding:"5px 12px",textAlign:"center"}}>
+            <div style={{fontSize:9,color:t.textDim,textTransform:"uppercase"}}>{r.name}</div>
+            <div style={{fontSize:18,fontWeight:700,color:t.accent,fontFamily:t.headingFont}}>{r.rating}</div>
+            {r.best&&r.best>r.rating&&<div style={{fontSize:9,color:t.textDim}}>↑{r.best}</div>}
+          </div>)}
+        </div>
+      </Card>
+      <Card t={t} style={{flex:1,minWidth:180}}>
+        <SecTitle t={t} sub="Game distribution">Time Controls</SecTitle>
+        <ResponsiveContainer width="100%" height={120}>
+          <PieChart>
+            <Pie data={tcData} cx="50%" cy="50%" outerRadius={52} dataKey="value" paddingAngle={2}>
+              {tcData.map((_,i)=><Cell key={i} fill={[t.accent,t.accent2,t.hl,t.textMid][i%4]}/>)}
+            </Pie>
+            <Tooltip content={tip}/>
+          </PieChart>
+        </ResponsiveContainer>
+        <div style={{display:"flex",flexDirection:"column",gap:4,marginTop:4}}>
+          {tcData.map((d,i)=>(
+            <div key={d.name} style={{display:"flex",justifyContent:"space-between",fontSize:12}}>
+              <span style={{display:"flex",alignItems:"center",gap:6}}>
+                <div style={{width:8,height:8,borderRadius:2,background:[t.accent,t.accent2,t.hl,t.textMid][i%4]}}/>
+                <span style={{color:t.textDim,textTransform:"capitalize"}}>{d.name}</span>
+              </span>
+              <span style={{color:t.text,fontWeight:600}}>{d.value}</span>
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
+
+    {/* Row 4 — Top openings mini + Elo brackets */}
+    <div style={{display:"flex",gap:14,flexWrap:"wrap"}}>
+      <Card t={t} style={{flex:2,minWidth:220}}>
+        <SecTitle t={t} sub="Top 6 by games played">Opening Performance</SecTitle>
+        <ResponsiveContainer width="100%" height={Math.max(160,openings.length*30)}>
+          <BarChart data={openings} layout="vertical" margin={{left:150}}>
+            <XAxis type="number" domain={[0,100]} tick={{fill:t.textDim,fontSize:10}} axisLine={false} tickLine={false}/>
+            <YAxis type="category" dataKey="opening" tick={{fill:t.textMid,fontSize:10}} width={145} axisLine={false} tickLine={false} tickFormatter={v=>v.length>22?v.slice(0,20)+"…":v}/>
+            <Tooltip content={tip}/>
+            <Bar dataKey="winPct" name="Win%" stackId="a" fill={t.win}/>
+            <Bar dataKey="drawPct" name="Draw%" stackId="a" fill={t.draw}/>
+            <Bar dataKey="lossPct" name="Loss%" stackId="a" fill={t.loss} radius={[0,4,4,0]}/>
+          </BarChart>
+        </ResponsiveContainer>
+      </Card>
+      <Card t={t} style={{flex:1,minWidth:180}}>
+        <SecTitle t={t} sub="Win% by opponent strength">Elo Breakdown</SecTitle>
+        {brackets.length?<ResponsiveContainer width="100%" height={160}>
+          <BarChart data={brackets} barCategoryGap="20%">
+            <XAxis dataKey="label" tick={{fill:t.textDim,fontSize:9}} axisLine={false} tickLine={false}/>
+            <YAxis domain={[0,100]} tick={{fill:t.textDim,fontSize:9}} axisLine={false} tickLine={false}/>
+            <Tooltip content={tip}/>
+            <Bar dataKey="winPct" name="Win%" radius={[4,4,0,0]}>
+              {brackets.map((e,i)=><Cell key={i} fill={e.winPct>=55?t.win:e.winPct>=45?"#ffc800":t.loss}/>)}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>:<div style={{color:t.textDim,fontSize:12,padding:"20px 0"}}>Not enough rated games</div>}
+      </Card>
+    </div>
+
+  </div>;
+}
+
 // ── Main App ──────────────────────────────────────────────────────────────────
 const TABS=[["📊","Overview"],["♟","Openings"],["🎨","Color Stats"],["📈","Elo Breakdown"],["⚔️","Compare"],["🧬","Chess DNA"]];
 
@@ -849,6 +1145,7 @@ export default function App() {
   const [l1,setL1]=useState(false);
   const [l2,setL2]=useState(false);
   const [e1,setE1]=useState(null);
+  const [months,setMonths]=useState(3);
 
   // ── On mount: read URL and auto-load player ──
   useEffect(()=>{
@@ -867,11 +1164,12 @@ export default function App() {
     return ()=>window.removeEventListener("hashchange", onHash);
   }, []);
 
-  const doLoad1 = async (username) => {
+  const doLoad1 = async (username, mo) => {
     const u = (username||p1In).trim().toLowerCase();
     if (!u) return;
+    const m = mo !== undefined ? mo : months;
     setL1(true); setE1(null); setP1(null);
-    try { setP1(await loadPlayer(u)); }
+    try { setP1(await loadPlayer(u, m)); }
     catch(e) { setE1(e.message||"Failed to load"); }
     finally { setL1(false); }
   };
@@ -880,7 +1178,12 @@ export default function App() {
     const u = p1In.trim().toLowerCase();
     if (!u) return;
     setHash(u);
-    doLoad1(u);
+    doLoad1(u, months);
+  };
+
+  const changeMonths = (m) => {
+    setMonths(m);
+    if (p1) doLoad1(p1.profile.username, m);
   };
 
   const load2=async()=>{
@@ -902,8 +1205,8 @@ export default function App() {
 
   return <div style={{minHeight:"100vh",position:"relative"}}>
     {/* Background */}
-    <div style={{position:"fixed",inset:0,zIndex:0,background:t.bg,backgroundImage:`repeating-linear-gradient(135deg,${t.pat} 0,${t.pat} 1px,transparent 1px,transparent 40px)`,pointerEvents:"none"}}/>
-    <div style={{position:"fixed",inset:0,zIndex:0,backgroundImage:`repeating-conic-gradient(${t.checker} 0% 25%,transparent 0% 50%)`,backgroundSize:"42px 42px",pointerEvents:"none"}}/>
+    <div style={{position:"fixed",inset:0,zIndex:0,background:t.bg,pointerEvents:"none"}}/>
+    <ThemeBg t={t}/>
 
     <div style={{position:"relative",zIndex:1,maxWidth:960,margin:"0 auto",padding:"0 16px 80px"}}>
 
@@ -917,14 +1220,23 @@ export default function App() {
         <p style={{fontSize:18,color:t.textMid,marginTop:10,fontFamily:t.font}}>Discover your chess identity</p>
 
         {/* Search */}
-        <div style={{display:"flex",gap:10,maxWidth:520,margin:"28px auto 0",alignItems:"center"}}>
-          <div style={{flex:1,position:"relative"}}>
+        <div style={{display:"flex",gap:10,maxWidth:560,margin:"28px auto 0",alignItems:"center",flexWrap:"wrap"}}>
+          <div style={{flex:1,minWidth:200,position:"relative"}}>
             <span style={{position:"absolute",left:14,top:"50%",transform:"translateY(-50%)",color:t.textDim,fontSize:16,pointerEvents:"none"}}>🔍</span>
             <input placeholder="Enter Chess.com username…" value={p1In} onChange={e=>setP1In(e.target.value)} onKeyDown={e=>e.key==="Enter"&&load1()} style={{paddingLeft:42,fontSize:16}}/>
           </div>
           <button className="primary" onClick={load1} disabled={l1||!p1In.trim()}>
             {l1?<span style={{display:"inline-flex",alignItems:"center",gap:8}}><span style={{width:14,height:14,border:`2px solid ${t.btnColor}`,borderTopColor:"transparent",borderRadius:"50%",display:"inline-block",animation:"spin .8s linear infinite"}}/>Analyzing…</span>:"Analyze Player"}
           </button>
+        </div>
+        <div style={{display:"flex",gap:6,justifyContent:"center",marginTop:12,alignItems:"center"}}>
+          <span style={{fontSize:12,color:t.textDim}}>Range:</span>
+          {[[3,"3mo"],[6,"6mo"],[12,"1yr"],[0,"All time"]].map(([m,label])=>(
+            <button key={m} onClick={()=>changeMonths(m)} style={{background:months===m?`${t.accent}20`:"none",border:`1px solid ${months===m?t.accent+"60":t.cardBorder}`,borderRadius:20,color:months===m?t.accent:t.textDim,cursor:"pointer",fontFamily:t.font,fontSize:12,fontWeight:months===m?600:400,padding:"4px 12px",transition:"all .2s"}}>
+              {label}
+            </button>
+          ))}
+          {p1&&<span style={{fontSize:11,color:t.textDim,marginLeft:4}}>· {p1.games.length} games loaded</span>}
         </div>
         {e1&&<div style={{marginTop:12,fontSize:13,color:t.loss}}>⚠ {e1}</div>}
 
@@ -936,13 +1248,13 @@ export default function App() {
       {/* ── Stats Dashboard — 3 columns ── */}
       {p1&&!l1&&<div className="three-col" style={{display:"flex",gap:16,marginBottom:20}}>
         {/* Column 1: Opening DNA */}
-        <Card t={t} style={{flex:1,minWidth:220}}>
+        <Card t={t} className="stagger-1" style={{flex:1,minWidth:220}}>
           <SecTitle t={t} sub="Top openings by games played">Opening DNA</SecTitle>
           <OpeningDNA games={p1.games} loading={l1} t={t}/>
         </Card>
 
         {/* Column 2: Performance Chart */}
-        <Card t={t} style={{flex:1,minWidth:220}}>
+        <Card t={t} className="stagger-2" style={{flex:1,minWidth:220}}>
           <SecTitle t={t} sub="Rating trend (last 30 days)">Performance</SecTitle>
           <PerformanceChart games={p1.games} stats={p1.stats} loading={l1} t={t}/>
           <div style={{marginTop:12}}>
@@ -957,7 +1269,7 @@ export default function App() {
         </Card>
 
         {/* Column 3: Insights */}
-        <Card t={t} style={{flex:1,minWidth:220}}>
+        <Card t={t} className="stagger-3" style={{flex:1,minWidth:220}}>
           <SecTitle t={t} sub="Based on your recent games">Insights</SecTitle>
           <InsightsColumn games={p1.games} loading={l1} t={t}/>
         </Card>
@@ -972,18 +1284,7 @@ export default function App() {
 
       {/* ── Tab Content ── */}
       {(p1||l1)&&<div key={tab} style={{animation:"fadeInUp .3s ease both"}}>
-        {tab===0&&<div style={{display:"flex",flexDirection:"column",gap:16}}>
-          {/* Overview: full WDL + big stats */}
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:10}}>
-            {p1&&[["Total Games",p1.games.length,t.accent],["Wins",p1.games.filter(g=>g.result==="win").length,t.win],["Losses",p1.games.filter(g=>g.result==="loss").length,t.loss],["Draws",p1.games.filter(g=>g.result==="draw").length,t.draw]].map(([l,v,c])=>(
-              <Card key={l} t={t} style={{padding:"14px 16px",textAlign:"center"}}>
-                <div style={{fontSize:10,color:t.textDim,textTransform:"uppercase",letterSpacing:".07em",marginBottom:6,fontFamily:t.font}}>{l}</div>
-                <div style={{fontSize:28,fontWeight:700,color:c,fontFamily:t.headingFont}}>{v}</div>
-              </Card>
-            ))}
-          </div>
-          {l1&&[...Array(2)].map((_,i)=><Sk key={i} h={80}/>)}
-        </div>}
+        {tab===0&&<OverviewTab data={p1} loading={l1} t={t}/>}
         {tab===1&&<OpeningsTab games={p1?.games} loading={l1} t={t}/>}
         {tab===2&&<ColorTab games={p1?.games} loading={l1} t={t}/>}
         {tab===3&&<EloTab games={p1?.games} stats={p1?.stats} loading={l1} t={t}/>}
