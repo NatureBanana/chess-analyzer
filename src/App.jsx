@@ -13,13 +13,20 @@ document.head.appendChild(fl);
 
 // ── Themes ────────────────────────────────────────────────────────────────────
 const THEMES = {
+  slate:    { name:"Slate",    icon:"🎯", bg:"#0d1117", card:"linear-gradient(135deg,rgba(20,26,36,.92),rgba(10,14,20,.96))",  cardBorder:"rgba(139,148,158,0.15)", accent:"#58a6ff", accent2:"#1f6feb", hl:"#79c0ff", text:"#c9d1d9", textDim:"#4a5568", textMid:"#8b949e", win:"#3fb950", loss:"#f85149", draw:"#6e7681", inputBg:"rgba(20,26,36,.9)",     btnGrad:"linear-gradient(135deg,#1f6feb,#58a6ff)", btnColor:"#0d1117", skA:"rgba(88,166,255,.04)",  skB:"rgba(88,166,255,.1)",  font:"'DM Sans',sans-serif",        headingFont:"'Playfair Display',serif", scrollThumb:"#58a6ff28", glowC:"#58a6ff35", glowC2:"#58a6ff70", checker:"rgba(88,166,255,.010)",  pat:"rgba(88,166,255,.008)" },
   forest:   { name:"Forest",   icon:"🌲", bg:"#040f08", card:"linear-gradient(135deg,rgba(0,44,22,.9),rgba(0,18,9,.96))",    cardBorder:"rgba(0,255,136,0.13)",   accent:"#00ff88", accent2:"#00c860", hl:"#39ffa0", text:"#c8f0dc", textDim:"#3a6048", textMid:"#7ab898", win:"#00ff88", loss:"#ff5555", draw:"#5a8e6e", inputBg:"rgba(0,40,20,.85)",     btnGrad:"linear-gradient(135deg,#00c860,#00ff88)", btnColor:"#030e06", skA:"rgba(0,255,136,.04)",   skB:"rgba(0,255,136,.1)",   font:"'DM Sans',sans-serif",          headingFont:"'Playfair Display',serif", scrollThumb:"#00ff8828", glowC:"#00ff8840", glowC2:"#00ff8880", checker:"rgba(0,255,136,.013)",   pat:"rgba(0,255,136,.010)" },
   midnight: { name:"Midnight", icon:"🌙", bg:"#06070f", card:"linear-gradient(135deg,rgba(15,18,50,.9),rgba(6,7,25,.96))",   cardBorder:"rgba(100,120,255,0.15)", accent:"#7b8fff", accent2:"#5060dd", hl:"#a0aaff", text:"#d0d4f8", textDim:"#404880", textMid:"#8890cc", win:"#7b8fff", loss:"#ff6b8a", draw:"#5a6090", inputBg:"rgba(15,18,50,.85)",    btnGrad:"linear-gradient(135deg,#5060dd,#7b8fff)", btnColor:"#06070f", skA:"rgba(123,143,255,.04)", skB:"rgba(123,143,255,.1)", font:"'Space Grotesk',sans-serif",   headingFont:"'Syne',sans-serif",        scrollThumb:"#7b8fff28", glowC:"#7b8fff40", glowC2:"#7b8fff80", checker:"rgba(100,120,255,.010)", pat:"rgba(100,120,255,.008)" },
-  crimson:  { name:"Crimson",  icon:"🔴", bg:"#0f0608", card:"linear-gradient(135deg,rgba(40,8,12,.9),rgba(20,4,6,.96))",    cardBorder:"rgba(255,80,80,0.13)",   accent:"#ff5c5c", accent2:"#cc3333", hl:"#ff9090", text:"#f0d0d0", textDim:"#6a2838", textMid:"#c07080", win:"#ff5c5c", loss:"#5caaff", draw:"#8a5060", inputBg:"rgba(40,8,12,.85)",     btnGrad:"linear-gradient(135deg,#cc3333,#ff5c5c)", btnColor:"#0f0608", skA:"rgba(255,92,92,.04)",   skB:"rgba(255,92,92,.1)",   font:"'DM Sans',sans-serif",          headingFont:"'Playfair Display',serif", scrollThumb:"#ff5c5c28", glowC:"#ff5c5c40", glowC2:"#ff5c5c80", checker:"rgba(255,80,80,.010)",   pat:"rgba(255,80,80,.008)" },
   gold:     { name:"Gold",     icon:"👑", bg:"#0c0a02", card:"linear-gradient(135deg,rgba(35,28,4,.92),rgba(18,14,2,.96))",  cardBorder:"rgba(255,200,0,0.14)",   accent:"#ffd700", accent2:"#cc9900", hl:"#ffe566", text:"#f0e8c0", textDim:"#6a5a18", textMid:"#c0a840", win:"#ffd700", loss:"#ff6060", draw:"#8a7830", inputBg:"rgba(35,28,4,.85)",     btnGrad:"linear-gradient(135deg,#cc9900,#ffd700)", btnColor:"#0c0a02", skA:"rgba(255,215,0,.04)",   skB:"rgba(255,215,0,.1)",   font:"'DM Sans',sans-serif",          headingFont:"'Playfair Display',serif", scrollThumb:"#ffd70028", glowC:"#ffd70040", glowC2:"#ffd70080", checker:"rgba(255,200,0,.010)",   pat:"rgba(255,200,0,.008)" },
-  ice:      { name:"Ice",      icon:"🧊", bg:"#030d14", card:"linear-gradient(135deg,rgba(5,30,50,.9),rgba(2,14,24,.96))",   cardBorder:"rgba(120,220,255,0.13)", accent:"#50d8ff", accent2:"#0099cc", hl:"#90e8ff", text:"#c8eef8", textDim:"#2a6070", textMid:"#70b8d0", win:"#50d8ff", loss:"#ff7090", draw:"#4a8090", inputBg:"rgba(5,30,50,.85)",     btnGrad:"linear-gradient(135deg,#0099cc,#50d8ff)", btnColor:"#030d14", skA:"rgba(80,216,255,.04)",  skB:"rgba(80,216,255,.1)",  font:"'Space Grotesk',sans-serif",   headingFont:"'Syne',sans-serif",        scrollThumb:"#50d8ff28", glowC:"#50d8ff40", glowC2:"#50d8ff80", checker:"rgba(120,220,255,.010)", pat:"rgba(120,220,255,.008)" },
+  crimson:  { name:"Crimson",  icon:"🔴", bg:"#0f0608", card:"linear-gradient(135deg,rgba(40,8,12,.9),rgba(20,4,6,.96))",    cardBorder:"rgba(255,80,80,0.13)",   accent:"#ff5c5c", accent2:"#cc3333", hl:"#ff9090", text:"#f0d0d0", textDim:"#6a2838", textMid:"#c07080", win:"#ff5c5c", loss:"#5caaff", draw:"#8a5060", inputBg:"rgba(40,8,12,.85)",     btnGrad:"linear-gradient(135deg,#cc3333,#ff5c5c)", btnColor:"#0f0608", skA:"rgba(255,92,92,.04)",   skB:"rgba(255,92,92,.1)",   font:"'DM Sans',sans-serif",          headingFont:"'Playfair Display',serif", scrollThumb:"#ff5c5c28", glowC:"#ff5c5c40", glowC2:"#ff5c5c80", checker:"rgba(255,80,80,.010)",   pat:"rgba(255,80,80,.008)" },
   obsidian: { name:"Obsidian", icon:"🖤", bg:"#080808", card:"linear-gradient(135deg,rgba(22,22,22,.92),rgba(10,10,10,.96))",cardBorder:"rgba(200,200,200,0.1)",  accent:"#e0e0e0", accent2:"#999999", hl:"#ffffff", text:"#d8d8d8", textDim:"#444444", textMid:"#999999", win:"#e0e0e0", loss:"#ff6060", draw:"#666666", inputBg:"rgba(22,22,22,.9)",     btnGrad:"linear-gradient(135deg,#555,#e0e0e0)",    btnColor:"#080808", skA:"rgba(200,200,200,.04)", skB:"rgba(200,200,200,.09)",font:"'Space Grotesk',sans-serif",   headingFont:"'Syne',sans-serif",        scrollThumb:"#ffffff18", glowC:"#ffffff28", glowC2:"#ffffff60", checker:"rgba(180,180,180,.010)", pat:"rgba(180,180,180,.008)" },
 };
+
+// ── Player comparison colors (theme-independent, always high contrast) ──────
+// P1 = vivid orange-amber, P2 = vivid violet — contrast on every theme
+const P1_COLOR = "#f97316";   // orange
+const P1_FILL  = "rgba(249,115,22,.18)";
+const P2_COLOR = "#a78bfa";   // violet
+const P2_FILL  = "rgba(167,139,250,.14)";
 
 // ── Global styles ─────────────────────────────────────────────────────────────
 const styleEl = document.createElement("style");
@@ -594,7 +601,7 @@ function ColorTab({games,loading,t}) {
           <XAxis dataKey="name" tick={{fill:t.textDim,fontSize:12}} axisLine={false} tickLine={false}/>
           <YAxis domain={[0,100]} tick={{fill:t.textDim,fontSize:11}} axisLine={false} tickLine={false}/>
           <Tooltip content={tip}/>
-          <Bar dataKey="White" fill={t.accent} radius={[4,4,0,0]}/><Bar dataKey="Black" fill={t.accent2} radius={[4,4,0,0]}/>
+          <Bar dataKey="White" fill="#f8c840" radius={[4,4,0,0]}/><Bar dataKey="Black" fill="#6e7ff3" radius={[4,4,0,0]}/>
           <Legend wrapperStyle={{color:t.textMid,fontSize:12}}/>
         </BarChart>
       </ResponsiveContainer>
@@ -665,19 +672,19 @@ function CompareTab({p1,p2,l1,l2,p2In,setP2In,loadP2,t}) {
   return <div style={{display:"flex",flexDirection:"column",gap:16}}>
     {/* VS section */}
     <div style={{display:"flex",gap:12,alignItems:"stretch",flexWrap:"wrap"}}>
-      <MiniCard p={p1} accent={t.accent}/>
+      <MiniCard p={p1} accent={P1_COLOR}/>
       <div style={{display:"flex",alignItems:"center",justifyContent:"center",padding:"0 4px"}}>
         <div style={{fontFamily:t.headingFont,fontSize:28,fontWeight:900,color:t.textDim,textShadow:`0 0 20px ${t.glowC}`}}>VS</div>
       </div>
-      <MiniCard p={p2} accent={t.hl}/>
+      <MiniCard p={p2} accent={P2_COLOR}/>
     </div>
     <Card t={t}><SecTitle t={t}>Radar Comparison</SecTitle>
       <ResponsiveContainer width="100%" height={250}>
         <RadarChart data={radar} cx="50%" cy="50%">
           <PolarGrid stroke={`${t.accent}15`}/><PolarAngleAxis dataKey="subject" tick={{fill:t.textMid,fontSize:12}}/><PolarRadiusAxis tick={false} axisLine={false} domain={[0,100]}/>
-          <Radar name={p1.profile.username} dataKey={p1.profile.username} stroke={t.accent} fill={t.accent} fillOpacity={.18}/>
-          <Radar name={p2.profile.username} dataKey={p2.profile.username} stroke={t.hl} fill={t.hl} fillOpacity={.12}/>
-          <Legend wrapperStyle={{color:t.textMid,fontSize:12}}/><Tooltip content={tip}/>
+          <Radar name={p1.profile.username} dataKey={p1.profile.username} stroke={P1_COLOR} fill={P1_COLOR} fillOpacity={.2}/>
+          <Radar name={p2.profile.username} dataKey={p2.profile.username} stroke={P2_COLOR} fill={P2_COLOR} fillOpacity={.16}/>
+          <Legend wrapperStyle={{color:t.textMid,fontSize:12,fontFamily:t.font}}/><Tooltip content={tip}/>
         </RadarChart>
       </ResponsiveContainer>
     </Card>
@@ -687,7 +694,7 @@ function CompareTab({p1,p2,l1,l2,p2In,setP2In,loadP2,t}) {
           <XAxis type="number" domain={[0,100]} tick={{fill:t.textDim,fontSize:10}} axisLine={false} tickLine={false}/>
           <YAxis type="category" dataKey="opening" tick={{fill:t.textMid,fontSize:11}} width={120} axisLine={false} tickLine={false}/>
           <Tooltip content={tip}/>
-          <Bar dataKey={p1.profile.username} fill={t.accent} radius={[0,4,4,0]}/><Bar dataKey={p2.profile.username} fill={t.hl} radius={[0,4,4,0]}/>
+          <Bar dataKey={p1.profile.username} fill={P1_COLOR} radius={[0,4,4,0]}/><Bar dataKey={p2.profile.username} fill={P2_COLOR} radius={[0,4,4,0]}/>
           <Legend wrapperStyle={{color:t.textMid,fontSize:12}}/>
         </BarChart>
       </ResponsiveContainer>
@@ -718,9 +725,9 @@ function DnaTab({games,stats,loading,t}) {
 const TABS=[["📊","Overview"],["♟","Openings"],["🎨","Color Stats"],["📈","Elo Breakdown"],["⚔️","Compare"],["🧬","Chess DNA"]];
 
 export default function App() {
-  const [themeKey,setThemeKey]=useState("forest");
+  const [themeKey,setThemeKey]=useState(()=>localStorage.getItem("chessdna-theme")||"slate");
   const t=THEMES[themeKey];
-  useEffect(()=>{ injectTheme(t); document.body.style.background=t.bg; },[t]);
+  useEffect(()=>{ injectTheme(t); document.body.style.background=t.bg; localStorage.setItem("chessdna-theme",themeKey); },[t]);
 
   const [tab,setTab]=useState(0);
   const [p1In,setP1In]=useState("");
