@@ -14,8 +14,8 @@ document.head.appendChild(fl);
 // ── Themes ────────────────────────────────────────────────────────────────────
 // bgType controls the SVG/CSS background pattern rendered per theme
 const THEMES = {
-  slate:    { name:"Slate",    icon:"🎯", bg:"#0d1117", bgType:"circuit",  card:"linear-gradient(135deg,rgba(20,26,36,.92),rgba(10,14,20,.96))",  cardBorder:"rgba(139,148,158,0.15)", accent:"#58a6ff", accent2:"#1f6feb", hl:"#79c0ff", text:"#c9d1d9", textDim:"#4a5568", textMid:"#8b949e", win:"#3fb950", loss:"#f85149", draw:"#6e7681", inputBg:"rgba(20,26,36,.9)",     btnGrad:"linear-gradient(135deg,#1f6feb,#58a6ff)", btnColor:"#0d1117", skA:"rgba(88,166,255,.04)",  skB:"rgba(88,166,255,.1)",  font:"'DM Sans',sans-serif",        headingFont:"'Playfair Display',serif", scrollThumb:"#58a6ff28", glowC:"#58a6ff35", glowC2:"#58a6ff70" },
-  forest:   { name:"Forest",   icon:"🌲", bg:"#040f08", bgType:"chess",    card:"linear-gradient(135deg,rgba(0,44,22,.9),rgba(0,18,9,.96))",    cardBorder:"rgba(0,255,136,0.13)",   accent:"#00ff88", accent2:"#00c860", hl:"#39ffa0", text:"#c8f0dc", textDim:"#3a6048", textMid:"#7ab898", win:"#00ff88", loss:"#ff5555", draw:"#5a8e6e", inputBg:"rgba(0,40,20,.85)",     btnGrad:"linear-gradient(135deg,#00c860,#00ff88)", btnColor:"#030e06", skA:"rgba(0,255,136,.04)",   skB:"rgba(0,255,136,.1)",   font:"'DM Sans',sans-serif",          headingFont:"'Playfair Display',serif", scrollThumb:"#00ff8828", glowC:"#00ff8840", glowC2:"#00ff8880" },
+  slate:    { name:"Slate",    icon:"🎯", bg:"#0d1117", bgType:"grid",  card:"linear-gradient(135deg,rgba(20,26,36,.92),rgba(10,14,20,.96))",  cardBorder:"rgba(139,148,158,0.15)", accent:"#58a6ff", accent2:"#1f6feb", hl:"#79c0ff", text:"#c9d1d9", textDim:"#4a5568", textMid:"#8b949e", win:"#3fb950", loss:"#f85149", draw:"#6e7681", inputBg:"rgba(20,26,36,.9)",     btnGrad:"linear-gradient(135deg,#1f6feb,#58a6ff)", btnColor:"#0d1117", skA:"rgba(88,166,255,.04)",  skB:"rgba(88,166,255,.1)",  font:"'DM Sans',sans-serif",        headingFont:"'Playfair Display',serif", scrollThumb:"#58a6ff28", glowC:"#58a6ff35", glowC2:"#58a6ff70" },
+  forest:   { name:"Forest",   icon:"🌲", bg:"#040f08", bgType:"leaves",    card:"linear-gradient(135deg,rgba(0,44,22,.9),rgba(0,18,9,.96))",    cardBorder:"rgba(0,255,136,0.13)",   accent:"#00ff88", accent2:"#00c860", hl:"#39ffa0", text:"#c8f0dc", textDim:"#3a6048", textMid:"#7ab898", win:"#00ff88", loss:"#ff5555", draw:"#5a8e6e", inputBg:"rgba(0,40,20,.85)",     btnGrad:"linear-gradient(135deg,#00c860,#00ff88)", btnColor:"#030e06", skA:"rgba(0,255,136,.04)",   skB:"rgba(0,255,136,.1)",   font:"'DM Sans',sans-serif",          headingFont:"'Playfair Display',serif", scrollThumb:"#00ff8828", glowC:"#00ff8840", glowC2:"#00ff8880" },
   midnight: { name:"Midnight", icon:"🌙", bg:"#06070f", bgType:"stars",    card:"linear-gradient(135deg,rgba(15,18,50,.9),rgba(6,7,25,.96))",   cardBorder:"rgba(100,120,255,0.15)", accent:"#7b8fff", accent2:"#5060dd", hl:"#a0aaff", text:"#d0d4f8", textDim:"#404880", textMid:"#8890cc", win:"#7b8fff", loss:"#ff6b8a", draw:"#5a6090", inputBg:"rgba(15,18,50,.85)",    btnGrad:"linear-gradient(135deg,#5060dd,#7b8fff)", btnColor:"#06070f", skA:"rgba(123,143,255,.04)", skB:"rgba(123,143,255,.1)", font:"'Space Grotesk',sans-serif",   headingFont:"'Syne',sans-serif",        scrollThumb:"#7b8fff28", glowC:"#7b8fff40", glowC2:"#7b8fff80" },
   gold:     { name:"Gold",     icon:"👑", bg:"#0c0a02", bgType:"diamonds", card:"linear-gradient(135deg,rgba(35,28,4,.92),rgba(18,14,2,.96))",  cardBorder:"rgba(255,200,0,0.14)",   accent:"#ffd700", accent2:"#cc9900", hl:"#ffe566", text:"#f0e8c0", textDim:"#6a5a18", textMid:"#c0a840", win:"#ffd700", loss:"#ff6060", draw:"#8a7830", inputBg:"rgba(35,28,4,.85)",     btnGrad:"linear-gradient(135deg,#cc9900,#ffd700)", btnColor:"#0c0a02", skA:"rgba(255,215,0,.04)",   skB:"rgba(255,215,0,.1)",   font:"'DM Sans',sans-serif",          headingFont:"'Playfair Display',serif", scrollThumb:"#ffd70028", glowC:"#ffd70040", glowC2:"#ffd70080" },
   crimson:  { name:"Crimson",  icon:"🔴", bg:"#0f0608", bgType:"hex",      card:"linear-gradient(135deg,rgba(40,8,12,.9),rgba(20,4,6,.96))",    cardBorder:"rgba(255,80,80,0.13)",   accent:"#ff5c5c", accent2:"#cc3333", hl:"#ff9090", text:"#f0d0d0", textDim:"#6a2838", textMid:"#c07080", win:"#ff5c5c", loss:"#5caaff", draw:"#8a5060", inputBg:"rgba(40,8,12,.85)",     btnGrad:"linear-gradient(135deg,#cc3333,#ff5c5c)", btnColor:"#0f0608", skA:"rgba(255,92,92,.04)",   skB:"rgba(255,92,92,.1)",   font:"'DM Sans',sans-serif",          headingFont:"'Playfair Display',serif", scrollThumb:"#ff5c5c28", glowC:"#ff5c5c40", glowC2:"#ff5c5c80" },
@@ -26,21 +26,19 @@ const THEMES = {
 function ThemeBg({t}) {
   const a = t.accent;
   const patterns = {
-    // Slate: circuit board lines
-    circuit: <svg style={{position:"fixed",inset:0,width:"100%",height:"100%",zIndex:0,pointerEvents:"none",opacity:.07}} xmlns="http://www.w3.org/2000/svg">
-      <defs><pattern id="circuit" width="80" height="80" patternUnits="userSpaceOnUse">
-        <path d="M0 40h20M60 40h20M40 0v20M40 60v20M20 40h20v-20M40 20h20v20" stroke={a} strokeWidth="1" fill="none"/>
-        <circle cx="20" cy="40" r="2.5" fill={a}/><circle cx="60" cy="40" r="2.5" fill={a}/>
-        <circle cx="40" cy="20" r="2.5" fill={a}/><circle cx="40" cy="60" r="2.5" fill={a}/>
+    // Slate: simple subtle dot grid — very minimal, barely visible
+    grid: <svg style={{position:"fixed",inset:0,width:"100%",height:"100%",zIndex:0,pointerEvents:"none",opacity:.18}} xmlns="http://www.w3.org/2000/svg">
+      <defs><pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+        <circle cx="16" cy="16" r=".7" fill={a}/>
       </pattern></defs>
-      <rect width="100%" height="100%" fill="url(#circuit)"/>
+      <rect width="100%" height="100%" fill="url(#grid)"/>
     </svg>,
-    // Forest: checkerboard (chess board feel)
-    chess: <svg style={{position:"fixed",inset:0,width:"100%",height:"100%",zIndex:0,pointerEvents:"none",opacity:.05}} xmlns="http://www.w3.org/2000/svg">
-      <defs><pattern id="chess" width="48" height="48" patternUnits="userSpaceOnUse">
-        <rect width="24" height="24" fill={a}/><rect x="24" y="24" width="24" height="24" fill={a}/>
+    // Forest: organic diagonal line stripes — no checkerboard
+    leaves: <svg style={{position:"fixed",inset:0,width:"100%",height:"100%",zIndex:0,pointerEvents:"none",opacity:.06}} xmlns="http://www.w3.org/2000/svg">
+      <defs><pattern id="leaves" width="40" height="40" patternUnits="userSpaceOnUse" patternTransform="rotate(35)">
+        <line x1="0" y1="0" x2="0" y2="40" stroke={a} strokeWidth="1.2"/>
       </pattern></defs>
-      <rect width="100%" height="100%" fill="url(#chess)"/>
+      <rect width="100%" height="100%" fill="url(#leaves)"/>
     </svg>,
     // Midnight: star field
     stars: <svg style={{position:"fixed",inset:0,width:"100%",height:"100%",zIndex:0,pointerEvents:"none"}} xmlns="http://www.w3.org/2000/svg">
@@ -497,49 +495,130 @@ function WDLBar({wins,draws,losses,t}) {
 // ── Trading Card Badge ────────────────────────────────────────────────────────
 function TradingCard({p,profile,t}) {
   const [copied,setCopied]=useState(false);
+  const [hovered,setHovered]=useState(false);
   if (!p) return null;
   const share = () => {
-    const base = window.location.origin + window.location.pathname;
-    const url = `${base}#/${profile.username}`;
-    const text = `♟ ${profile.username} is "${p.title}" on Chess DNA | ${p.winPct}% win rate | ${url}`;
-    navigator.clipboard.writeText(text).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2000);});
+    const url = window.location.origin + window.location.pathname + `#/${profile.username}`;
+    navigator.clipboard.writeText(url).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2000);});
   };
-  return <div style={{perspective:800}}>
-    <div style={{background:`linear-gradient(135deg,${p.titleColor}22,${t.bg}ee)`,border:`2px solid ${p.titleColor}60`,borderRadius:18,padding:"28px 24px",position:"relative",overflow:"hidden",boxShadow:`0 0 60px ${p.titleColor}20,inset 0 1px 0 ${p.titleColor}30`,animation:"revealCard .7s ease both",maxWidth:340,margin:"0 auto"}}>
-      {/* holographic sheen */}
-      <div style={{position:"absolute",inset:0,background:`repeating-linear-gradient(45deg,${p.titleColor}04 0,${p.titleColor}04 1px,transparent 1px,transparent 8px)`,pointerEvents:"none"}}/>
-      <div style={{position:"absolute",top:-40,right:-40,width:160,height:160,borderRadius:"50%",background:`radial-gradient(circle,${p.titleColor}18,transparent 70%)`,pointerEvents:"none"}}/>
+  const c = p.titleColor;
+  const tags = [
+    p.speed==="speed"?"⚡ Speed Demon":p.speed==="deep"?"🧠 Deep Thinker":"⚔️ Sharp Player",
+    p.aggression==="high"?"🔥 Aggressive":p.aggression==="mid"?"⚖️ Balanced":"🛡️ Defensive",
+    p.breadth==="explorer"?"🌍 Explorer":p.breadth==="specialist"?"📌 Specialist":"📐 Versatile",
+  ];
+  return (
+    <div style={{maxWidth:400,margin:"0 auto",animation:"revealCard .6s ease both"}}>
+      <div
+        onMouseEnter={()=>setHovered(true)}
+        onMouseLeave={()=>setHovered(false)}
+        style={{
+          position:"relative",overflow:"hidden",borderRadius:22,
+          background:`linear-gradient(160deg,${c}28 0%,${t.bg}cc 40%,${t.bg}f0 100%)`,
+          border:`1.5px solid ${c}55`,
+          boxShadow:`0 0 0 1px ${c}18 inset,0 32px 80px rgba(0,0,0,.65),0 0 80px ${c}18`,
+          transform:hovered?"translateY(-3px) scale(1.008)":"translateY(0) scale(1)",
+          transition:"transform .3s cubic-bezier(.4,0,.2,1),box-shadow .3s ease",
+        }}>
 
-      <div style={{textAlign:"center",position:"relative"}}>
-        <div style={{fontSize:10,fontWeight:700,letterSpacing:".18em",textTransform:"uppercase",color:p.titleColor,opacity:.7,marginBottom:8,fontFamily:t.font}}>Chess DNA · Player Card</div>
-        <div style={{fontSize:52,marginBottom:8,animation:"float 3s ease-in-out infinite"}}>{p.icon}</div>
-        <div style={{fontFamily:t.headingFont,fontSize:22,fontWeight:900,color:p.titleColor,animation:"glow 3s ease-in-out infinite",lineHeight:1.1,marginBottom:4}}>{p.title}</div>
-        <div style={{fontSize:12,color:t.textMid,marginBottom:4,fontFamily:t.font}}>{profile.username}</div>
-        <div style={{display:"inline-block",background:`${p.titleColor}20`,border:`1px solid ${p.titleColor}40`,borderRadius:20,padding:"3px 12px",fontSize:11,color:p.titleColor,fontWeight:600,fontFamily:t.font,marginBottom:16}}>{p.archetype}</div>
+        {/* Top shine streak */}
+        <div style={{position:"absolute",top:0,left:0,right:0,height:1,background:`linear-gradient(90deg,transparent,${c}60,transparent)`,pointerEvents:"none"}}/>
 
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:16}}>
-          {[["WIN",p.winPct+"%",t.win],["DRAW",p.drawPct+"%",t.draw],["LOSS",p.lossPct+"%",t.loss]].map(([l,v,c])=>(
-            <div key={l} style={{background:`${c}14`,borderRadius:8,padding:"8px 4px",textAlign:"center"}}>
-              <div style={{fontSize:9,color:c,fontWeight:700,letterSpacing:".08em",fontFamily:t.font}}>{l}</div>
-              <div style={{fontSize:18,fontWeight:700,color:c,fontFamily:t.headingFont}}>{v}</div>
+        {/* Radial glow blobs */}
+        <div style={{position:"absolute",top:-60,right:-40,width:200,height:200,borderRadius:"50%",background:`radial-gradient(circle,${c}20,transparent 65%)`,pointerEvents:"none"}}/>
+        <div style={{position:"absolute",bottom:-40,left:-30,width:150,height:150,borderRadius:"50%",background:`radial-gradient(circle,${c}10,transparent 65%)`,pointerEvents:"none"}}/>
+
+        {/* Diagonal shimmer lines */}
+        <div style={{position:"absolute",inset:0,backgroundImage:`repeating-linear-gradient(120deg,${c}05 0px,${c}05 1px,transparent 1px,transparent 28px)`,pointerEvents:"none"}}/>
+
+        <div style={{position:"relative",padding:"32px 28px 24px"}}>
+
+          {/* Header row */}
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:24}}>
+            <div>
+              <div style={{fontSize:9,fontWeight:800,letterSpacing:".22em",textTransform:"uppercase",color:c,opacity:.65,fontFamily:t.font,marginBottom:2}}>Chess DNA</div>
+              <div style={{fontSize:9,fontWeight:600,letterSpacing:".14em",textTransform:"uppercase",color:t.textDim,fontFamily:t.font}}>Player Card</div>
             </div>
-          ))}
+            <div style={{fontSize:9,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:t.textDim,fontFamily:t.font,textAlign:"right"}}>
+              <div style={{color:c,opacity:.7}}>♟ {profile.username||"—"}</div>
+            </div>
+          </div>
+
+          {/* Icon + Title */}
+          <div style={{textAlign:"center",marginBottom:22}}>
+            <div style={{fontSize:58,lineHeight:1,marginBottom:12,filter:`drop-shadow(0 0 18px ${c}60)`,animation:"float 3s ease-in-out infinite",display:"inline-block"}}>{p.icon}</div>
+            <div style={{fontFamily:t.headingFont,fontSize:30,fontWeight:900,color:c,lineHeight:1.05,letterSpacing:"-.02em",marginBottom:6,animation:"glow 3s ease-in-out infinite"}}>{p.title}</div>
+            <div style={{display:"inline-flex",alignItems:"center",gap:6,background:`${c}15`,border:`1px solid ${c}35`,borderRadius:20,padding:"4px 14px"}}>
+              <div style={{width:5,height:5,borderRadius:"50%",background:c}}/>
+              <span style={{fontSize:11,color:c,fontWeight:700,letterSpacing:".06em",fontFamily:t.font}}>{p.archetype}</span>
+            </div>
+          </div>
+
+          {/* Description */}
+          <div style={{fontSize:13,color:t.textMid,lineHeight:1.6,textAlign:"center",marginBottom:22,padding:"0 4px",fontFamily:t.font,fontStyle:"italic"}}>{p.desc}</div>
+
+          {/* Divider */}
+          <div style={{height:1,background:`linear-gradient(90deg,transparent,${c}30,transparent)`,marginBottom:20}}/>
+
+          {/* Stats row */}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:20}}>
+            {[["Wins",p.wins,p.winPct,t.win],["Draws",p.draws,p.drawPct,t.draw],["Losses",p.losses,p.lossPct,t.loss]].map(([label,val,pct,col])=>(
+              <div key={label} style={{background:`${col}0e`,border:`1px solid ${col}25`,borderRadius:12,padding:"12px 8px",textAlign:"center"}}>
+                <div style={{fontSize:9,color:col,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",fontFamily:t.font,marginBottom:6,opacity:.8}}>{label}</div>
+                <div style={{fontSize:26,fontWeight:800,color:col,fontFamily:t.headingFont,lineHeight:1}}>{val}</div>
+                <div style={{fontSize:11,color:col,opacity:.6,marginTop:3,fontFamily:t.font}}>{pct}%</div>
+              </div>
+            ))}
+          </div>
+
+          {/* WDL bar */}
+          <div style={{height:6,borderRadius:6,overflow:"hidden",display:"flex",gap:2,marginBottom:16}}>
+            <div style={{flex:p.winPct,background:t.win,borderRadius:4,transition:"flex .6s ease"}}/>
+            <div style={{flex:p.drawPct,background:t.draw,borderRadius:4,transition:"flex .6s ease"}}/>
+            <div style={{flex:p.lossPct,background:t.loss,borderRadius:4,transition:"flex .6s ease"}}/>
+          </div>
+
+          {/* Extra stats */}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:20}}>
+            {[
+              ["Fav. Format",p.favTC],
+              ["Avg Opponent",p.avgOpp||"—"],
+              ["Best Win Elo",p.bestWin||"—"],
+              ["Openings",p.uniqueOpenings],
+            ].map(([label,val])=>(
+              <div key={label} style={{background:`${c}08`,borderRadius:10,padding:"10px 12px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <span style={{fontSize:11,color:t.textDim,fontFamily:t.font}}>{label}</span>
+                <span style={{fontSize:13,fontWeight:700,color:t.text,fontFamily:t.headingFont,textTransform:"capitalize"}}>{val}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Style tags */}
+          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:22,justifyContent:"center"}}>
+            {tags.map(tag=>(
+              <span key={tag} style={{background:`${c}12`,border:`1px solid ${c}28`,borderRadius:20,padding:"5px 13px",fontSize:11,color:c,fontWeight:600,fontFamily:t.font,letterSpacing:".02em"}}>{tag}</span>
+            ))}
+          </div>
+
+          {/* Divider */}
+          <div style={{height:1,background:`linear-gradient(90deg,transparent,${c}20,transparent)`,marginBottom:18}}/>
+
+          {/* Share button */}
+          <button onClick={share} style={{
+            width:"100%",padding:"12px",borderRadius:12,border:`1px solid ${c}40`,
+            background:copied?`${c}25`:`${c}14`,
+            color:copied?c:t.textMid,cursor:"pointer",fontFamily:t.font,fontSize:13,fontWeight:600,
+            transition:"all .2s",letterSpacing:".02em",
+            display:"flex",alignItems:"center",justifyContent:"center",gap:8,
+          }}>
+            {copied
+              ? <><span style={{color:c}}>✓</span> Link copied!</>
+              : <><span style={{opacity:.6}}>🔗</span> Share this card</>}
+          </button>
         </div>
-
-        <WDLBar wins={p.wins} draws={p.draws} losses={p.losses} t={t}/>
-
-        <div style={{display:"flex",gap:6,marginTop:14,justifyContent:"center",flexWrap:"wrap"}}>
-          {[p.speed==="speed"?"⚡ Speed":p.speed==="deep"?"🧠 Deep":"⚔️ Sharp", p.aggression==="high"?"🔥 Aggressive":p.aggression==="mid"?"⚖️ Balanced":"🛡️ Defensive", p.breadth==="explorer"?"🌍 Explorer":p.breadth==="specialist"?"📌 Specialist":"📐 Versatile"].map(tag=>(
-            <span key={tag} style={{background:`${p.titleColor}14`,border:`1px solid ${p.titleColor}30`,borderRadius:20,padding:"3px 10px",fontSize:11,color:p.titleColor,fontWeight:600,fontFamily:t.font}}>{tag}</span>
-          ))}
-        </div>
-
-        <button onClick={share} className="secondary" style={{marginTop:16,width:"100%",fontSize:12}}>
-          {copied?"✓ Copied to clipboard!":"📤 Share Card"}
-        </button>
       </div>
     </div>
-  </div>;
+  );
 }
 
 // ── Hero Player Card ──────────────────────────────────────────────────────────
