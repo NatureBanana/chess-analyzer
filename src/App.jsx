@@ -170,37 +170,131 @@ function computeStreak(games) {
 }
 
 function computeInsights(games) {
-  // Best hour to play
-  const hourMap = {};
-  games.filter(g=>g.hour!==null).forEach(g=>{
-    if(!hourMap[g.hour]) hourMap[g.hour]={wins:0,total:0};
-    hourMap[g.hour].total++;
-    if(g.result==="win") hourMap[g.hour].wins++;
-  });
-  let bestHour=null, bestHourWinPct=0;
-  Object.entries(hourMap).forEach(([h,d])=>{ if(d.total>=3){ const wp=d.wins/d.total; if(wp>bestHourWinPct){bestHourWinPct=wp;bestHour=parseInt(h);} } });
-  const formatHour = h => { if(h===null) return null; const ampm=h>=12?"pm":"am"; const h12=h%12||12; return `${h12}${ampm}`; };
-
-  // Hot streak
-  const streak = computeStreak(games);
-
-  // Nemesis opening (most losses)
+  const total = games.length;
+  if (!total) return [];
+  const wins = games.filter(g=>g.result==="win").length;
+  const losses = games.filter(g=>g.result==="loss").length;
+  const draws = games.filter(g=>g.result==="draw").length;
+  const winPct = wins/total;
   const openings = aggOpenings(games);
-  const nemesis = openings.filter(o=>o.games>=3).sort((a,b)=>b.losses-a.losses)[0];
+  const streak = computeStreak(games);
+  const formatHour = h => { const ampm=h>=12?"pm":"am"; const h12=h%12||12; return `${h12}${ampm}`; };
 
-  // Rating over time from game dates
+  // ── Build every possible insight, each with: icon, label, value, sub, color, detail, score (higher = more interesting) ──
+  const all = [];
+
+  // 1. Best hour
+  const hourMap = {};
+  games.filter(g=>g.hour!=null).forEach(g=>{
+    if(!hourMap[g.hour])hourMap[g.hour]={wins:0,total:0,losses:0};
+    hourMap[g.hour].total++;
+    if(g.result==="win")hourMap[g.hour].wins++;
+    if(g.result==="loss")hourMap[g.hour].losses++;
+  });
+  const hourEntries = Object.entries(hourMap).filter(([,d])=>d.total>=4);
+  if (hourEntries.length) {
+    const [bh,bd] = hourEntries.sort((a,b)=>(b[1].wins/b[1].total)-(a[1].wins/a[1].total))[0];
+    const hwp = Math.round(bd.wins/bd.total*100);
+    const [wh,wd] = hourEntries.sort((a,b)=>(b[1].losses/b[1].total)-(a[1].losses/a[1].total))[0];
+    const wwp = Math.round(wd.losses/wd.total*100);
+    all.push({ id:"best_hour", icon:"🕐", label:"Peak hour", value:`You peak at ${formatHour(parseInt(bh))}`, sub:`${hwp}% win rate · ${bd.total} games played at this hour`, color:null, detail:`You've played ${bd.total} games at ${formatHour(parseInt(bh))} with a ${hwp}% win rate. ${hwp>65?"This is where you're most dangerous.":hwp>50?"Solid performance at this hour.":"Consider playing at different times."} Your worst hour is ${formatHour(parseInt(wh))} (${wwp}% loss rate).`, score: hwp > 55 ? hwp : 20 });
+  }
+
+  // 2. Current streak
+  if (streak.count >= 2) {
+    const sc = streak.type==="win"?"#3fb950":streak.type==="loss"?"#f85149":"#6e7681";
+    all.push({ id:"streak", icon: streak.type==="win"?"🔥":streak.type==="loss"?"❄️":"➖", label:"Current streak", value:`${streak.count} ${streak.type}s in a row`, sub:`Active ${streak.type} streak`, color:sc, detail:`You're on a ${streak.count}-game ${streak.type} streak. ${streak.type==="win"&&streak.count>=5?"You're on fire right now — capitalize on this momentum.":streak.type==="win"?"Keep it going!":streak.type==="loss"&&streak.count>=4?"Consider taking a break and coming back fresh.":"These things happen — shake it off."}`, score: streak.type==="win" ? streak.count*12 : streak.type==="loss" ? streak.count*8 : 5 });
+  }
+
+  // 3. Nemesis opening
+  const nemesis = openings.filter(o=>o.games>=4).sort((a,b)=>b.lossPct-a.lossPct)[0];
+  if (nemesis) {
+    all.push({ id:"nemesis", icon:"💀", label:"Nemesis opening", value:nemesis.opening.length>26?nemesis.opening.slice(0,24)+"…":nemesis.opening, sub:`${nemesis.losses} losses in ${nemesis.games} games`, color:"#f85149", detail:`You struggle badly against ${nemesis.opening} — a ${nemesis.lossPct}% loss rate over ${nemesis.games} games. ${nemesis.eco!=="?"?`ECO code: ${nemesis.eco}. `:""}Consider studying this line or avoiding it altogether.`, score: nemesis.lossPct > 60 ? nemesis.lossPct : 30 });
+  }
+
+  // 4. Signature opening (best win rate, min 5 games)
+  const signature = openings.filter(o=>o.games>=5).sort((a,b)=>b.winPct-a.winPct)[0];
+  if (signature) {
+    all.push({ id:"signature", icon:"⭐", label:"Signature opening", value:signature.opening.length>26?signature.opening.slice(0,24)+"…":signature.opening, sub:`${signature.winPct}% win rate · ${signature.games} games`, color:"#f8c840", detail:`Your best opening is ${signature.opening} with a ${signature.winPct}% win rate over ${signature.games} games. ${signature.winPct>70?"You clearly know this line deeply — it's your weapon.":"This is your most reliable choice right now."} Avg opponent: ${signature.avgOpp||"unknown"}.`, score: signature.winPct > 60 ? signature.winPct : 25 });
+  }
+
+  // 5. Color preference
+  const wGames = games.filter(g=>g.color==="white").length;
+  const bGames = games.filter(g=>g.color==="black").length;
+  const wWins = games.filter(g=>g.color==="white"&&g.result==="win").length;
+  const bWins = games.filter(g=>g.color==="black"&&g.result==="win").length;
+  const wWp = wGames ? Math.round(wWins/wGames*100) : 0;
+  const bWp = bGames ? Math.round(bWins/bGames*100) : 0;
+  const colorDiff = Math.abs(wWp - bWp);
+  if (colorDiff >= 8 && Math.max(wGames,bGames) >= 10) {
+    const better = wWp > bWp ? "White" : "Black";
+    const betterWp = wWp > bWp ? wWp : bWp;
+    const worseWp = wWp > bWp ? bWp : wWp;
+    all.push({ id:"color_pref", icon: better==="White"?"♙":"♟", label:"Color advantage", value:`${colorDiff}% better with ${better}`, sub:`${better} ${betterWp}% vs ${better==="White"?"Black":"White"} ${worseWp}%`, color: better==="White"?"#f8c840":"#6e7ff3", detail:`You win ${betterWp}% of games as ${better} but only ${worseWp}% as ${better==="White"?"Black":"White"}. That's a ${colorDiff}-point gap. ${colorDiff>15?"This is a significant imbalance worth addressing.":"Slight preference but not alarming."}`, score: colorDiff * 3 });
+  }
+
+  // 6. Time control mastery
+  const tcWin = {};
+  games.forEach(g=>{ if(!tcWin[g.timeControl])tcWin[g.timeControl]={w:0,t:0}; tcWin[g.timeControl].t++; if(g.result==="win")tcWin[g.timeControl].w++; });
+  const tcRanked = Object.entries(tcWin).filter(([,d])=>d.t>=8).map(([tc,d])=>({tc,wp:Math.round(d.w/d.t*100),games:d.t})).sort((a,b)=>b.wp-a.wp);
+  if (tcRanked.length >= 2) {
+    const best = tcRanked[0], worst = tcRanked[tcRanked.length-1];
+    if (best.wp - worst.wp >= 10) {
+      all.push({ id:"tc_master", icon:"⏱️", label:"Time control edge", value:`${best.tc} is your strongest`, sub:`${best.wp}% wins vs ${worst.wp}% in ${worst.tc}`, color:null, detail:`You win ${best.wp}% in ${best.tc} (${best.games} games) but only ${worst.wp}% in ${worst.tc}. ${best.wp-worst.wp>20?"Stick to your strength — queue more "+best.tc+".":"Worth knowing when choosing time controls."}`, score: (best.wp - worst.wp) * 2 });
+    }
+  }
+
+  // 7. Upset king (wins vs much higher rated)
+  const upsets = games.filter(g=>g.result==="win"&&g.oppElo).map(g=>g.oppElo);
+  const ownElos = games.filter(g=>g.oppElo).map(g=>g.oppElo);
+  const avgOpp = ownElos.length ? Math.round(ownElos.reduce((a,b)=>a+b,0)/ownElos.length) : 0;
+  const bigUpsets = games.filter(g=>g.result==="win"&&g.oppElo&&g.oppElo>avgOpp+150).length;
+  if (bigUpsets >= 2) {
+    all.push({ id:"upset", icon:"🎯", label:"Upset specialist", value:`${bigUpsets} upsets vs stronger players`, sub:`Beat opponents 150+ points above avg`, color:"#a78bfa", detail:`You've pulled off ${bigUpsets} upsets against opponents rated 150+ above your average. ${bigUpsets>=5?"You clearly don't care about ratings — you just play chess.":"Shows you can compete above your level when it matters."}`, score: bigUpsets * 15 });
+  }
+
+  // 8. Consistency score (how stable is day-to-day win%)
   const byDate = {};
-  games.forEach(g=>{ if(g.date && g.date!=="?") byDate[g.date]=(byDate[g.date]||[]); byDate[g.date].push(g); });
-  const sortedDates = Object.keys(byDate).sort();
-  // Build running win% per date for rating trend proxy
-  const ratingTrend = sortedDates.slice(-20).map((date,i)=>({
-    date: date.slice(5), // MM.DD
-    games: byDate[date].length,
-    wins: byDate[date].filter(g=>g.result==="win").length,
-    index: i,
-  }));
+  games.forEach(g=>{ if(g.date&&g.date!=="?"){if(!byDate[g.date])byDate[g.date]={w:0,t:0}; byDate[g.date].t++; if(g.result==="win")byDate[g.date].w++; } });
+  const dayWps = Object.values(byDate).filter(d=>d.t>=3).map(d=>Math.round(d.w/d.t*100));
+  if (dayWps.length >= 5) {
+    const avg = dayWps.reduce((a,b)=>a+b,0)/dayWps.length;
+    const variance = Math.sqrt(dayWps.reduce((a,b)=>a+(b-avg)**2,0)/dayWps.length);
+    if (variance < 15) {
+      all.push({ id:"consistent", icon:"📐", label:"Rock solid", value:`${Math.round(avg)}% avg with low variance`, sub:`Very consistent day-to-day performance`, color:"#34d399", detail:`Your daily win% rarely swings wildly — variance of just ${Math.round(variance)}%. Avg: ${Math.round(avg)}% per session. This suggests emotional stability and steady preparation rather than hot/cold streaks.`, score: 60 - variance });
+    } else if (variance > 30) {
+      all.push({ id:"streaky", icon:"🎢", label:"Streaky player", value:"Wild swings in performance", sub:`High variance day-to-day`, color:"#fb923c", detail:`Your win% varies wildly between sessions (variance: ${Math.round(variance)}%). You're capable of brilliant days (${Math.max(...dayWps)}%) and terrible ones (${Math.min(...dayWps)}%). External factors like mood or time of day may affect you more than most.`, score: variance * 0.8 });
+    }
+  }
 
-  return { bestHour:formatHour(bestHour), bestHourWinPct:Math.round(bestHourWinPct*100), streak, nemesis, ratingTrend };
+  // 9. Draw tendency
+  const drawRate = draws/total;
+  if (drawRate > 0.15 && draws >= 5) {
+    all.push({ id:"draw_master", icon:"🤝", label:"Draw specialist", value:`${Math.round(drawRate*100)}% draw rate`, sub:`${draws} draws from ${total} games`, color:"#6e7681", detail:`You draw ${Math.round(drawRate*100)}% of your games — ${drawRate>0.25?"unusually high":"above average"}. This often means you're good at holding difficult positions and know when to split the point. Against stronger players this could be a strength.`, score: drawRate > 0.2 ? drawRate * 150 : 10 });
+  }
+
+  // 10. Volume / grind stat
+  if (total >= 100) {
+    const gamesPerDay = (() => { const dates = new Set(games.filter(g=>g.date&&g.date!=="?").map(g=>g.date)); return dates.size > 0 ? (total/dates.size).toFixed(1) : null; })();
+    all.push({ id:"volume", icon:"⚙️", label:"High volume player", value:`${total} games analyzed`, sub: gamesPerDay ? `~${gamesPerDay} games per active day` : `${total} total games`, color:null, detail:`You've played ${total} games in the last 3 months${gamesPerDay?` — averaging ${gamesPerDay} games per day you play`:""}. ${total>300?"You're extremely active. Volume at this level builds deep pattern recognition.":total>150?"Solid playing frequency — enough to improve quickly.":"Good sample size for meaningful analysis."}`, score: Math.min(total/5, 40) });
+  }
+
+  // 11. Endgame conversion
+  const longGames = games.filter(g=>g.timeControl==="rapid"||g.timeControl==="daily");
+  if (longGames.length >= 10) {
+    const lgWp = Math.round(longGames.filter(g=>g.result==="win").length/longGames.length*100);
+    const shortGames = games.filter(g=>g.timeControl==="bullet"||g.timeControl==="blitz");
+    const sgWp = shortGames.length >= 10 ? Math.round(shortGames.filter(g=>g.result==="win").length/shortGames.length*100) : null;
+    if (sgWp && lgWp - sgWp >= 10) {
+      all.push({ id:"slow_expert", icon:"🧠", label:"Slow game expert", value:`${lgWp}% in long games`, sub:`vs ${sgWp}% in fast games`, color:"#60a5fa", detail:`You win ${lgWp}% in rapid/daily but only ${sgWp}% in fast formats. A ${lgWp-sgWp}-point gap. Your strength is deep calculation and planning — you shine when given time to think.`, score: (lgWp - sgWp) * 3 });
+    } else if (sgWp && sgWp - lgWp >= 10) {
+      all.push({ id:"speed_expert", icon:"⚡", label:"Speed demon", value:`${sgWp}% in fast games`, sub:`vs ${lgWp}% in slow games`, color:"#ffdd00", detail:`You win ${sgWp}% in bullet/blitz but only ${lgWp}% in longer formats. Speed suits your instinctive style — you play better under pressure than when over-thinking.`, score: (sgWp - lgWp) * 3 });
+    }
+  }
+
+  // ── Pick top 3 by score, always unique categories ──
+  const sorted = [...all].sort((a,b)=>b.score-a.score);
+  return sorted.slice(0,3);
 }
 
 function computePersonality(games, stats) {
@@ -309,8 +403,8 @@ function TradingCard({p,profile,t}) {
   if (!p) return null;
   const share = () => {
     const base = window.location.origin + window.location.pathname;
-    const url = `${base}#/${profile.username}/card`;
-    const text = `♟ Chess DNA: ${profile.username} is "${p.title}" | Win rate: ${p.winPct}% | Check out my chess personality: ${url}`;
+    const url = `${base}#/${profile.username}`;
+    const text = `♟ ${profile.username} is "${p.title}" on Chess DNA | ${p.winPct}% win rate | ${url}`;
     navigator.clipboard.writeText(text).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2000);});
   };
   return <div style={{perspective:800}}>
@@ -483,27 +577,31 @@ function PerformanceChart({games,stats,loading,t}) {
 }
 
 // ── Insights Column ───────────────────────────────────────────────────────────
+function InsightCard({item,t}) {
+  const [hovered,setHovered]=useState(false);
+  return <div
+    onMouseEnter={()=>setHovered(true)}
+    onMouseLeave={()=>setHovered(false)}
+    style={{background:hovered?`${item.color||t.accent}12`:`${t.accent}06`,border:`1px solid ${hovered?(item.color||t.accent)+"50":t.cardBorder}`,borderRadius:10,padding:"12px 14px",display:"flex",gap:12,alignItems:"flex-start",cursor:"default",transition:"all .2s",position:"relative"}}>
+    <span style={{fontSize:22,flexShrink:0}}>{item.icon}</span>
+    <div style={{flex:1,minWidth:0}}>
+      <div style={{fontSize:10,color:t.textDim,textTransform:"uppercase",letterSpacing:".07em",marginBottom:3,fontFamily:t.font}}>{item.label}</div>
+      <div style={{fontSize:14,fontWeight:600,color:item.color||t.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.value}</div>
+      {!hovered&&item.sub&&<div style={{fontSize:11,color:t.textDim,marginTop:2}}>{item.sub}</div>}
+      {hovered&&<div style={{fontSize:12,color:t.textMid,marginTop:6,lineHeight:1.55,whiteSpace:"normal",animation:"fadeInUp .15s ease both"}}>{item.detail}</div>}
+    </div>
+    <div style={{fontSize:10,color:t.textDim,flexShrink:0,marginTop:2}}>{hovered?"▲":"▼"}</div>
+  </div>;
+}
+
 function InsightsColumn({games,loading,t}) {
   if (loading) return <div style={{display:"flex",flexDirection:"column",gap:10}}>{[...Array(3)].map((_,i)=><Sk key={i} h={70}/>)}</div>;
   if (!games?.length) return <div style={{color:t.textDim,fontSize:13}}>No games loaded.</div>;
-  const {bestHour,bestHourWinPct,streak,nemesis}=computeInsights(games);
-  const streakC=streak.type==="win"?t.win:streak.type==="loss"?t.loss:t.draw;
-  const items=[
-    {icon:"🕐",label:"Best time to play",value:bestHour?`You peak at ${bestHour}`:"Not enough data",sub:bestHour?`${bestHourWinPct}% win rate at this hour`:null},
-    {icon:"🔥",label:"Hot streak",value:streak.count>1?`${streak.count} ${streak.type}s in a row`:"No current streak",sub:streak.count>1?`Current ${streak.type} streak`:null,color:streak.count>1?streakC:null},
-    {icon:"💀",label:"Nemesis opening",value:nemesis?nemesis.opening.slice(0,24):"Not enough data",sub:nemesis?`${nemesis.losses} losses in ${nemesis.games} games`:null,color:t.loss},
-  ];
+  const items = computeInsights(games);
+  if (!items.length) return <div style={{color:t.textDim,fontSize:13}}>Not enough game data for insights.</div>;
   return <div style={{display:"flex",flexDirection:"column",gap:10}}>
-    {items.map(item=>(
-      <div key={item.label} style={{background:`${t.accent}06`,border:`1px solid ${t.cardBorder}`,borderRadius:10,padding:"12px 14px",display:"flex",gap:12,alignItems:"flex-start"}}>
-        <span style={{fontSize:22,flexShrink:0}}>{item.icon}</span>
-        <div style={{flex:1,minWidth:0}}>
-          <div style={{fontSize:10,color:t.textDim,textTransform:"uppercase",letterSpacing:".07em",marginBottom:3,fontFamily:t.font}}>{item.label}</div>
-          <div style={{fontSize:14,fontWeight:600,color:item.color||t.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.value}</div>
-          {item.sub&&<div style={{fontSize:11,color:t.textDim,marginTop:2}}>{item.sub}</div>}
-        </div>
-      </div>
-    ))}
+    {items.map(item=><InsightCard key={item.id} item={item} t={t}/>)}
+    <div style={{fontSize:10,color:t.textDim,textAlign:"center",marginTop:2}}>Hover any card for details</div>
   </div>;
 }
 
@@ -795,10 +893,7 @@ export default function App() {
   // Update URL when tab changes to card tab
   const handleTabChange = (i) => {
     setTab(i);
-    if (p1) {
-      if (i===5) setHash(p1.profile.username,"card");
-      else setHash(p1.profile.username);
-    }
+    if (p1) setHash(p1.profile.username);
   };
 
   const p=p1?computePersonality(p1.games,p1.stats):null;
@@ -838,11 +933,6 @@ export default function App() {
             {window.location.origin}{window.location.pathname}#/{p1.profile.username}
           </code>
           <button onClick={()=>{navigator.clipboard.writeText(`${window.location.origin}${window.location.pathname}#/${p1.profile.username}`);}} className="secondary" style={{fontSize:11,padding:"3px 10px"}}>Copy</button>
-          <span style={{color:t.textDim,fontSize:11}}>or</span>
-          <code style={{background:`${t.accent}10`,border:`1px solid ${t.cardBorder}`,borderRadius:6,padding:"3px 10px",color:t.hl,fontSize:12,fontFamily:"monospace"}}>
-            {window.location.origin}{window.location.pathname}#/{p1.profile.username}/card
-          </code>
-          <button onClick={()=>{navigator.clipboard.writeText(`${window.location.origin}${window.location.pathname}#/${p1.profile.username}/card`);}} className="secondary" style={{fontSize:11,padding:"3px 10px"}}>Copy</button>
         </div>}
       </div>
 
