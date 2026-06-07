@@ -927,13 +927,7 @@ export default function App() {
           </button>
         </div>
         {e1&&<div style={{marginTop:12,fontSize:13,color:t.loss}}>⚠ {e1}</div>}
-        {p1&&!l1&&<div style={{marginTop:10,fontSize:12,color:t.textDim,display:"flex",alignItems:"center",gap:8,justifyContent:"center",flexWrap:"wrap"}}>
-          <span style={{color:t.textDim}}>🔗 Share:</span>
-          <code style={{background:`${t.accent}10`,border:`1px solid ${t.cardBorder}`,borderRadius:6,padding:"3px 10px",color:t.accent,fontSize:12,fontFamily:"monospace"}}>
-            {window.location.origin}{window.location.pathname}#/{p1.profile.username}
-          </code>
-          <button onClick={()=>{navigator.clipboard.writeText(`${window.location.origin}${window.location.pathname}#/${p1.profile.username}`);}} className="secondary" style={{fontSize:11,padding:"3px 10px"}}>Copy</button>
-        </div>}
+
       </div>
 
       {/* ── Player Hero Card ── */}
