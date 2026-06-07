@@ -308,7 +308,9 @@ function TradingCard({p,profile,t}) {
   const [copied,setCopied]=useState(false);
   if (!p) return null;
   const share = () => {
-    const text = `♟ Chess DNA: ${profile.username} is "${p.title}" | Win rate: ${p.winPct}% | Fav: ${p.favTC} | chess.com`;
+    const base = window.location.origin + window.location.pathname;
+    const url = `${base}#/${profile.username}/card`;
+    const text = `♟ Chess DNA: ${profile.username} is "${p.title}" | Win rate: ${p.winPct}% | Check out my chess personality: ${url}`;
     navigator.clipboard.writeText(text).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2000);});
   };
   return <div style={{perspective:800}}>
@@ -703,13 +705,13 @@ function CompareTab({p1,p2,l1,l2,p2In,setP2In,loadP2,t}) {
 }
 
 // ── DNA Tab ───────────────────────────────────────────────────────────────────
-function DnaTab({games,stats,loading,t}) {
+function DnaTab({games,stats,loading,t,profile}) {
   const tip=(props)=><ChartTip {...props} t={t}/>;
   if (loading) return <Sk h={300}/>;
   const p=computePersonality(games,stats);
   if (!p) return <div style={{color:t.textDim,textAlign:"center",padding:40,fontSize:14}}>Load a player to reveal their Chess DNA.</div>;
   return <div style={{display:"flex",flexDirection:"column",gap:20}}>
-    <TradingCard p={p} profile={{username:""}} t={t}/>
+    <TradingCard p={p} profile={profile||{username:""}} t={t}/>
     <Card t={t}><SecTitle t={t}>Playstyle DNA Radar</SecTitle>
       <ResponsiveContainer width="100%" height={230}>
         <RadarChart data={[{subject:"Aggression",value:p.aggression==="high"?90:p.aggression==="mid"?55:25},{subject:"Speed",value:p.speed==="speed"?90:p.speed==="sharp"?60:30},{subject:"Breadth",value:p.breadth==="explorer"?90:p.breadth==="balanced"?55:25},{subject:"Win Rate",value:p.winPct},{subject:"Consistency",value:Math.min(100,Math.round(p.total/4))},{subject:"Draw Avoid",value:100-p.drawPct*2}]} cx="50%" cy="50%">
@@ -723,6 +725,18 @@ function DnaTab({games,stats,loading,t}) {
 
 // ── Main App ──────────────────────────────────────────────────────────────────
 const TABS=[["📊","Overview"],["♟","Openings"],["🎨","Color Stats"],["📈","Elo Breakdown"],["⚔️","Compare"],["🧬","Chess DNA"]];
+
+// ── URL routing helpers ───────────────────────────────────────────────────────
+function parseHash() {
+  // Supports: /#/username  /#/username/card  /#/username/compare/opponent
+  const hash = window.location.hash.replace(/^#\/?/, "");
+  const parts = hash.split("/").filter(Boolean);
+  return { user: parts[0]||null, sub: parts[1]||null, other: parts[2]||null };
+}
+function setHash(user, sub) {
+  const path = sub ? `/${user}/${sub}` : user ? `/${user}` : "";
+  window.location.hash = path;
+}
 
 export default function App() {
   const [themeKey,setThemeKey]=useState(()=>localStorage.getItem("chessdna-theme")||"slate");
@@ -738,18 +752,53 @@ export default function App() {
   const [l2,setL2]=useState(false);
   const [e1,setE1]=useState(null);
 
-  const load1=async()=>{
-    if(!p1In.trim())return;
-    setL1(true);setE1(null);setP1(null);
-    try{setP1(await loadPlayer(p1In.trim().toLowerCase()));}
-    catch(e){setE1(e.message||"Failed to load");}
-    finally{setL1(false);}
+  // ── On mount: read URL and auto-load player ──
+  useEffect(()=>{
+    const {user,sub} = parseHash();
+    if (user) {
+      setP1In(user);
+      doLoad1(user);
+      if (sub==="card") setTab(5);
+    }
+    // Listen for hash changes (back/forward)
+    const onHash = () => {
+      const {user:u, sub:s} = parseHash();
+      if (u) { setP1In(u); doLoad1(u); if(s==="card") setTab(5); }
+    };
+    window.addEventListener("hashchange", onHash);
+    return ()=>window.removeEventListener("hashchange", onHash);
+  }, []);
+
+  const doLoad1 = async (username) => {
+    const u = (username||p1In).trim().toLowerCase();
+    if (!u) return;
+    setL1(true); setE1(null); setP1(null);
+    try { setP1(await loadPlayer(u)); }
+    catch(e) { setE1(e.message||"Failed to load"); }
+    finally { setL1(false); }
   };
+
+  const load1 = () => {
+    const u = p1In.trim().toLowerCase();
+    if (!u) return;
+    setHash(u);
+    doLoad1(u);
+  };
+
   const load2=async()=>{
     if(!p2In.trim())return;
     setL2(true);setP2(null);
     try{setP2(await loadPlayer(p2In.trim().toLowerCase()));}
     catch{}finally{setL2(false);}
+  };
+
+  // Update URL when tab changes to card tab
+  const handleTabChange = (i) => {
+    setTab(i);
+    if (p1) {
+      if (i===5) setHash(p1.profile.username,"card");
+      else setHash(p1.profile.username);
+    }
   };
 
   const p=p1?computePersonality(p1.games,p1.stats):null;
@@ -783,6 +832,18 @@ export default function App() {
           </button>
         </div>
         {e1&&<div style={{marginTop:12,fontSize:13,color:t.loss}}>⚠ {e1}</div>}
+        {p1&&!l1&&<div style={{marginTop:10,fontSize:12,color:t.textDim,display:"flex",alignItems:"center",gap:8,justifyContent:"center",flexWrap:"wrap"}}>
+          <span style={{color:t.textDim}}>🔗 Share:</span>
+          <code style={{background:`${t.accent}10`,border:`1px solid ${t.cardBorder}`,borderRadius:6,padding:"3px 10px",color:t.accent,fontSize:12,fontFamily:"monospace"}}>
+            {window.location.origin}{window.location.pathname}#/{p1.profile.username}
+          </code>
+          <button onClick={()=>{navigator.clipboard.writeText(`${window.location.origin}${window.location.pathname}#/${p1.profile.username}`);}} className="secondary" style={{fontSize:11,padding:"3px 10px"}}>Copy</button>
+          <span style={{color:t.textDim,fontSize:11}}>or</span>
+          <code style={{background:`${t.accent}10`,border:`1px solid ${t.cardBorder}`,borderRadius:6,padding:"3px 10px",color:t.hl,fontSize:12,fontFamily:"monospace"}}>
+            {window.location.origin}{window.location.pathname}#/{p1.profile.username}/card
+          </code>
+          <button onClick={()=>{navigator.clipboard.writeText(`${window.location.origin}${window.location.pathname}#/${p1.profile.username}/card`);}} className="secondary" style={{fontSize:11,padding:"3px 10px"}}>Copy</button>
+        </div>}
       </div>
 
       {/* ── Player Hero Card ── */}
@@ -821,7 +882,7 @@ export default function App() {
       {/* ── Tabs ── */}
       {(p1||l1)&&<div style={{background:t.card,border:`1px solid ${t.cardBorder}`,borderRadius:10,padding:6,display:"flex",gap:2,flexWrap:"wrap",marginBottom:14,animation:"fadeInUp .35s ease both"}}>
         {TABS.map(([icon,name],i)=>(
-          <button key={name} className={`tab-btn ${tab===i?"active":""}`} onClick={()=>setTab(i)}>{icon} {name}</button>
+          <button key={name} className={`tab-btn ${tab===i?"active":""}`} onClick={()=>handleTabChange(i)}>{icon} {name}</button>
         ))}
       </div>}
 
@@ -843,11 +904,7 @@ export default function App() {
         {tab===2&&<ColorTab games={p1?.games} loading={l1} t={t}/>}
         {tab===3&&<EloTab games={p1?.games} stats={p1?.stats} loading={l1} t={t}/>}
         {tab===4&&<CompareTab p1={p1} p2={p2} l1={l1} l2={l2} p2In={p2In} setP2In={setP2In} loadP2={load2} t={t}/>}
-        {tab===5&&<div style={{display:"flex",flexDirection:"column",gap:20}}>
-          {p1&&<TradingCard p={p} profile={p1.profile} t={t}/>}
-          {l1&&<Sk h={300}/>}
-          <DnaTab games={p1?.games} stats={p1?.stats} loading={l1} t={t}/>
-        </div>}
+        {tab===5&&<DnaTab games={p1?.games} stats={p1?.stats} loading={l1} t={t} profile={p1?.profile}/>}
       </div>}
 
       {/* ── Empty state ── */}
