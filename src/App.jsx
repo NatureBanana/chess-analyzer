@@ -207,25 +207,74 @@ const fetchJSON = u => tryFetch(u, false);
 const fetchText = async u => { try { return await tryFetch(u, true); } catch { return ""; } };
 
 // ── PGN parser ────────────────────────────────────────────────────────────────
+function inferTimeControl(tc) {
+  if (!tc) return "other";
+  const raw = String(tc).trim();
+  if (raw === "-" || raw.includes("/")) return "daily";
+  const [baseRaw, incRaw = "0"] = raw.split("+");
+  const base = parseInt(baseRaw, 10);
+  const inc = parseInt(incRaw, 10) || 0;
+  if (Number.isNaN(base)) return "other";
+  const estimatedSeconds = base + inc * 40;
+  if (estimatedSeconds < 180) return "bullet";
+  if (estimatedSeconds < 600) return "blitz";
+  return "rapid";
+}
+
+function normalizeTimeClass(timeClass, timeControl) {
+  const cls = String(timeClass || "").toLowerCase();
+  if (["bullet", "blitz", "rapid", "daily"].includes(cls)) return cls;
+  return inferTimeControl(timeControl);
+}
+
+function formatDateFromTimestamp(timestamp) {
+  if (!timestamp) return null;
+  const d = new Date(timestamp * 1000);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString().slice(0, 10).replace(/-/g, ".");
+}
+
+function extractOpening(tags) {
+  const opening = tags.Opening;
+  if (opening) return opening;
+  const ecoUrl = tags.ECOUrl;
+  if (!ecoUrl) return "Unknown";
+  const slug = ecoUrl.split("/openings/")[1];
+  if (!slug) return "Unknown";
+  const decoded = decodeURIComponent(slug).replace(/[-_]+/g, " ");
+  return decoded.replace(/\s+\d+\..*$/, "").replace(/\s+\.\.\..*$/, "").trim() || "Unknown";
+}
+
+function pgnTags(pgn) {
+  const tags = {};
+  if (!pgn) return tags;
+  for (const m of pgn.matchAll(/^\[([A-Za-z0-9_]+) "([^"]*)"\]/gm)) tags[m[1]] = m[2];
+  return tags;
+}
+
+function parsePGNGame(pgn, user, game={}) {
+  const tags = pgnTags(pgn);
+  const w = game.white?.username || tags.White;
+  const b = game.black?.username || tags.Black;
+  if (!w || !b) return null;
+  const userLower = user.toLowerCase();
+  const color = w.toLowerCase() === userLower ? "white" : b.toLowerCase() === userLower ? "black" : null;
+  if (!color) return null;
+  const raw = tags.Result;
+  let result = "draw";
+  if (raw==="1-0") result = color==="white" ? "win":"loss";
+  else if (raw==="0-1") result = color==="black" ? "win":"loss";
+  const opp = color==="white" ? game.black : game.white;
+  const oppEloRaw = opp?.rating ?? (color==="white" ? tags.BlackElo : tags.WhiteElo);
+  const oppElo = oppEloRaw ? parseInt(oppEloRaw, 10) : null;
+  const timeControl = normalizeTimeClass(game.time_class, game.time_control || tags.TimeControl);
+  const dateStr = formatDateFromTimestamp(game.end_time) || tags.EndDate || tags.UTCDate || tags.Date;
+  return { opening:extractOpening(tags), eco:tags.ECO||"?", color, result, oppElo:(!oppElo||isNaN(oppElo))?null:oppElo, timeControl, date:dateStr, endTime:game.end_time||0, opponent:color==="white"?b:w };
+}
+
 function parsePGN(pgn, user) {
   if (!pgn || pgn.length < 10) return [];
-  const ex = (txt, tag) => { const m = txt.match(new RegExp(`\\[${tag} "([^"]*)"`)); return m ? m[1] : null; };
-  return pgn.split(/\r?\n\r?\n(?=\[)/).filter(g => g.includes("[White ") && g.includes("[Black ")).map(g => {
-    const w = ex(g,"White"), b = ex(g,"Black");
-    if (!w || !b) return null;
-    const color = w.toLowerCase() === user.toLowerCase() ? "white" : "black";
-    const raw = ex(g,"Result");
-    let result = "draw";
-    if (raw==="1-0") result = color==="white" ? "win":"loss";
-    else if (raw==="0-1") result = color==="black" ? "win":"loss";
-    const oppEloRaw = color==="white" ? ex(g,"BlackElo") : ex(g,"WhiteElo");
-    const oppElo = oppEloRaw ? parseInt(oppEloRaw) : null;
-    const tc = ex(g,"TimeControl");
-    let timeControl = "other";
-    if (tc) { const s=parseInt(tc.split("+")[0]); if(s<=180)timeControl="bullet"; else if(s<=600)timeControl="blitz"; else if(s<=1800)timeControl="rapid"; else if(tc==="-"||isNaN(s))timeControl="daily"; else timeControl="rapid"; }
-    const dateStr = ex(g,"Date");
-    return { opening:ex(g,"Opening")||"Unknown", eco:ex(g,"ECO")||"?", color, result, oppElo:(!oppElo||isNaN(oppElo))?null:oppElo, timeControl, date:dateStr, opponent:color==="white"?b:w };
-  }).filter(Boolean);
+  return pgn.split(/\r?\n\r?\n(?=\[)/).filter(g => g.includes("[White ") && g.includes("[Black ")).map(g => parsePGNGame(g, user)).filter(Boolean);
 }
 
 async function loadPlayer(user, months=3) {
@@ -235,8 +284,8 @@ async function loadPlayer(user, months=3) {
   const allUrls = archives.archives || [];
   // months=0 means all time
   const urls = months === 0 ? allUrls : allUrls.slice(-months);
-  const pgns = await Promise.all(urls.map(u => fetchText(u+"/pgn")));
-  const games = pgns.flatMap(p => parsePGN(p, user));
+  const archiveData = await Promise.all(urls.map(u => fetchJSON(u).catch(async () => ({ games: parsePGN(await fetchText(u+"/pgn"), user) }))));
+  const games = archiveData.flatMap(a => (a.games || []).map(g => g.pgn ? parsePGNGame(g.pgn, user, g) : g).filter(Boolean)).sort((a,b)=>(b.endTime||0)-(a.endTime||0));
   return { profile, stats, games, monthsLoaded: urls.length };
 }
 
@@ -332,7 +381,7 @@ function computeInsights(games) {
       score: colorDiff*3 });
   }
 
-  // 5. Time control gap — TimeControl tag always in PGN
+  // 5. Time control gap — Chess.com archive time_class, with TimeControl fallback
   const tcWin={};
   games.forEach(g=>{if(!tcWin[g.timeControl])tcWin[g.timeControl]={w:0,t:0};tcWin[g.timeControl].t++;if(g.result==="win")tcWin[g.timeControl].w++;});
   const tcR=Object.entries(tcWin).filter(([k,d])=>k!=="other"&&d.t>=8).map(([tc,d])=>({tc,wp:Math.round(d.w/d.t*100),games:d.t})).sort((a,b)=>b.wp-a.wp);
@@ -1355,12 +1404,15 @@ export default function App() {
   const changeMonths = (m) => {
     setMonths(m);
     if (p1) doLoad1(p1.profile.username, m);
+    if (p2) load2(p2.profile.username, m);
   };
 
-  const load2=async()=>{
-    if(!p2In.trim())return;
+  const load2=async(username, mo)=>{
+    const u = (username||p2In).trim().toLowerCase();
+    if(!u)return;
+    const m = mo !== undefined ? mo : months;
     setL2(true);setP2(null);
-    try{setP2(await loadPlayer(p2In.trim().toLowerCase()));}
+    try{setP2(await loadPlayer(u, m));}
     catch{}finally{setL2(false);}
   };
 
@@ -1471,7 +1523,7 @@ export default function App() {
         <div style={{fontSize:13,color:t.textDim,marginTop:8}}>Openings · Color stats · Elo breakdown · Personality · Compare · Trading card</div>
       </div>}
 
-      <div style={{textAlign:"center",marginTop:48,fontSize:11,color:t.textDim}}>Chess DNA · Data from Chess.com Public API · Last 3 months · No data stored</div>
+      <div style={{textAlign:"center",marginTop:48,fontSize:11,color:t.textDim}}>Chess DNA · Data from Chess.com Public API · No data stored</div>
     </div>
   </div>;
 }
