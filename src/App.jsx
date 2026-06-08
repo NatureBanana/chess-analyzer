@@ -234,15 +234,27 @@ function formatDateFromTimestamp(timestamp) {
   return d.toISOString().slice(0, 10).replace(/-/g, ".");
 }
 
-function extractOpening(tags) {
-  const opening = tags.Opening;
-  if (opening) return opening;
-  const ecoUrl = tags.ECOUrl;
-  if (!ecoUrl) return "Unknown";
-  const slug = ecoUrl.split("/openings/")[1];
+function cleanOpeningNameFromUrl(url) {
+  const slug = url.split("/openings/")[1]?.split(/[?#]/)[0];
   if (!slug) return "Unknown";
   const decoded = decodeURIComponent(slug).replace(/[-_]+/g, " ");
-  return decoded.replace(/\s+\d+\..*$/, "").replace(/\s+\.\.\..*$/, "").trim() || "Unknown";
+  return decoded.replace(/\s*(?:\.{3})?\d+\..*$/, "").replace(/\s+/g, " ").trim() || "Unknown";
+}
+
+function extractOpeningInfo(tags) {
+  const ecoUrl = tags.ECOUrl;
+  const openingUrl = ecoUrl?.includes("chess.com/openings/") ? ecoUrl : null;
+  const opening = tags.Opening?.trim() || (openingUrl ? cleanOpeningNameFromUrl(openingUrl) : "Unknown");
+  return { opening, openingUrl };
+}
+
+function openingLink(opening, openingUrl) {
+  if (openingUrl) return openingUrl;
+  return `https://www.chess.com/openings/${opening.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")}`;
+}
+
+function uniqueNamedOpenings(games) {
+  return new Set(games.filter(g=>g.opening&&g.opening!=="Unknown").map(g=>g.opening)).size;
 }
 
 function pgnTags(pgn) {
@@ -280,7 +292,8 @@ function parsePGNGame(pgn, user, game={}) {
   const oppElo = oppEloRaw ? parseInt(oppEloRaw, 10) : null;
   const timeControl = normalizeTimeClass(game.time_class, game.time_control || tags.TimeControl);
   const dateStr = formatDateFromTimestamp(game.end_time) || tags.EndDate || tags.UTCDate || tags.Date;
-  return { opening:extractOpening(tags), eco:tags.ECO||"?", color, result, oppElo:(!oppElo||isNaN(oppElo))?null:oppElo, timeControl, date:dateStr, endTime:game.end_time||0, opponent:color==="white"?b:w };
+  const openingInfo = extractOpeningInfo(tags);
+  return { ...openingInfo, eco:tags.ECO||"?", color, result, oppElo:(!oppElo||isNaN(oppElo))?null:oppElo, timeControl, date:dateStr, endTime:game.end_time||0, opponent:color==="white"?b:w };
 }
 
 function parsePGN(pgn, user) {
@@ -309,7 +322,8 @@ function aggOpenings(games, tc="all") {
   for (const g of f) {
     if (!g.opening || (g.opening==="Unknown" && (!g.eco || g.eco==="?"))) continue;
     const k = g.opening==="Unknown" ? (g.eco||"?")+" Opening" : g.opening;
-    if (!map[k]) map[k]={opening:k,eco:g.eco||"?",games:0,wins:0,losses:0,draws:0,elos:[]};
+    if (!map[k]) map[k]={opening:k,openingUrl:g.openingUrl||null,eco:g.eco||"?",games:0,wins:0,losses:0,draws:0,elos:[]};
+    if (!map[k].openingUrl && g.openingUrl) map[k].openingUrl = g.openingUrl;
     map[k].games++; if(g.result==="win")map[k].wins++; else if(g.result==="loss")map[k].losses++; else map[k].draws++;
     if(g.oppElo)map[k].elos.push(g.oppElo);
   }
@@ -460,7 +474,7 @@ function computeInsights(games) {
   }
 
   // 9. Opening diversity
-  const uniqueOpenings=new Set(games.filter(g=>g.opening!=="Unknown").map(g=>g.opening)).size;
+  const uniqueOpenings=uniqueNamedOpenings(games);
   if (uniqueOpenings>=25 && total>=40) {
     all.push({ id:"explorer", icon:"🗺️", label:"Opening explorer",
       value:`${uniqueOpenings} different openings played`,
@@ -498,7 +512,7 @@ function computePersonality(games, stats) {
   const winPct=wins/total, drawPct=draws/total;
   const tcCounts={}; games.forEach(g=>{tcCounts[g.timeControl]=(tcCounts[g.timeControl]||0)+1;});
   const favTC=Object.entries(tcCounts).sort((a,b)=>b[1]-a[1])[0]?.[0]||"blitz";
-  const uniqueOpenings=new Set(games.map(g=>g.opening)).size;
+  const uniqueOpenings=uniqueNamedOpenings(games);
   const openings=aggOpenings(games);
   const aggression=winPct>.55?"high":winPct>.45?"mid":"low";
   const drawTend=drawPct>.18?"high":drawPct>.08?"mid":"low";
@@ -851,7 +865,7 @@ function OpeningDNA({games,loading,t,tc="all"}) {
       <div key={i} style={{background:`${t.accent}06`,border:`1px solid ${t.cardBorder}`,borderRadius:10,padding:"10px 12px",display:"flex",alignItems:"center",gap:10}}>
         <div style={{width:22,height:22,borderRadius:"50%",background:i===0?t.accent:`${t.accent}20`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:i===0?t.bg:t.textDim,flexShrink:0,fontFamily:t.font}}>{i+1}</div>
         <div style={{flex:1,minWidth:0}}>
-          <a href={`https://www.chess.com/openings/${o.opening.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")}`} target="_blank" rel="noopener noreferrer" style={{fontSize:12,color:t.text,fontWeight:500,textDecoration:"none",display:"block",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",transition:"color .15s"}} onMouseEnter={e=>e.target.style.color=t.accent} onMouseLeave={e=>e.target.style.color=t.text}>{o.opening.length>28?o.opening.slice(0,26)+"…":o.opening}</a>
+          <a href={openingLink(o.opening,o.openingUrl)} target="_blank" rel="noopener noreferrer" style={{fontSize:12,color:t.text,fontWeight:500,textDecoration:"none",display:"block",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",transition:"color .15s"}} onMouseEnter={e=>e.target.style.color=t.accent} onMouseLeave={e=>e.target.style.color=t.text}>{o.opening.length>28?o.opening.slice(0,26)+"…":o.opening}</a>
           <div style={{fontSize:11,color:t.textDim}}>{o.games} games</div>
         </div>
         <span className={`badge ${o.winPct>=55?"green":o.winPct>=45?"yellow":"red"}`}>{o.winPct}%</span>
@@ -976,8 +990,7 @@ function OpeningsTab({games,loading,t}) {
           <tbody>{sorted.map((o,i)=>(
             <tr key={i}>
               <td style={{maxWidth:240,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                <span style={{fontSize:10,color:t.textDim,marginRight:5}}>{o.eco}</span>
-                <a href={`https://www.chess.com/openings/${o.opening.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")}`} target="_blank" rel="noopener noreferrer" style={{color:t.text,textDecoration:"none",transition:"color .15s"}} onMouseEnter={e=>e.target.style.color=t.accent} onMouseLeave={e=>e.target.style.color=t.text}>{o.opening} ↗</a>
+                <a href={openingLink(o.opening,o.openingUrl)} target="_blank" rel="noopener noreferrer" style={{color:t.text,textDecoration:"none",transition:"color .15s"}} onMouseEnter={e=>e.target.style.color=t.accent} onMouseLeave={e=>e.target.style.color=t.text}>{o.opening} ↗</a>
               </td>
               <td style={{fontWeight:600,color:t.text}}>{o.games}</td>
               <td><span style={{color:t.win,fontWeight:700}}>{o.winPct}%</span></td>
@@ -1084,7 +1097,7 @@ function CompareTab({p1,p2,l1,l2,p2In,setP2In,loadP2,t}) {
   const p1pz=p1.stats?.tactics?.highest?.rating||0, p2pz=p2.stats?.tactics?.highest?.rating||0;
   const e1=p1.games.filter(g=>g.oppElo).map(g=>g.oppElo), e2=p2.games.filter(g=>g.oppElo).map(g=>g.oppElo);
   const ao1=e1.length?Math.round(e1.reduce((a,b)=>a+b,0)/e1.length):0, ao2=e2.length?Math.round(e2.reduce((a,b)=>a+b,0)/e2.length):0;
-  const d1=new Set(p1.games.map(g=>g.opening)).size, d2=new Set(p2.games.map(g=>g.opening)).size;
+  const d1=uniqueNamedOpenings(p1.games), d2=uniqueNamedOpenings(p2.games);
   const radar=[{subject:"Win%",[p1.profile.username]:p1w,[p2.profile.username]:p2w},{subject:"Rating",[p1.profile.username]:norm(p1r,Math.max(p1r,p2r)),[p2.profile.username]:norm(p2r,Math.max(p1r,p2r))},{subject:"Puzzle",[p1.profile.username]:norm(p1pz,Math.max(p1pz,p2pz)),[p2.profile.username]:norm(p2pz,Math.max(p1pz,p2pz))},{subject:"Avg Opp",[p1.profile.username]:norm(ao1,Math.max(ao1,ao2)),[p2.profile.username]:norm(ao2,Math.max(ao1,ao2))},{subject:"Diversity",[p1.profile.username]:norm(d1,Math.max(d1,d2)),[p2.profile.username]:norm(d2,Math.max(d1,d2))}];
   const p1open=aggOpenings(p1.games).sort((a,b)=>b.games-a.games).slice(0,5);
   const p2open=aggOpenings(p2.games);
@@ -1198,7 +1211,7 @@ function OverviewTab({data,loading,t}) {
   const bestWin=games.filter(g=>g.result==="win"&&g.oppElo).sort((a,b)=>b.oppElo-a.oppElo)[0];
 
   // Opening diversity
-  const uniqueO=new Set(games.filter(g=>g.opening!=="Unknown").map(g=>g.opening)).size;
+  const uniqueO=uniqueNamedOpenings(games);
 
   const StatCard=({label,value,color,sub,i})=>(
     <Card t={t} className={`stagger-${i+1}`} style={{padding:"16px 18px",textAlign:"center",minWidth:100}}>
