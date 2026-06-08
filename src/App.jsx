@@ -1092,11 +1092,19 @@ function DnaTab({games,loading,t,profile}) {
   if (loading) return <Sk h={300}/>;
   const p=computePersonality(games);
   if (!p) return <div style={{color:t.textDim,textAlign:"center",padding:40,fontSize:14}}>Load a player to reveal their Chess DNA.</div>;
+  const radarData=[
+    {subject:"Aggression",value:p.aggression==="high"?90:p.aggression==="mid"?55:25},
+    {subject:"Speed",value:p.speed==="speed"?90:p.speed==="sharp"?60:30},
+    {subject:"Breadth",value:p.breadth==="explorer"?90:p.breadth==="balanced"?55:25},
+    {subject:"Win Rate",value:p.winPct},
+    {subject:"Consistency",value:Math.min(100,Math.round(p.total/4))},
+    {subject:"Draw Avoid",value:100-p.drawPct*2},
+  ];
   return <div style={{display:"flex",flexDirection:"column",gap:20}}>
     <TradingCard p={p} profile={profile||{username:""}} t={t}/>
-    <Card t={t}><SecTitle t={t}>Playstyle DNA Radar</SecTitle>
-      <ResponsiveContainer width="100%" height={230}>
-        <RadarChart data={[{subject:"Aggression",value:p.aggression==="high"?90:p.aggression==="mid"?55:25},{subject:"Speed",value:p.speed==="speed"?90:p.speed==="sharp"?60:30},{subject:"Breadth",value:p.breadth==="explorer"?90:p.breadth==="balanced"?55:25},{subject:"Win Rate",value:p.winPct},{subject:"Consistency",value:Math.min(100,Math.round(p.total/4))},{subject:"Draw Avoid",value:100-p.drawPct*2}]} cx="50%" cy="50%">
+    <Card t={t} style={{overflow:"visible"}}><SecTitle t={t}>Playstyle DNA Radar</SecTitle>
+      <ResponsiveContainer width="100%" height={290}>
+        <RadarChart data={radarData} cx="50%" cy="52%" outerRadius="68%" margin={{top:28,right:58,bottom:28,left:58}}>
           <PolarGrid stroke={`${p.titleColor}20`}/><PolarAngleAxis dataKey="subject" tick={{fill:t.textMid,fontSize:12}}/><PolarRadiusAxis tick={false} axisLine={false} domain={[0,100]}/>
           <Radar dataKey="value" stroke={p.titleColor} fill={p.titleColor} fillOpacity={.2}/><Tooltip content={tip}/>
         </RadarChart>
