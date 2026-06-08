@@ -1383,6 +1383,7 @@ function OverviewTab({data,loading,t}) {
 
 // ── Main App ──────────────────────────────────────────────────────────────────
 const TABS=[["📊","Overview"],["♟","Openings"],["🎨","Color Stats"],["📈","Elo Breakdown"],["⚔️","Compare"],["🧬","Chess DNA"]];
+const RANGE_OPTIONS = [3,6,12,0];
 
 // ── URL routing helpers ───────────────────────────────────────────────────────
 function parseHash() {
@@ -1409,7 +1410,10 @@ export default function App() {
   const [l1,setL1]=useState(false);
   const [l2,setL2]=useState(false);
   const [e1,setE1]=useState(null);
-  const [months,setMonths]=useState(3);
+  const [months,setMonths]=useState(()=>{
+    const saved = Number(localStorage.getItem("chessdna-range"));
+    return RANGE_OPTIONS.includes(saved) ? saved : 3;
+  });
   const p1LoadId=useRef(0);
   const p2LoadId=useRef(0);
 
@@ -1452,6 +1456,7 @@ export default function App() {
   };
 
   const changeMonths = (m) => {
+    localStorage.setItem("chessdna-range", String(m));
     setMonths(m);
     if (p1) doLoad1(p1.profile.username, m);
     if (p2) load2(p2.profile.username, m);
