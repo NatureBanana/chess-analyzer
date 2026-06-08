@@ -113,6 +113,7 @@ function injectTheme(t) {
     @keyframes borderFlow{0%,100%{border-color:${t.cardBorder}}50%{border-color:${t.accent}45}}
     @keyframes heroChess{0%{transform:translateY(0) rotate(0deg)}33%{transform:translateY(-8px) rotate(-3deg)}66%{transform:translateY(-4px) rotate(2deg)}100%{transform:translateY(0) rotate(0deg)}}
     @keyframes tabSlideIn{from{opacity:0;transform:translateX(8px)}to{opacity:1;transform:translateX(0)}}
+    @keyframes tabContentSlideUp{from{opacity:0;transform:translateY(var(--tab-enter-y,12px))}to{opacity:1;transform:translateY(0)}}
     @keyframes wdlBar{from{width:0}to{width:100%}}
 
     .app-shell{--app-bottom-pad:80px}
@@ -140,7 +141,7 @@ function injectTheme(t) {
     .tab-btn:active{transform:scale(.97)}
     .tab-icon{display:inline-block;margin-right:5px}
     .tab-label-short{display:none}
-    .tab-transition{--tab-enter-y:12px;will-change:opacity,transform}
+    .tab-transition{--tab-enter-y:12px;animation:tabContentSlideUp .34s cubic-bezier(.22,1,.36,1) both;will-change:opacity,transform}
 
     /* ── Inputs ── */
     input{background:${t.inputBg};border:1px solid ${t.cardBorder};border-radius:10px;color:${t.text};font-family:${t.font};font-size:15px;padding:13px 16px;outline:none;width:100%;transition:border-color .2s cubic-bezier(.4,0,.2,1),box-shadow .2s cubic-bezier(.4,0,.2,1),transform .2s cubic-bezier(.22,1,.36,1)}
@@ -571,13 +572,7 @@ function AnimatedNumber({value, duration=800, style={}}) {
 
 // ── Page transition wrapper ───────────────────────────────────────────────────
 function PageTransition({children, keyVal}) {
-  const [visible, setVisible] = useState(false);
-  useEffect(() => {
-    setVisible(false);
-    const t = setTimeout(() => setVisible(true), 20);
-    return () => clearTimeout(t);
-  }, [keyVal]);
-  return <div className="tab-transition" style={{opacity: visible ? 1 : 0, transform: visible ? "translateY(0)" : "translateY(var(--tab-enter-y, 12px))", transition:"opacity .3s cubic-bezier(.22,1,.36,1), transform .34s cubic-bezier(.22,1,.36,1)"}}>{children}</div>;
+  return <div key={keyVal} className="tab-transition">{children}</div>;
 }
 
 // ── Loading bar ───────────────────────────────────────────────────────────────
