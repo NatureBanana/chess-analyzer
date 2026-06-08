@@ -222,7 +222,7 @@ function parsePGN(pgn, user) {
     const oppElo = oppEloRaw ? parseInt(oppEloRaw) : null;
     const tc = ex(g,"TimeControl");
     let timeControl = "other";
-    if (tc) { const s=parseInt(tc.split("+")[0]); if(s<=180)timeControl="bullet"; else if(s<=600)timeControl="blitz"; else if(s<=1800)timeControl="rapid"; else if(tc==="-"||isNaN(s))timeControl="daily"; else timeControl="rapid"; }
+    if (tc) { const base=tc.split("+")[0]; const s=parseInt(base); if(tc==="-"||tc.includes("/")||isNaN(s))timeControl="daily"; else if(s<=180)timeControl="bullet"; else if(s<=600)timeControl="blitz"; else if(s<=1800)timeControl="rapid"; else timeControl="rapid"; }
     const dateStr = ex(g,"Date");
     return { opening:ex(g,"Opening")||"Unknown", eco:ex(g,"ECO")||"?", color, result, oppElo:(!oppElo||isNaN(oppElo))?null:oppElo, timeControl, date:dateStr, opponent:color==="white"?b:w };
   }).filter(Boolean);
@@ -242,6 +242,103 @@ async function loadPlayer(user, months=3) {
 
 // ── Analytics helpers ─────────────────────────────────────────────────────────
 function getRating(stats, tc) { const s = stats?.[`chess_${tc}`]; return { last:s?.last?.rating??null, best:s?.best?.rating??null }; }
+
+const RATING_HISTORY_TCS = ["rapid","blitz","bullet"];
+const ALL_RATING_TCS = ["rapid","blitz","bullet","daily"];
+const TC_LABELS = { rapid:"Rapid", blitz:"Blitz", bullet:"Bullet", daily:"Daily" };
+
+function resultRatingDelta(result) {
+  if (result === "win") return 8;
+  if (result === "loss") return -8;
+  return 0;
+}
+
+function gameMonthKey(g) {
+  if (!g?.date || g.date === "?") return null;
+  const [y,m] = g.date.split(".");
+  if (!y || !m) return null;
+  return `${y}-${m.padStart(2,"0")}`;
+}
+
+function monthLabel(key) {
+  const [y,m] = key.split("-").map(Number);
+  return new Date(y, m - 1, 1).toLocaleString("en-US", { month:"short", year:"numeric" });
+}
+
+function nextMonthKey(key) {
+  const [y,m] = key.split("-").map(Number);
+  const d = new Date(y, m, 1);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
+}
+
+function monthRange(keys) {
+  const sorted = [...new Set(keys)].sort();
+  if (!sorted.length) return [];
+  const months = [];
+  for (let k = sorted[0]; k <= sorted[sorted.length-1]; k = nextMonthKey(k)) months.push(k);
+  return months;
+}
+
+function formatPGNDate(date) {
+  if (!date || date === "?") return "Unknown date";
+  return date.replace(/\./g, "-");
+}
+
+function computeRatingHistory(games=[], stats={}) {
+  const validMonths = games.map(gameMonthKey).filter(Boolean);
+  const months = monthRange(validMonths);
+  const chartData = months.map(month => ({ month, monthLabel:monthLabel(month) }));
+  const sessions = [];
+  let longestStreak = { tc:null, count:0, start:null, end:null };
+
+  for (const tc of RATING_HISTORY_TCS) {
+    const tcGames = games.filter(g => g.timeControl === tc && gameMonthKey(g));
+    const rating = getRating(stats, tc).last;
+    if (!tcGames.length && rating === null) continue;
+
+    const monthlyDelta = {};
+    const sessionMap = {};
+    for (const g of tcGames) {
+      const month = gameMonthKey(g);
+      const delta = resultRatingDelta(g.result);
+      monthlyDelta[month] = (monthlyDelta[month]||0) + delta;
+
+      const date = formatPGNDate(g.date);
+      const key = `${tc}-${date}`;
+      if (!sessionMap[key]) sessionMap[key] = { tc, date, delta:0, games:0, wins:0, losses:0, draws:0 };
+      sessionMap[key].delta += delta;
+      sessionMap[key].games++;
+      if (g.result === "win") sessionMap[key].wins++;
+      else if (g.result === "loss") sessionMap[key].losses++;
+      else sessionMap[key].draws++;
+    }
+    sessions.push(...Object.values(sessionMap));
+
+    const totalDelta = months.reduce((sum,month)=>sum+(monthlyDelta[month]||0),0);
+    let estimated = (rating ?? 1200) - totalDelta;
+    let streak = 0;
+    let streakStart = null;
+    for (const row of chartData) {
+      const delta = monthlyDelta[row.month] || 0;
+      estimated = Math.max(100, estimated + delta);
+      row[tc] = Math.round(estimated);
+
+      if (delta > 0) {
+        if (!streak) streakStart = row.month;
+        streak++;
+        if (streak > longestStreak.count) longestStreak = { tc, count:streak, start:streakStart, end:row.month };
+      } else {
+        streak = 0;
+        streakStart = null;
+      }
+    }
+  }
+
+  const positive = sessions.filter(s=>s.delta>0).sort((a,b)=>b.delta-a.delta)[0] || null;
+  const negative = sessions.filter(s=>s.delta<0).sort((a,b)=>a.delta-b.delta)[0] || null;
+  const ratings = ALL_RATING_TCS.map(tc => ({ tc, ...getRating(stats, tc) }));
+  return { chartData, ratings, bestGain:positive, bestLoss:negative, longestStreak };
+}
 
 function aggOpenings(games, tc="all") {
   const f = tc==="all" ? games : games.filter(g=>g.timeControl===tc);
@@ -1000,6 +1097,74 @@ function EloTab({games,stats,loading,t}) {
   </Card>;
 }
 
+// ── Rating History Tab ────────────────────────────────────────────────────────
+function RatingHistoryTab({games,stats,loading,t}) {
+  const [visible,setVisible]=useState({rapid:true,blitz:true,bullet:true});
+  const tip=(props)=><ChartTip {...props} t={t}/>;
+  if (loading) return <Sk h={300}/>;
+  if (!games?.length) return <div style={{color:t.textDim}}>No games.</div>;
+
+  const history = computeRatingHistory(games,stats);
+  const colors = { rapid:t.accent, blitz:t.hl, bullet:t.win, daily:t.textMid };
+  const activeTcs = RATING_HISTORY_TCS.filter(tc=>visible[tc]);
+  const metricCard = (label,value,sub,color) => <Card t={t} style={{flex:1,minWidth:180,padding:"16px 18px"}}>
+    <div style={{fontSize:10,color:t.textDim,textTransform:"uppercase",letterSpacing:".07em",fontFamily:t.font,marginBottom:6}}>{label}</div>
+    <div style={{fontSize:30,fontWeight:800,color,fontFamily:t.headingFont,lineHeight:1}}>{value}</div>
+    <div style={{fontSize:12,color:t.textDim,marginTop:6,lineHeight:1.45}}>{sub}</div>
+  </Card>;
+
+  const sessionSub = s => s ? `${TC_LABELS[s.tc]} · ${s.date} · ${s.wins}W ${s.losses}L ${s.draws}D` : "No decisive session found";
+  const streakSub = history.longestStreak.count
+    ? `${TC_LABELS[history.longestStreak.tc]} · ${monthLabel(history.longestStreak.start)} to ${monthLabel(history.longestStreak.end)}`
+    : "No consecutive improving months found";
+
+  return <div style={{display:"flex",flexDirection:"column",gap:16}}>
+    <Card t={t}>
+      <SecTitle t={t} sub="Current and peak ratings from Chess.com stats">Rating Snapshot</SecTitle>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:10}}>
+        {history.ratings.map(({tc,last,best})=>(
+          <div key={tc} style={{background:`${colors[tc]}0e`,border:`1px solid ${colors[tc]}28`,borderRadius:10,padding:"12px 14px",textAlign:"center"}}>
+            <div style={{fontSize:10,color:t.textDim,textTransform:"uppercase",letterSpacing:".08em",fontFamily:t.font,marginBottom:6}}>{TC_LABELS[tc]}</div>
+            <div style={{fontSize:26,fontWeight:800,color:colors[tc],fontFamily:t.headingFont,lineHeight:1}}>{last||"—"}</div>
+            <div style={{fontSize:11,color:t.textDim,marginTop:5}}>Peak {best||"—"}</div>
+          </div>
+        ))}
+      </div>
+    </Card>
+
+    <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
+      {metricCard("Biggest Gain",history.bestGain?`+${history.bestGain.delta}`:"—",sessionSub(history.bestGain),t.win)}
+      {metricCard("Biggest Loss",history.bestLoss?history.bestLoss.delta:"—",sessionSub(history.bestLoss),t.loss)}
+      {metricCard("Longest Improvement Streak",history.longestStreak.count?`${history.longestStreak.count} mo`:"—",streakSub,t.accent)}
+    </div>
+
+    <Card t={t}>
+      <div style={{display:"flex",justifyContent:"space-between",gap:12,alignItems:"flex-start",flexWrap:"wrap",marginBottom:12}}>
+        <SecTitle t={t} sub="Estimated end-of-month rating, anchored to current rating and adjusted by +/-8 per win/loss">Monthly Rating History</SecTitle>
+        <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+          {RATING_HISTORY_TCS.map(tc=>(
+            <label key={tc} style={{display:"flex",alignItems:"center",gap:6,color:visible[tc]?colors[tc]:t.textDim,fontSize:12,cursor:"pointer",fontFamily:t.font}}>
+              <input type="checkbox" checked={visible[tc]} onChange={()=>setVisible(v=>({...v,[tc]:!v[tc]}))} style={{accentColor:colors[tc]}}/>
+              {TC_LABELS[tc]}
+            </label>
+          ))}
+        </div>
+      </div>
+      {history.chartData.length ? <ResponsiveContainer width="100%" height={280}>
+        <LineChart data={history.chartData} margin={{top:8,right:18,left:0,bottom:0}}>
+          <CartesianGrid stroke={`${t.accent}12`} strokeDasharray="3 3"/>
+          <XAxis dataKey="monthLabel" tick={{fill:t.textDim,fontSize:11}} axisLine={false} tickLine={false}/>
+          <YAxis tick={{fill:t.textDim,fontSize:11}} axisLine={false} tickLine={false} domain={["auto","auto"]} width={42}/>
+          <Tooltip content={tip}/>
+          <Legend wrapperStyle={{color:t.textMid,fontSize:12,fontFamily:t.font}}/>
+          {activeTcs.map(tc=><Line key={tc} type="monotone" dataKey={tc} name={TC_LABELS[tc]} stroke={colors[tc]} strokeWidth={2.5} dot={{r:3,strokeWidth:1}} activeDot={{r:5}} connectNulls/>)}
+        </LineChart>
+      </ResponsiveContainer> : <div style={{color:t.textDim,fontSize:13,padding:"28px 0",textAlign:"center"}}>No dated PGN games available for monthly history.</div>}
+      {history.chartData.length > 0 && !activeTcs.length && <div style={{fontSize:12,color:t.textDim,textAlign:"center",marginTop:8}}>Select at least one time control to show the chart.</div>}
+    </Card>
+  </div>;
+}
+
 // ── Compare Tab ───────────────────────────────────────────────────────────────
 function CompareTab({p1,p2,l1,l2,p2In,setP2In,loadP2,t}) {
   const tip=(props)=><ChartTip {...props} t={t}/>;
@@ -1289,7 +1454,7 @@ function OverviewTab({data,loading,t}) {
 }
 
 // ── Main App ──────────────────────────────────────────────────────────────────
-const TABS=[["📊","Overview"],["♟","Openings"],["🎨","Color Stats"],["📈","Elo Breakdown"],["⚔️","Compare"],["🧬","Chess DNA"]];
+const TABS=[["📊","Overview"],["♟","Openings"],["🎨","Color Stats"],["📈","Elo Breakdown"],["📉","Rating History"],["⚔️","Compare"],["🧬","Chess DNA"]];
 
 // ── URL routing helpers ───────────────────────────────────────────────────────
 function parseHash() {
@@ -1324,12 +1489,12 @@ export default function App() {
     if (user) {
       setP1In(user);
       doLoad1(user);
-      if (sub==="card") setTab(5);
+      if (sub==="card") setTab(6);
     }
     // Listen for hash changes (back/forward)
     const onHash = () => {
       const {user:u, sub:s} = parseHash();
-      if (u) { setP1In(u); doLoad1(u); if(s==="card") setTab(5); }
+      if (u) { setP1In(u); doLoad1(u); if(s==="card") setTab(6); }
     };
     window.addEventListener("hashchange", onHash);
     return ()=>window.removeEventListener("hashchange", onHash);
@@ -1460,15 +1625,16 @@ export default function App() {
         {tab===1&&<OpeningsTab games={p1?.games} loading={l1} t={t}/>}
         {tab===2&&<ColorTab games={p1?.games} loading={l1} t={t}/>}
         {tab===3&&<EloTab games={p1?.games} stats={p1?.stats} loading={l1} t={t}/>}
-        {tab===4&&<CompareTab p1={p1} p2={p2} l1={l1} l2={l2} p2In={p2In} setP2In={setP2In} loadP2={load2} t={t}/>}
-        {tab===5&&<DnaTab games={p1?.games} stats={p1?.stats} loading={l1} t={t} profile={p1?.profile}/>}
+        {tab===4&&<RatingHistoryTab games={p1?.games} stats={p1?.stats} loading={l1} t={t}/>}
+        {tab===5&&<CompareTab p1={p1} p2={p2} l1={l1} l2={l2} p2In={p2In} setP2In={setP2In} loadP2={load2} t={t}/>}
+        {tab===6&&<DnaTab games={p1?.games} stats={p1?.stats} loading={l1} t={t} profile={p1?.profile}/>}
       </PageTransition>}
 
       {/* ── Empty state ── */}
       {!p1&&!l1&&!e1&&<div style={{textAlign:"center",padding:"40px 0 60px",animation:"fadeInUp .5s .2s ease both"}}>
         <div style={{fontSize:64,opacity:.15,marginBottom:20}}>♜</div>
         <div style={{fontFamily:t.headingFont,fontSize:20,color:t.textMid}}>Enter a username to reveal your Chess DNA</div>
-        <div style={{fontSize:13,color:t.textDim,marginTop:8}}>Openings · Color stats · Elo breakdown · Personality · Compare · Trading card</div>
+        <div style={{fontSize:13,color:t.textDim,marginTop:8}}>Openings · Color stats · Elo breakdown · Rating history · Personality · Compare · Trading card</div>
       </div>}
 
       <div style={{textAlign:"center",marginTop:48,fontSize:11,color:t.textDim}}>Chess DNA · Data from Chess.com Public API · Last 3 months · No data stored</div>
