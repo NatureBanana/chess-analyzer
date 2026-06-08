@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, RadarChart, Radar, PolarGrid, PolarAngleAxis,
@@ -281,8 +281,6 @@ function computeStreak(games) {
 function computeInsights(games) {
   const total = games.length;
   if (!total) return [];
-  const wins = games.filter(g=>g.result==="win").length;
-  const losses = games.filter(g=>g.result==="loss").length;
   const draws = games.filter(g=>g.result==="draw").length;
   const openings = aggOpenings(games);
   const streak = computeStreak(games);
@@ -431,7 +429,7 @@ function computeInsights(games) {
   return [...all].sort((a,b)=>b.score-a.score).slice(0,3);
 }
 
-function computePersonality(games, stats) {
+function computePersonality(games) {
   if (!games?.length) return null;
   const total=games.length, wins=games.filter(g=>g.result==="win").length, losses=games.filter(g=>g.result==="loss").length, draws=games.filter(g=>g.result==="draw").length;
   const winPct=wins/total, drawPct=draws/total;
@@ -448,11 +446,11 @@ function computePersonality(games, stats) {
   else if(speed==="speed"){title="The Clock Shark";icon="🕐";titleColor="#ff9900";archetype="The Attacker";desc="You live for bullet, play it cool — waiting for the blunder, then striking.";}
   else if(breadth==="specialist"&&aggression==="high"){title="The Opening Theorist";icon="📖";titleColor="#39ffa0";archetype="The Gambit King";desc="You know your lines cold. One or two openings, played to lethal perfection.";}
   else if(breadth==="explorer"&&speed==="deep"){title="The Renaissance Scholar";icon="🎨";titleColor="#a78bfa";archetype="The Positional Grinder";desc="No opening is a stranger. You explore theory and treat every position as a puzzle.";}
+  else if(aggression==="low"&&drawTend==="high"){title="The Positional Maestro";icon="🎼";titleColor="#c084fc";archetype="The Positional Grinder";desc="Tiny advantages compound into wins your opponents never see coming.";}
   else if(drawTend==="high"){title="The Fortress Builder";icon="🏰";titleColor="#60a5fa";archetype="The Positional Grinder";desc="Solid, unbreakable, methodical. You hold positions others would resign.";}
   else if(aggression==="high"){title="The Tactical Storm";icon="🌩️";titleColor="#f87171";archetype="The Attacker";desc="Sacrifices, combinations, chaos — all welcome. Pressure is your language.";}
   else if(speed==="deep"&&aggression==="low"){title="The Endgame Virtuoso";icon="♟";titleColor="#34d399";archetype="The Endgame Wizard";desc="When others trade into the endgame to draw, you convert. Technical mastery.";}
   else if(speed==="sharp"&&breadth==="balanced"){title="The Blitz Craftsman";icon="⚔️";titleColor="#fb923c";archetype="The Attacker";desc="Blitz is your art — fast but precise, varied repertoire, always dangerous.";}
-  else if(aggression==="low"&&drawTend==="high"){title="The Positional Maestro";icon="🎼";titleColor="#c084fc";archetype="The Positional Grinder";desc="Tiny advantages compound into wins your opponents never see coming.";}
   else if(breadth==="explorer"){title="The Chess Wanderer";icon="🗺️";titleColor="#67e8f9";archetype="The Positional Grinder";desc="Variety is your spice. You roam openings, picking up something new every session.";}
   else if(total>200&&winPct>.5){title="The Grinder";icon="⚙️";titleColor="#a3e635";archetype="The Endgame Wizard";desc="Volume meets quality. Hundreds of games, winning record — that's consistency.";}
   else{title="The Eternal Student";icon="📚";titleColor="#94a3b8";archetype="The Positional Grinder";desc="Every game is a lesson. You're building the foundation of a stronger player.";}
@@ -493,12 +491,60 @@ function Donut({wins,losses,draws,size=100,t}) {
   </PieChart>;
 }
 
+function ColorStatsPanel({label,s,icon,t}) {
+  const tot=s.total||1;
+  return <Card t={t} style={{flex:1,minWidth:200}}>
+    <div style={{fontFamily:t.headingFont,fontSize:18,fontWeight:700,color:t.text,marginBottom:4}}>{icon} {label}</div>
+    <div style={{fontSize:12,color:t.textDim,marginBottom:14}}>{s.total} games</div>
+    <div style={{display:"flex",gap:14,alignItems:"center",flexWrap:"wrap"}}>
+      <Donut wins={s.wins} losses={s.losses} draws={s.draws} t={t} size={100}/>
+      <div style={{display:"flex",flexDirection:"column",gap:5}}>
+        {[["Wins",s.wins,t.win],["Losses",s.losses,t.loss],["Draws",s.draws,t.draw]].map(([l,v,c])=>(
+          <div key={l} style={{display:"flex",alignItems:"center",gap:8,fontSize:13}}>
+            <div style={{width:9,height:9,borderRadius:2,background:c,flexShrink:0}}/>
+            <span style={{color:t.textDim}}>{l}:</span><span style={{color:c,fontWeight:700}}>{v}</span>
+            <span style={{color:t.textDim,fontSize:11}}>({Math.round(v/tot*100)}%)</span>
+          </div>
+        ))}
+      </div>
+    </div>
+    <div style={{marginTop:12,display:"flex",flexDirection:"column",gap:1}}>
+      {[["Avg opp",s.avgOpp||"—"],["Best win",s.bestWinElo?`${s.bestWinOpp} (${s.bestWinElo})`:"—"]].map(([l,v])=>(
+        <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:`1px solid ${t.cardBorder}40`,fontSize:13}}>
+          <span style={{color:t.textDim}}>{l}</span><span style={{color:t.accent,fontWeight:600}}>{v}</span>
+        </div>
+      ))}
+    </div>
+  </Card>;
+}
+
+function CompareMiniCard({p,accent,t}) {
+  return <Card t={t} style={{flex:1,minWidth:180}}>
+    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
+      <div style={{width:44,height:44,borderRadius:"50%",border:`2px solid ${accent}50`,overflow:"hidden",background:t.bg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>
+        {p.profile.avatar?<img src={p.profile.avatar} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}} onError={e=>{e.target.style.display="none";}}/>:"♟"}
+      </div>
+      <div><div style={{fontFamily:t.headingFont,fontSize:16,fontWeight:700,color:accent}}>{p.profile.username}</div><div style={{fontSize:11,color:t.textDim}}>{p.games.length} games</div></div>
+    </div>
+    {["rapid","blitz","bullet"].map(tc=>{const r=getRating(p.stats,tc);return r.last?<div key={tc} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:`1px solid ${t.cardBorder}40`,fontSize:13}}><span style={{color:t.textDim,textTransform:"capitalize"}}>{tc}</span><span style={{color:t.text,fontWeight:600}}>{r.last}</span></div>:null;})}
+    <div style={{display:"flex",justifyContent:"space-between",padding:"6px 0",fontSize:13}}><span style={{color:t.textDim}}>Win rate</span><span style={{color:accent,fontWeight:700}}>{p.games.length?Math.round(p.games.filter(g=>g.result==="win").length/p.games.length*100):0}%</span></div>
+  </Card>;
+}
+
+function OverviewStatCard({label,value,color,sub,i,t}) {
+  return <Card t={t} className={`stagger-${i+1}`} style={{padding:"16px 18px",textAlign:"center",minWidth:100}}>
+    <div style={{fontSize:10,color:t.textDim,textTransform:"uppercase",letterSpacing:".07em",marginBottom:6,fontFamily:t.font}}>{label}</div>
+    <div style={{fontSize:28,fontWeight:700,color:color||t.text,fontFamily:t.headingFont}}>{typeof value==="number"?<AnimatedNumber value={value} duration={600}/>:value}</div>
+    {sub&&<div style={{fontSize:11,color:t.textDim,marginTop:3}}>{sub}</div>}
+  </Card>;
+}
+
 // ── Animated counter ──────────────────────────────────────────────────────────
 function AnimatedNumber({value, duration=800, style={}}) {
   const [display, setDisplay] = useState(0);
   const ref = useRef(null);
   useEffect(() => {
-    if (value === 0 || value === null || value === undefined) { setDisplay(value); return; }
+    if (value === 0 || value === null || value === undefined) return;
     const start = Date.now();
     const from = 0;
     const to = typeof value === "number" ? value : parseFloat(value) || 0;
@@ -514,17 +560,18 @@ function AnimatedNumber({value, duration=800, style={}}) {
     };
     ref.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(ref.current);
-  }, [value]);
-  return <span style={style}>{display}</span>;
+  }, [value, duration]);
+  const displayValue = value === 0 || value === null || value === undefined ? value : display;
+  return <span style={style}>{displayValue}</span>;
 }
 
 // ── Page transition wrapper ───────────────────────────────────────────────────
 function PageTransition({children, keyVal}) {
   const [visible, setVisible] = useState(false);
   useEffect(() => {
-    setVisible(false);
-    const t = setTimeout(() => setVisible(true), 20);
-    return () => clearTimeout(t);
+    const hide = setTimeout(() => setVisible(false), 0);
+    const show = setTimeout(() => setVisible(true), 20);
+    return () => [hide, show].forEach(clearTimeout);
   }, [keyVal]);
   return <div style={{opacity: visible ? 1 : 0, transform: visible ? "translateY(0)" : "translateY(12px)", transition:"opacity .3s cubic-bezier(.22,1,.36,1), transform .3s cubic-bezier(.22,1,.36,1)"}}>{children}</div>;
 }
@@ -533,12 +580,15 @@ function PageTransition({children, keyVal}) {
 function LoadingBar({active, t}) {
   const [width, setWidth] = useState(0);
   useEffect(() => {
-    if (!active) { setWidth(0); return; }
-    setWidth(20);
+    if (!active) {
+      const reset = setTimeout(() => setWidth(0), 0);
+      return () => clearTimeout(reset);
+    }
+    const t0 = setTimeout(() => setWidth(20), 0);
     const t1 = setTimeout(() => setWidth(55), 400);
     const t2 = setTimeout(() => setWidth(75), 1200);
     const t3 = setTimeout(() => setWidth(88), 2500);
-    return () => [t1,t2,t3].forEach(clearTimeout);
+    return () => [t0,t1,t2,t3].forEach(clearTimeout);
   }, [active]);
   if (!active && width === 0) return null;
   return <div style={{position:"fixed",top:0,left:0,right:0,zIndex:9999,height:3,background:`${t.glowC}30`,transition:"all .3s ease"}}>
@@ -718,7 +768,7 @@ function PlayerHeroCard({data,loading,t}) {
   if (loading) return <Card t={t} style={{display:"flex",gap:20,alignItems:"center"}}><Sk w={88} h={88} style={{borderRadius:"50%",flexShrink:0}}/><div style={{flex:1,display:"flex",flexDirection:"column",gap:10}}><Sk w="50%" h={24}/><Sk w="70%" h={15}/><Sk w="60%" h={12}/></div></Card>;
   if (!data) return null;
   const {profile,stats,games}=data;
-  const p=computePersonality(games,stats);
+  const p=computePersonality(games);
   const ratings=["rapid","blitz","bullet","daily"].map(tc=>({tc,...getRating(stats,tc)})).filter(r=>r.last);
   const joined=profile.joined?new Date(profile.joined*1000).getFullYear():null;
   const total=games.length, wins=games.filter(g=>g.result==="win").length, losses=games.filter(g=>g.result==="loss").length, draws=games.filter(g=>g.result==="draw").length;
@@ -829,7 +879,8 @@ function PerformanceChart({games,stats,loading,t}) {
     const now=new Date();
     chartData=Array.from({length:14},(_,i)=>{
       const d=new Date(now); d.setDate(d.getDate()-(13-i));
-      return {date:`${d.getMonth()+1}/${d.getDate()}`,rating:Math.round(baseR+Math.sin(i*.7)*30+Math.random()*20-10)};
+      const wobble=((i*17)%11)-5;
+      return {date:`${d.getMonth()+1}/${d.getDate()}`,rating:Math.round(baseR+Math.sin(i*.7)*30+wobble)};
     });
   }
 
@@ -937,34 +988,8 @@ function ColorTab({games,loading,t}) {
   if (loading) return <Sk h={240}/>;
   if (!games?.length) return <div style={{color:t.textDim}}>No games.</div>;
   const {white,black}=colorStats(games);
-  const Panel=({label,s,icon})=>{
-    const tot=s.total||1;
-    return <Card t={t} style={{flex:1,minWidth:200}}>
-      <div style={{fontFamily:t.headingFont,fontSize:18,fontWeight:700,color:t.text,marginBottom:4}}>{icon} {label}</div>
-      <div style={{fontSize:12,color:t.textDim,marginBottom:14}}>{s.total} games</div>
-      <div style={{display:"flex",gap:14,alignItems:"center",flexWrap:"wrap"}}>
-        <Donut wins={s.wins} losses={s.losses} draws={s.draws} t={t} size={100}/>
-        <div style={{display:"flex",flexDirection:"column",gap:5}}>
-          {[["Wins",s.wins,t.win],["Losses",s.losses,t.loss],["Draws",s.draws,t.draw]].map(([l,v,c])=>(
-            <div key={l} style={{display:"flex",alignItems:"center",gap:8,fontSize:13}}>
-              <div style={{width:9,height:9,borderRadius:2,background:c,flexShrink:0}}/>
-              <span style={{color:t.textDim}}>{l}:</span><span style={{color:c,fontWeight:700}}>{v}</span>
-              <span style={{color:t.textDim,fontSize:11}}>({Math.round(v/tot*100)}%)</span>
-            </div>
-          ))}
-        </div>
-      </div>
-      <div style={{marginTop:12,display:"flex",flexDirection:"column",gap:1}}>
-        {[["Avg opp",s.avgOpp||"—"],["Best win",s.bestWinElo?`${s.bestWinOpp} (${s.bestWinElo})`:"—"]].map(([l,v])=>(
-          <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:`1px solid ${t.cardBorder}40`,fontSize:13}}>
-            <span style={{color:t.textDim}}>{l}</span><span style={{color:t.accent,fontWeight:600}}>{v}</span>
-          </div>
-        ))}
-      </div>
-    </Card>;
-  };
   return <div style={{display:"flex",flexDirection:"column",gap:16}}>
-    <div style={{display:"flex",gap:14,flexWrap:"wrap"}}><Panel label="White" s={white} icon="♙"/><Panel label="Black" s={black} icon="♟"/></div>
+    <div style={{display:"flex",gap:14,flexWrap:"wrap"}}><ColorStatsPanel label="White" s={white} icon="♙" t={t}/><ColorStatsPanel label="Black" s={black} icon="♟" t={t}/></div>
     <Card t={t}>
       <SecTitle t={t}>White vs Black</SecTitle>
       <ResponsiveContainer width="100%" height={160}>
@@ -981,7 +1006,7 @@ function ColorTab({games,loading,t}) {
 }
 
 // ── Elo Tab ───────────────────────────────────────────────────────────────────
-function EloTab({games,stats,loading,t}) {
+function EloTab({games,loading,t}) {
   const tip=(props)=><ChartTip {...props} t={t}/>;
   if (loading) return <Sk h={240}/>;
   if (!games?.length) return <div style={{color:t.textDim}}>No games.</div>;
@@ -1028,33 +1053,21 @@ function CompareTab({p1,p2,l1,l2,p2In,setP2In,loadP2,t}) {
   const p1open=aggOpenings(p1.games).sort((a,b)=>b.games-a.games).slice(0,5);
   const p2open=aggOpenings(p2.games);
   const shared=p1open.map(o=>({opening:o.opening.length>18?o.opening.slice(0,16)+"…":o.opening,[p1.profile.username]:o.winPct,[p2.profile.username]:p2open.find(x=>x.opening===o.opening)?.winPct??0}));
-  const MiniCard=({p,accent})=>(
-    <Card t={t} style={{flex:1,minWidth:180}}>
-      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
-        <div style={{width:44,height:44,borderRadius:"50%",border:`2px solid ${accent}50`,overflow:"hidden",background:t.bg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>
-          {p.profile.avatar?<img src={p.profile.avatar} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}} onError={e=>{e.target.style.display="none";}}/>:"♟"}
-        </div>
-        <div><div style={{fontFamily:t.headingFont,fontSize:16,fontWeight:700,color:accent}}>{p.profile.username}</div><div style={{fontSize:11,color:t.textDim}}>{p.games.length} games</div></div>
-      </div>
-      {["rapid","blitz","bullet"].map(tc=>{const r=getRating(p.stats,tc);return r.last?<div key={tc} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:`1px solid ${t.cardBorder}40`,fontSize:13}}><span style={{color:t.textDim,textTransform:"capitalize"}}>{tc}</span><span style={{color:t.text,fontWeight:600}}>{r.last}</span></div>:null;})}
-      <div style={{display:"flex",justifyContent:"space-between",padding:"6px 0",fontSize:13}}><span style={{color:t.textDim}}>Win rate</span><span style={{color:accent,fontWeight:700}}>{p.games.length?Math.round(p.games.filter(g=>g.result==="win").length/p.games.length*100):0}%</span></div>
-    </Card>
-  );
   return <div style={{display:"flex",flexDirection:"column",gap:16}}>
     {/* VS section */}
     <div style={{display:"flex",gap:12,alignItems:"stretch",flexWrap:"wrap"}}>
-      <MiniCard p={p1} accent={P1_COLOR}/>
+      <CompareMiniCard p={p1} accent={P1_COLOR} t={t}/>
       <div style={{display:"flex",alignItems:"center",justifyContent:"center",padding:"0 4px"}}>
         <div style={{fontFamily:t.headingFont,fontSize:28,fontWeight:900,color:t.textDim,textShadow:`0 0 20px ${t.glowC}`}}>VS</div>
       </div>
-      <MiniCard p={p2} accent={P2_COLOR}/>
+      <CompareMiniCard p={p2} accent={P2_COLOR} t={t}/>
     </div>
     <Card t={t}><SecTitle t={t}>Radar Comparison</SecTitle>
       <ResponsiveContainer width="100%" height={250}>
         <RadarChart data={radar} cx="50%" cy="50%">
           <PolarGrid stroke={`${t.accent}15`}/><PolarAngleAxis dataKey="subject" tick={{fill:t.textMid,fontSize:12}}/><PolarRadiusAxis tick={false} axisLine={false} domain={[0,100]}/>
-          <Radar name={p1.profile.username} dataKey={p1.profile.username} stroke={P1_COLOR} fill={P1_COLOR} fillOpacity={.2}/>
-          <Radar name={p2.profile.username} dataKey={p2.profile.username} stroke={P2_COLOR} fill={P2_COLOR} fillOpacity={.16}/>
+          <Radar name={p1.profile.username} dataKey={p1.profile.username} stroke={P1_COLOR} fill={P1_FILL} fillOpacity={1}/>
+          <Radar name={p2.profile.username} dataKey={p2.profile.username} stroke={P2_COLOR} fill={P2_FILL} fillOpacity={1}/>
           <Legend wrapperStyle={{color:t.textMid,fontSize:12,fontFamily:t.font}}/><Tooltip content={tip}/>
         </RadarChart>
       </ResponsiveContainer>
@@ -1074,10 +1087,10 @@ function CompareTab({p1,p2,l1,l2,p2In,setP2In,loadP2,t}) {
 }
 
 // ── DNA Tab ───────────────────────────────────────────────────────────────────
-function DnaTab({games,stats,loading,t,profile}) {
+function DnaTab({games,loading,t,profile}) {
   const tip=(props)=><ChartTip {...props} t={t}/>;
   if (loading) return <Sk h={300}/>;
-  const p=computePersonality(games,stats);
+  const p=computePersonality(games);
   if (!p) return <div style={{color:t.textDim,textAlign:"center",padding:40,fontSize:14}}>Load a player to reveal their Chess DNA.</div>;
   return <div style={{display:"flex",flexDirection:"column",gap:20}}>
     <TradingCard p={p} profile={profile||{username:""}} t={t}/>
@@ -1139,24 +1152,16 @@ function OverviewTab({data,loading,t}) {
   // Opening diversity
   const uniqueO=new Set(games.filter(g=>g.opening!=="Unknown").map(g=>g.opening)).size;
 
-  const StatCard=({label,value,color,sub,i})=>(
-    <Card t={t} className={`stagger-${i+1}`} style={{padding:"16px 18px",textAlign:"center",minWidth:100}}>
-      <div style={{fontSize:10,color:t.textDim,textTransform:"uppercase",letterSpacing:".07em",marginBottom:6,fontFamily:t.font}}>{label}</div>
-      <div style={{fontSize:28,fontWeight:700,color:color||t.text,fontFamily:t.headingFont}}>{typeof value==="number"?<AnimatedNumber value={value} duration={600}/>:value}</div>
-      {sub&&<div style={{fontSize:11,color:t.textDim,marginTop:3}}>{sub}</div>}
-    </Card>
-  );
-
   return <div style={{display:"flex",flexDirection:"column",gap:16}}>
 
     {/* Row 1 — 6 key stats */}
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(100px,1fr))",gap:10}}>
-      <StatCard i={1} label="Total Games" value={total} color={t.accent}/>
-      <StatCard i={2} label="Wins" value={wins} color={t.win} sub={winPct+"%"}/>
-      <StatCard i={3} label="Losses" value={losses} color={t.loss} sub={lossPct+"%"}/>
-      <StatCard i={4} label="Draws" value={draws} color={t.draw} sub={drawPct+"%"}/>
-      <StatCard i={5} label="Avg Opponent" value={avgOpp||"—"} color={t.textMid}/>
-      <StatCard i={6} label="Openings Used" value={uniqueO} color={t.hl}/>
+      <OverviewStatCard i={1} label="Total Games" value={total} color={t.accent} t={t}/>
+      <OverviewStatCard i={2} label="Wins" value={wins} color={t.win} sub={winPct+"%"} t={t}/>
+      <OverviewStatCard i={3} label="Losses" value={losses} color={t.loss} sub={lossPct+"%"} t={t}/>
+      <OverviewStatCard i={4} label="Draws" value={draws} color={t.draw} sub={drawPct+"%"} t={t}/>
+      <OverviewStatCard i={5} label="Avg Opponent" value={avgOpp||"—"} color={t.textMid} t={t}/>
+      <OverviewStatCard i={6} label="Openings Used" value={uniqueO} color={t.hl} t={t}/>
     </div>
 
     {/* Row 2 — WDL bar + recent form + best win */}
@@ -1306,7 +1311,7 @@ function setHash(user, sub) {
 export default function App() {
   const [themeKey,setThemeKey]=useState(()=>localStorage.getItem("chessdna-theme")||"slate");
   const t=THEMES[themeKey];
-  useEffect(()=>{ injectTheme(t); document.body.style.background=t.bg; localStorage.setItem("chessdna-theme",themeKey); },[t]);
+  useEffect(()=>{ injectTheme(t); document.body.style.background=t.bg; localStorage.setItem("chessdna-theme",themeKey); },[t, themeKey]);
 
   const [tab,setTab]=useState(0);
   const [p1In,setP1In]=useState("");
@@ -1317,33 +1322,38 @@ export default function App() {
   const [l2,setL2]=useState(false);
   const [e1,setE1]=useState(null);
   const [months,setMonths]=useState(3);
+  const monthsRef=useRef(months);
 
-  // ── On mount: read URL and auto-load player ──
-  useEffect(()=>{
-    const {user,sub} = parseHash();
-    if (user) {
-      setP1In(user);
-      doLoad1(user);
-      if (sub==="card") setTab(5);
-    }
-    // Listen for hash changes (back/forward)
-    const onHash = () => {
-      const {user:u, sub:s} = parseHash();
-      if (u) { setP1In(u); doLoad1(u); if(s==="card") setTab(5); }
-    };
-    window.addEventListener("hashchange", onHash);
-    return ()=>window.removeEventListener("hashchange", onHash);
-  }, []);
+  useEffect(()=>{ monthsRef.current=months; },[months]);
 
-  const doLoad1 = async (username, mo) => {
-    const u = (username||p1In).trim().toLowerCase();
+  const doLoad1 = useCallback(async (username, mo) => {
+    const u = (username||"").trim().toLowerCase();
     if (!u) return;
-    const m = mo !== undefined ? mo : months;
+    const m = mo !== undefined ? mo : monthsRef.current;
     setL1(true); setE1(null); setP1(null);
     try { setP1(await loadPlayer(u, m)); }
     catch(e) { setE1(e.message||"Failed to load"); }
     finally { setL1(false); }
-  };
+  }, []);
+
+  // ── On mount: read URL and auto-load player ──
+  useEffect(()=>{
+    const applyHash = () => {
+      const {user,sub} = parseHash();
+      if (!user) return;
+      setP1In(user);
+      doLoad1(user, monthsRef.current);
+      if (sub==="card") setTab(5);
+    };
+    const initialLoad = setTimeout(applyHash, 0);
+    // Listen for hash changes (back/forward)
+    const onHash = () => applyHash();
+    window.addEventListener("hashchange", onHash);
+    return ()=>{
+      clearTimeout(initialLoad);
+      window.removeEventListener("hashchange", onHash);
+    };
+  }, [doLoad1]);
 
   const load1 = () => {
     const u = p1In.trim().toLowerCase();
@@ -1361,7 +1371,7 @@ export default function App() {
     if(!p2In.trim())return;
     setL2(true);setP2(null);
     try{setP2(await loadPlayer(p2In.trim().toLowerCase()));}
-    catch{}finally{setL2(false);}
+    catch{setP2(null);}finally{setL2(false);}
   };
 
   // Update URL when tab changes to card tab
@@ -1369,10 +1379,6 @@ export default function App() {
     setTab(i);
     if (p1) setHash(p1.profile.username);
   };
-
-  const p=p1?computePersonality(p1.games,p1.stats):null;
-  const insights=p1?computeInsights(p1.games):null;
-  const tip=(props)=><ChartTip {...props} t={t}/>;
 
   return <div style={{minHeight:"100vh",position:"relative"}}>
     {/* Background */}
@@ -1459,9 +1465,9 @@ export default function App() {
         {tab===0&&<OverviewTab data={p1} loading={l1} t={t}/>}
         {tab===1&&<OpeningsTab games={p1?.games} loading={l1} t={t}/>}
         {tab===2&&<ColorTab games={p1?.games} loading={l1} t={t}/>}
-        {tab===3&&<EloTab games={p1?.games} stats={p1?.stats} loading={l1} t={t}/>}
+        {tab===3&&<EloTab games={p1?.games} loading={l1} t={t}/>}
         {tab===4&&<CompareTab p1={p1} p2={p2} l1={l1} l2={l2} p2In={p2In} setP2In={setP2In} loadP2={load2} t={t}/>}
-        {tab===5&&<DnaTab games={p1?.games} stats={p1?.stats} loading={l1} t={t} profile={p1?.profile}/>}
+        {tab===5&&<DnaTab games={p1?.games} loading={l1} t={t} profile={p1?.profile}/>}
       </PageTransition>}
 
       {/* ── Empty state ── */}
