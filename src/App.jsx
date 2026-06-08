@@ -115,6 +115,8 @@ function injectTheme(t) {
     @keyframes tabSlideIn{from{opacity:0;transform:translateX(8px)}to{opacity:1;transform:translateX(0)}}
     @keyframes wdlBar{from{width:0}to{width:100%}}
 
+    .app-shell{--app-bottom-pad:80px}
+
     /* ── Stagger classes ── */
     .stagger-1{animation:fadeInUp .45s .04s cubic-bezier(.22,1,.36,1) both}
     .stagger-2{animation:fadeInUp .45s .10s cubic-bezier(.22,1,.36,1) both}
@@ -131,10 +133,14 @@ function injectTheme(t) {
     .card-hover:hover{transform:translateY(-3px) scale(1.004);box-shadow:0 12px 48px rgba(0,0,0,.6),0 0 0 1px ${t.accent}18!important}
 
     /* ── Tabs ── */
+    .tabs-nav{background:${t.card};border:1px solid ${t.cardBorder};border-radius:10px;padding:6px;display:flex;gap:2px;flex-wrap:wrap;margin-bottom:14px;animation:fadeInUp .35s ease both}
     .tab-btn{background:none;border:1px solid transparent;cursor:pointer;font-family:${t.font};font-size:13px;font-weight:500;padding:8px 15px;border-radius:6px;color:${t.textDim};white-space:nowrap;transition:color .18s cubic-bezier(.4,0,.2,1),background .18s cubic-bezier(.4,0,.2,1),border-color .18s cubic-bezier(.4,0,.2,1),transform .15s ease}
     .tab-btn:hover{color:${t.accent};background:${t.accent}10;transform:translateY(-1px)}
     .tab-btn.active{color:${t.accent};background:${t.accent}16;border-color:${t.accent}40;font-weight:600}
     .tab-btn:active{transform:scale(.97)}
+    .tab-icon{display:inline-block;margin-right:5px}
+    .tab-label-short{display:none}
+    .tab-transition{--tab-enter-y:12px;will-change:opacity,transform}
 
     /* ── Inputs ── */
     input{background:${t.inputBg};border:1px solid ${t.cardBorder};border-radius:10px;color:${t.text};font-family:${t.font};font-size:15px;padding:13px 16px;outline:none;width:100%;transition:border-color .2s cubic-bezier(.4,0,.2,1),box-shadow .2s cubic-bezier(.4,0,.2,1),transform .2s cubic-bezier(.22,1,.36,1)}
@@ -177,7 +183,52 @@ function injectTheme(t) {
     .fi{animation:fadeInUp .4s cubic-bezier(.22,1,.36,1) both}
     * {-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
     ::selection{background:${t.accent}30;color:${t.text}}
-    @media(max-width:700px){.three-col{flex-direction:column!important}.hide-mobile{display:none!important}}
+    @media(max-width:700px){
+      .app-shell{--app-bottom-pad:128px}
+      .three-col{flex-direction:column!important;align-items:stretch!important}
+      .three-col > *{width:100%!important;min-width:0!important}
+      .hide-mobile{display:none!important}
+      .tabs-nav{
+        position:fixed;
+        left:10px;
+        right:10px;
+        bottom:calc(10px + env(safe-area-inset-bottom));
+        z-index:50;
+        max-width:640px;
+        margin:0 auto;
+        padding:8px;
+        gap:4px;
+        flex-wrap:nowrap;
+        justify-content:space-between;
+        background:${t.bg}dd;
+        border-color:${t.accent}24;
+        border-radius:18px;
+        box-shadow:0 12px 40px rgba(0,0,0,.45),0 0 0 1px ${t.accent}12;
+        backdrop-filter:blur(18px) saturate(140%);
+        -webkit-backdrop-filter:blur(18px) saturate(140%);
+      }
+      .tab-btn{
+        flex:1;
+        min-width:0;
+        padding:7px 4px 6px;
+        border-radius:13px;
+        display:flex;
+        flex-direction:column;
+        align-items:center;
+        justify-content:center;
+        gap:3px;
+        font-size:10px;
+        line-height:1.1;
+        letter-spacing:.01em;
+      }
+      .tab-btn:hover{transform:none}
+      .tab-btn.active{color:${t.accent};background:${t.accent}18;border-color:${t.accent}3d;box-shadow:inset 0 1px 0 ${t.accent}18,0 6px 18px ${t.glowC}}
+      .tab-icon{margin-right:0;font-size:18px;line-height:1;filter:grayscale(.25);transition:filter .18s,transform .18s}
+      .tab-btn.active .tab-icon{filter:none;transform:translateY(-1px)}
+      .tab-label-full{display:none}
+      .tab-label-short{display:inline}
+      .tab-transition{--tab-enter-y:28px}
+    }
   `;
 }
 
@@ -526,7 +577,7 @@ function PageTransition({children, keyVal}) {
     const t = setTimeout(() => setVisible(true), 20);
     return () => clearTimeout(t);
   }, [keyVal]);
-  return <div style={{opacity: visible ? 1 : 0, transform: visible ? "translateY(0)" : "translateY(12px)", transition:"opacity .3s cubic-bezier(.22,1,.36,1), transform .3s cubic-bezier(.22,1,.36,1)"}}>{children}</div>;
+  return <div className="tab-transition" style={{opacity: visible ? 1 : 0, transform: visible ? "translateY(0)" : "translateY(var(--tab-enter-y, 12px))", transition:"opacity .3s cubic-bezier(.22,1,.36,1), transform .34s cubic-bezier(.22,1,.36,1)"}}>{children}</div>;
 }
 
 // ── Loading bar ───────────────────────────────────────────────────────────────
@@ -1289,7 +1340,7 @@ function OverviewTab({data,loading,t}) {
 }
 
 // ── Main App ──────────────────────────────────────────────────────────────────
-const TABS=[["📊","Overview"],["♟","Openings"],["🎨","Color Stats"],["📈","Elo Breakdown"],["⚔️","Compare"],["🧬","Chess DNA"]];
+const TABS=[["📊","Overview","Overview"],["♟","Openings","Open"],["🎨","Color Stats","Color"],["📈","Elo Breakdown","Elo"],["⚔️","Compare","Compare"],["🧬","Chess DNA","DNA"]];
 
 // ── URL routing helpers ───────────────────────────────────────────────────────
 function parseHash() {
@@ -1380,7 +1431,7 @@ export default function App() {
     <ThemeBg t={t}/>
     <LoadingBar active={l1} t={t}/>
 
-    <div style={{position:"relative",zIndex:1,maxWidth:960,margin:"0 auto",padding:"0 16px 80px"}}>
+    <div className="app-shell" style={{position:"relative",zIndex:1,maxWidth:960,margin:"0 auto",padding:"0 16px var(--app-bottom-pad, 80px)"}}>
 
       {/* ── Hero section ── */}
       <div style={{textAlign:"center",padding:"60px 0 40px",animation:"fadeInUp .6s ease both"}}>
@@ -1448,9 +1499,13 @@ export default function App() {
       </div>}
 
       {/* ── Tabs ── */}
-      {(p1||l1)&&<div style={{background:t.card,border:`1px solid ${t.cardBorder}`,borderRadius:10,padding:6,display:"flex",gap:2,flexWrap:"wrap",marginBottom:14,animation:"fadeInUp .35s ease both"}}>
-        {TABS.map(([icon,name],i)=>(
-          <button key={name} className={`tab-btn ${tab===i?"active":""}`} onClick={()=>handleTabChange(i)}>{icon} {name}</button>
+      {(p1||l1)&&<div className="tabs-nav" aria-label="Chess DNA sections">
+        {TABS.map(([icon,name,shortName],i)=>(
+          <button key={name} type="button" className={`tab-btn ${tab===i?"active":""}`} aria-current={tab===i?"page":undefined} aria-label={name} onClick={()=>handleTabChange(i)}>
+            <span className="tab-icon" aria-hidden="true">{icon}</span>
+            <span className="tab-label-full">{name}</span>
+            <span className="tab-label-short">{shortName}</span>
+          </button>
         ))}
       </div>}
 
