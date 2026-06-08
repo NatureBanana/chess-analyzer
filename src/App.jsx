@@ -304,6 +304,7 @@ function parsePGN(pgn, user) {
 function normalizeArchiveGame(game, user) {
   if (!game) return null;
   if (typeof game.pgn === "string") return parsePGNGame(game.pgn, user, game);
+  if (game.white?.username && game.black?.username) return parsePGNGame("", user, game);
   return game.color && game.result ? game : null;
 }
 
