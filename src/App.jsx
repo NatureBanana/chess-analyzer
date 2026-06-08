@@ -114,6 +114,10 @@ function injectTheme(t) {
     @keyframes heroChess{0%{transform:translateY(0) rotate(0deg)}33%{transform:translateY(-8px) rotate(-3deg)}66%{transform:translateY(-4px) rotate(2deg)}100%{transform:translateY(0) rotate(0deg)}}
     @keyframes tabSlideIn{from{opacity:0;transform:translateX(8px)}to{opacity:1;transform:translateX(0)}}
     @keyframes wdlBar{from{width:0}to{width:100%}}
+    @keyframes modalFadeIn{from{opacity:0}to{opacity:1}}
+    @keyframes modalFadeOut{from{opacity:1}to{opacity:0}}
+    @keyframes modalCardIn{from{opacity:0;transform:translateY(18px) scale(.96)}to{opacity:1;transform:translateY(0) scale(1)}}
+    @keyframes modalCardOut{from{opacity:1;transform:translateY(0) scale(1)}to{opacity:0;transform:translateY(10px) scale(.98)}}
 
     /* ── Stagger classes ── */
     .stagger-1{animation:fadeInUp .45s .04s cubic-bezier(.22,1,.36,1) both}
@@ -243,11 +247,19 @@ async function loadPlayer(user, months=3) {
 // ── Analytics helpers ─────────────────────────────────────────────────────────
 function getRating(stats, tc) { const s = stats?.[`chess_${tc}`]; return { last:s?.last?.rating??null, best:s?.best?.rating??null }; }
 
+function openingSlug(opening) {
+  return opening.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
+}
+
+function openingKey(game) {
+  return game.opening==="Unknown" ? game.eco+" Opening" : game.opening;
+}
+
 function aggOpenings(games, tc="all") {
   const f = tc==="all" ? games : games.filter(g=>g.timeControl===tc);
   const map = {};
   for (const g of f) {
-    const k = g.opening==="Unknown" ? g.eco+" Opening" : g.opening;
+    const k = openingKey(g);
     if (!map[k]) map[k]={opening:k,eco:g.eco,games:0,wins:0,losses:0,draws:0,elos:[]};
     map[k].games++; if(g.result==="win")map[k].wins++; else if(g.result==="loss")map[k].losses++; else map[k].draws++;
     if(g.oppElo)map[k].elos.push(g.oppElo);
@@ -790,7 +802,7 @@ function OpeningDNA({games,loading,t,tc="all"}) {
       <div key={i} style={{background:`${t.accent}06`,border:`1px solid ${t.cardBorder}`,borderRadius:10,padding:"10px 12px",display:"flex",alignItems:"center",gap:10}}>
         <div style={{width:22,height:22,borderRadius:"50%",background:i===0?t.accent:`${t.accent}20`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:i===0?t.bg:t.textDim,flexShrink:0,fontFamily:t.font}}>{i+1}</div>
         <div style={{flex:1,minWidth:0}}>
-          <a href={`https://www.chess.com/openings/${o.opening.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")}`} target="_blank" rel="noopener noreferrer" style={{fontSize:12,color:t.text,fontWeight:500,textDecoration:"none",display:"block",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",transition:"color .15s"}} onMouseEnter={e=>e.target.style.color=t.accent} onMouseLeave={e=>e.target.style.color=t.text}>{o.opening.length>28?o.opening.slice(0,26)+"…":o.opening}</a>
+          <a href={`https://www.chess.com/openings/${openingSlug(o.opening)}`} target="_blank" rel="noopener noreferrer" style={{fontSize:12,color:t.text,fontWeight:500,textDecoration:"none",display:"block",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",transition:"color .15s"}} onMouseEnter={e=>e.target.style.color=t.accent} onMouseLeave={e=>e.target.style.color=t.text}>{o.opening.length>28?o.opening.slice(0,26)+"…":o.opening}</a>
           <div style={{fontSize:11,color:t.textDim}}>{o.games} games</div>
         </div>
         <span className={`badge ${o.winPct>=55?"green":o.winPct>=45?"yellow":"red"}`}>{o.winPct}%</span>
@@ -873,16 +885,170 @@ function InsightsColumn({games,loading,t}) {
   </div>;
 }
 
+// ── Opening details modal ─────────────────────────────────────────────────────
+const MODAL_ANIMATION_MS = 220;
+
+function OpeningDetailsModal({opening,games,t,onClose,closing}) {
+  useEffect(() => {
+    const onKey = e => { if (e.key === "Escape") onClose(); };
+    const previousOverflow = document.body.style.overflow;
+    window.addEventListener("keydown", onKey);
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [onClose]);
+
+  if (!opening) return null;
+
+  const total = opening.wins + opening.draws + opening.losses || 1;
+  const openingGames = games
+    .map((g,index)=>({g,index}))
+    .filter(({g})=>openingKey(g)===opening.opening)
+    .sort((a,b)=>{
+      const aDate = a.g.date && a.g.date !== "?" ? a.g.date : "";
+      const bDate = b.g.date && b.g.date !== "?" ? b.g.date : "";
+      return bDate.localeCompare(aDate) || b.index - a.index;
+    })
+    .slice(0,5)
+    .map(({g})=>g);
+  const resultMeta = {
+    win: { label:"Win", color:t.win, badge:"green" },
+    draw: { label:"Draw", color:t.draw, badge:"yellow" },
+    loss: { label:"Loss", color:t.loss, badge:"red" },
+  };
+
+  return <div
+    role="dialog"
+    aria-modal="true"
+    aria-label={`${opening.opening} opening details`}
+    onMouseDown={e=>{ if (e.target === e.currentTarget) onClose(); }}
+    style={{
+      position:"fixed",inset:0,zIndex:10000,padding:"24px 14px",
+      background:"rgba(0,0,0,.68)",backdropFilter:"blur(8px)",
+      display:"flex",alignItems:"center",justifyContent:"center",
+      animation:`${closing?"modalFadeOut":"modalFadeIn"} ${MODAL_ANIMATION_MS}ms ease both`,
+    }}>
+    <Card
+      t={t}
+      hover={false}
+      glow={true}
+      style={{
+        width:"min(720px,100%)",maxHeight:"calc(100vh - 48px)",overflowY:"auto",
+        position:"relative",padding:0,
+        animation:`${closing?"modalCardOut":"modalCardIn"} ${MODAL_ANIMATION_MS}ms cubic-bezier(.22,1,.36,1) both`,
+      }}
+      className="fi"
+    >
+      <div onMouseDown={e=>e.stopPropagation()} style={{position:"relative",padding:24}}>
+        <button
+          type="button"
+          aria-label="Close opening details"
+          onClick={onClose}
+          style={{
+            position:"absolute",top:14,right:14,width:34,height:34,borderRadius:"50%",
+            border:`1px solid ${t.cardBorder}`,background:`${t.accent}10`,color:t.text,
+            cursor:"pointer",fontSize:18,lineHeight:1,fontFamily:t.font,
+            display:"flex",alignItems:"center",justifyContent:"center",
+            transition:"background .18s,border-color .18s,transform .18s",
+          }}
+          onMouseEnter={e=>{e.currentTarget.style.background=`${t.accent}20`;e.currentTarget.style.borderColor=`${t.accent}55`;e.currentTarget.style.transform="scale(1.05)";}}
+          onMouseLeave={e=>{e.currentTarget.style.background=`${t.accent}10`;e.currentTarget.style.borderColor=t.cardBorder;e.currentTarget.style.transform="scale(1)";}}
+        >×</button>
+
+        <div style={{paddingRight:44,marginBottom:18}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",marginBottom:8}}>
+            <span style={{fontSize:12,color:t.textDim}}>{opening.games} games analyzed</span>
+          </div>
+          <h2 style={{fontFamily:t.headingFont,fontSize:32,fontWeight:900,lineHeight:1.08,color:t.text,letterSpacing:"-.02em",marginBottom:10}}>
+            {opening.opening}
+            <span style={{display:"inline-flex",verticalAlign:"middle",marginLeft:10,background:`${t.accent}18`,border:`1px solid ${t.accent}45`,borderRadius:999,padding:"4px 10px",fontSize:14,fontWeight:800,color:t.accent,fontFamily:t.font,letterSpacing:".05em"}}>
+              {opening.eco}
+            </span>
+          </h2>
+          <a
+            href={`https://www.chess.com/openings/${openingSlug(opening.opening)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{color:t.accent,textDecoration:"none",fontSize:13,fontWeight:600,fontFamily:t.font}}
+          >
+            View on Chess.com ↗
+          </a>
+        </div>
+
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(190px,1fr))",gap:18,alignItems:"center",marginBottom:20}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"center",background:`${t.accent}06`,border:`1px solid ${t.cardBorder}`,borderRadius:14,padding:12}}>
+            <Donut wins={opening.wins} losses={opening.losses} draws={opening.draws} size={170} t={t}/>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:10}}>
+            {[["Wins",opening.wins,t.win],["Draws",opening.draws,t.draw],["Losses",opening.losses,t.loss]].map(([label,value,color])=>(
+              <div key={label} style={{background:`${color}0e`,border:`1px solid ${color}28`,borderRadius:12,padding:"12px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <span style={{display:"flex",alignItems:"center",gap:8,color:t.textMid,fontSize:13}}>
+                  <span style={{width:9,height:9,borderRadius:2,background:color}}/>
+                  {label}
+                </span>
+                <span style={{color,fontWeight:800,fontSize:18,fontFamily:t.headingFont}}>
+                  {value} <span style={{fontSize:12,fontFamily:t.font,opacity:.7}}>({Math.round(value/total*100)}%)</span>
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div style={{borderTop:`1px solid ${t.cardBorder}60`,paddingTop:18}}>
+          <div style={{fontFamily:t.headingFont,fontSize:18,fontWeight:700,color:t.accent,marginBottom:10}}>Last 5 games</div>
+          {openingGames.length ? <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {openingGames.map((g,i)=>{
+              const meta = resultMeta[g.result] || resultMeta.draw;
+              return <div key={`${g.opponent}-${g.date}-${i}`} style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) auto auto auto",gap:10,alignItems:"center",background:`${t.accent}06`,border:`1px solid ${t.cardBorder}`,borderRadius:10,padding:"10px 12px",fontSize:13}}>
+                <div style={{minWidth:0}}>
+                  <div style={{color:t.text,fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{g.opponent}</div>
+                </div>
+                <span className={`badge ${meta.badge}`} style={{justifySelf:"start"}}>{meta.label}</span>
+                <span style={{color:t.textMid,textTransform:"capitalize"}}>{g.color}</span>
+                <span style={{color:t.textDim,whiteSpace:"nowrap"}}>{g.date&&g.date!=="?"?g.date:"Unknown date"}</span>
+              </div>;
+            })}
+          </div> : <div style={{color:t.textDim,fontSize:13}}>No games found for this opening.</div>}
+        </div>
+      </div>
+    </Card>
+  </div>;
+}
+
 // ── Full Openings Tab ─────────────────────────────────────────────────────────
 function OpeningsTab({games,loading,t}) {
   const [tc,setTc]=useState("all");
   const [sort,setSort]=useState({key:"games",dir:-1});
   const [min,setMin]=useState(1);
+  const [selectedOpening,setSelectedOpening]=useState(null);
+  const [modalClosing,setModalClosing]=useState(false);
+  const closeTimer=useRef(null);
   const toggleSort=k=>setSort(s=>({key:k,dir:s.key===k?-s.dir:-1}));
   const tip=(props)=><ChartTip {...props} t={t}/>;
+  const openOpeningModal = opening => {
+    if (closeTimer.current) {
+      clearTimeout(closeTimer.current);
+      closeTimer.current = null;
+    }
+    setModalClosing(false);
+    setSelectedOpening(opening);
+  };
+  const closeOpeningModal = () => {
+    if (!selectedOpening || modalClosing || closeTimer.current) return;
+    setModalClosing(true);
+    closeTimer.current = setTimeout(() => {
+      setSelectedOpening(null);
+      setModalClosing(false);
+      closeTimer.current = null;
+    }, MODAL_ANIMATION_MS);
+  };
+  useEffect(() => () => closeTimer.current && clearTimeout(closeTimer.current), []);
   if (loading) return <div style={{display:"flex",flexDirection:"column",gap:10}}>{[...Array(5)].map((_,i)=><Sk key={i} h={34}/>)}</div>;
   if (!games?.length) return <div style={{color:t.textDim}}>No games.</div>;
-  const data=aggOpenings(games,tc).filter(o=>o.games>=min);
+  const filteredGames=tc==="all" ? games : games.filter(g=>g.timeControl===tc);
+  const data=aggOpenings(filteredGames).filter(o=>o.games>=min);
   const sorted=[...data].sort((a,b)=>sort.dir*((a[sort.key]??"")<(b[sort.key]??"")? -1:1));
   const top10=[...data].sort((a,b)=>b.games-a.games).slice(0,10);
   return <div style={{display:"flex",flexDirection:"column",gap:16}}>
@@ -913,10 +1079,18 @@ function OpeningsTab({games,loading,t}) {
         <table>
           <thead><tr>{[["opening","Opening"],["games","Games"],["winPct","Win%"],["lossPct","Loss%"],["drawPct","Draw%"],["avgOpp","Avg Opp"]].map(([k,l])=><th key={k} onClick={()=>toggleSort(k)}>{l}{sort.key===k?sort.dir===1?" ↑":" ↓":""}</th>)}</tr></thead>
           <tbody>{sorted.map((o,i)=>(
-            <tr key={i}>
+            <tr
+              key={i}
+              role="button"
+              tabIndex={0}
+              aria-label={`Open details for ${o.eco} ${o.opening}`}
+              onClick={()=>openOpeningModal(o)}
+              onKeyDown={e=>{ if (e.key==="Enter"||e.key===" ") { e.preventDefault(); openOpeningModal(o); } }}
+              style={{cursor:"pointer"}}
+            >
               <td style={{maxWidth:240,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                 <span style={{fontSize:10,color:t.textDim,marginRight:5}}>{o.eco}</span>
-                <a href={`https://www.chess.com/openings/${o.opening.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")}`} target="_blank" rel="noopener noreferrer" style={{color:t.text,textDecoration:"none",transition:"color .15s"}} onMouseEnter={e=>e.target.style.color=t.accent} onMouseLeave={e=>e.target.style.color=t.text}>{o.opening} ↗</a>
+                <span style={{color:t.text,transition:"color .15s"}}>{o.opening}</span>
               </td>
               <td style={{fontWeight:600,color:t.text}}>{o.games}</td>
               <td><span style={{color:t.win,fontWeight:700}}>{o.winPct}%</span></td>
@@ -928,6 +1102,7 @@ function OpeningsTab({games,loading,t}) {
         </table>
       </div>
     </Card>
+    {selectedOpening&&<OpeningDetailsModal opening={selectedOpening} games={filteredGames} t={t} onClose={closeOpeningModal} closing={modalClosing}/>}
   </div>;
 }
 
