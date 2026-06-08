@@ -252,6 +252,18 @@ function pgnTags(pgn) {
   return tags;
 }
 
+const DRAW_RESULTS = new Set(["agreed", "repetition", "stalemate", "insufficient", "50move", "timevsinsufficient"]);
+
+function resultFromArchive(raw, sideResult, color) {
+  if (raw==="1-0") return color==="white" ? "win":"loss";
+  if (raw==="0-1") return color==="black" ? "win":"loss";
+  if (raw==="1/2-1/2") return "draw";
+  const normalized = String(sideResult || "").toLowerCase();
+  if (normalized === "win") return "win";
+  if (DRAW_RESULTS.has(normalized)) return "draw";
+  return normalized ? "loss" : "draw";
+}
+
 function parsePGNGame(pgn, user, game={}) {
   const tags = pgnTags(pgn);
   const w = game.white?.username || tags.White;
@@ -261,9 +273,8 @@ function parsePGNGame(pgn, user, game={}) {
   const color = w.toLowerCase() === userLower ? "white" : b.toLowerCase() === userLower ? "black" : null;
   if (!color) return null;
   const raw = tags.Result;
-  let result = "draw";
-  if (raw==="1-0") result = color==="white" ? "win":"loss";
-  else if (raw==="0-1") result = color==="black" ? "win":"loss";
+  const side = color==="white" ? game.white : game.black;
+  const result = resultFromArchive(raw, side?.result, color);
   const opp = color==="white" ? game.black : game.white;
   const oppEloRaw = opp?.rating ?? (color==="white" ? tags.BlackElo : tags.WhiteElo);
   const oppElo = oppEloRaw ? parseInt(oppEloRaw, 10) : null;
@@ -285,7 +296,7 @@ async function loadPlayer(user, months=3) {
   // months=0 means all time
   const urls = months === 0 ? allUrls : allUrls.slice(-months);
   const archiveData = await Promise.all(urls.map(u => fetchJSON(u).catch(async () => ({ games: parsePGN(await fetchText(u+"/pgn"), user) }))));
-  const games = archiveData.flatMap(a => (a.games || []).map(g => g.pgn ? parsePGNGame(g.pgn, user, g) : g).filter(Boolean)).sort((a,b)=>(b.endTime||0)-(a.endTime||0));
+  const games = archiveData.flatMap(a => (a.games || []).map(g => parsePGNGame(g.pgn, user, g)).filter(Boolean)).sort((a,b)=>(b.endTime||0)-(a.endTime||0));
   return { profile, stats, games, monthsLoaded: urls.length };
 }
 
@@ -296,8 +307,9 @@ function aggOpenings(games, tc="all") {
   const f = tc==="all" ? games : games.filter(g=>g.timeControl===tc);
   const map = {};
   for (const g of f) {
-    const k = g.opening==="Unknown" ? g.eco+" Opening" : g.opening;
-    if (!map[k]) map[k]={opening:k,eco:g.eco,games:0,wins:0,losses:0,draws:0,elos:[]};
+    if (!g.opening || (g.opening==="Unknown" && (!g.eco || g.eco==="?"))) continue;
+    const k = g.opening==="Unknown" ? (g.eco||"?")+" Opening" : g.opening;
+    if (!map[k]) map[k]={opening:k,eco:g.eco||"?",games:0,wins:0,losses:0,draws:0,elos:[]};
     map[k].games++; if(g.result==="win")map[k].wins++; else if(g.result==="loss")map[k].losses++; else map[k].draws++;
     if(g.oppElo)map[k].elos.push(g.oppElo);
   }
