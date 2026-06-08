@@ -1384,6 +1384,12 @@ function OverviewTab({data,loading,t}) {
 // ── Main App ──────────────────────────────────────────────────────────────────
 const TABS=[["📊","Overview"],["♟","Openings"],["🎨","Color Stats"],["📈","Elo Breakdown"],["⚔️","Compare"],["🧬","Chess DNA"]];
 const RANGE_OPTIONS = [3,6,12,0];
+function getSavedRange() {
+  const raw = localStorage.getItem("chessdna-range");
+  if (raw === null) return 3;
+  const saved = Number(raw);
+  return RANGE_OPTIONS.includes(saved) ? saved : 3;
+}
 
 // ── URL routing helpers ───────────────────────────────────────────────────────
 function parseHash() {
@@ -1410,10 +1416,8 @@ export default function App() {
   const [l1,setL1]=useState(false);
   const [l2,setL2]=useState(false);
   const [e1,setE1]=useState(null);
-  const [months,setMonths]=useState(()=>{
-    const saved = Number(localStorage.getItem("chessdna-range"));
-    return RANGE_OPTIONS.includes(saved) ? saved : 3;
-  });
+  const [months,setMonths]=useState(getSavedRange);
+  const monthsRef=useRef(months);
   const p1LoadId=useRef(0);
   const p2LoadId=useRef(0);
 
@@ -1437,7 +1441,7 @@ export default function App() {
   const doLoad1 = async (username, mo) => {
     const u = (username||p1In).trim().toLowerCase();
     if (!u) return;
-    const m = mo !== undefined ? mo : months;
+    const m = mo !== undefined ? mo : monthsRef.current;
     const loadId = ++p1LoadId.current;
     setL1(true); setE1(null); setP1(null);
     try {
@@ -1452,10 +1456,11 @@ export default function App() {
     const u = p1In.trim().toLowerCase();
     if (!u) return;
     setHash(u);
-    doLoad1(u, months);
+    doLoad1(u, monthsRef.current);
   };
 
   const changeMonths = (m) => {
+    monthsRef.current = m;
     localStorage.setItem("chessdna-range", String(m));
     setMonths(m);
     if (p1) doLoad1(p1.profile.username, m);
@@ -1465,7 +1470,7 @@ export default function App() {
   const load2=async(username, mo)=>{
     const u = (username||p2In).trim().toLowerCase();
     if(!u)return;
-    const m = mo !== undefined ? mo : months;
+    const m = mo !== undefined ? mo : monthsRef.current;
     const loadId = ++p2LoadId.current;
     setL2(true);setP2(null);
     try{
