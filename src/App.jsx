@@ -204,7 +204,7 @@ async function tryFetch(url, asText) {
   throw new Error(`Cannot reach Chess.com API (${lastErr})`);
 }
 const fetchJSON = u => tryFetch(u, false);
-const fetchText = async u => { try { return await tryFetch(u, true); } catch { return ""; } };
+const fetchText = u => tryFetch(u, true);
 
 // ── PGN parser ────────────────────────────────────────────────────────────────
 function inferTimeControl(tc) {
@@ -301,6 +301,24 @@ function parsePGN(pgn, user) {
   return pgn.split(/\r?\n\r?\n(?=\[)/).filter(g => g.includes("[White ") && g.includes("[Black ")).map(g => parsePGNGame(g, user)).filter(Boolean);
 }
 
+function normalizeArchiveGame(game, user) {
+  if (!game) return null;
+  if (typeof game.pgn === "string") return parsePGNGame(game.pgn, user, game);
+  return game.color && game.result ? game : null;
+}
+
+async function fetchArchiveGames(url, user) {
+  try {
+    const data = await fetchJSON(url);
+    if (Array.isArray(data?.games)) return data.games;
+  } catch {
+    // Fall back to the PGN endpoint when an archive JSON request/proxy fails.
+  }
+  const games = parsePGN(await fetchText(`${url}/pgn`), user);
+  if (!games.length) throw new Error(`No games parsed from archive ${url}`);
+  return games;
+}
+
 async function loadPlayer(user, months=3) {
   const base = `https://api.chess.com/pub/player/${user}`;
   const [profile, stats, archives] = await Promise.all([fetchJSON(base), fetchJSON(`${base}/stats`), fetchJSON(`${base}/games/archives`)]);
@@ -308,8 +326,8 @@ async function loadPlayer(user, months=3) {
   const allUrls = archives.archives || [];
   // months=0 means all time
   const urls = months === 0 ? allUrls : allUrls.slice(-months);
-  const archiveData = await Promise.all(urls.map(u => fetchJSON(u).catch(async () => ({ games: parsePGN(await fetchText(u+"/pgn"), user) }))));
-  const games = archiveData.flatMap(a => (a.games || []).map(g => parsePGNGame(g.pgn, user, g)).filter(Boolean)).sort((a,b)=>(b.endTime||0)-(a.endTime||0));
+  const archiveData = await Promise.all(urls.map(u => fetchArchiveGames(u, user)));
+  const games = archiveData.flatMap(games => games.map(g => normalizeArchiveGame(g, user)).filter(Boolean)).sort((a,b)=>(b.endTime||0)-(a.endTime||0));
   return { profile, stats, games, monthsLoaded: urls.length };
 }
 
@@ -1391,6 +1409,8 @@ export default function App() {
   const [l2,setL2]=useState(false);
   const [e1,setE1]=useState(null);
   const [months,setMonths]=useState(3);
+  const p1LoadId=useRef(0);
+  const p2LoadId=useRef(0);
 
   // ── On mount: read URL and auto-load player ──
   useEffect(()=>{
@@ -1413,10 +1433,14 @@ export default function App() {
     const u = (username||p1In).trim().toLowerCase();
     if (!u) return;
     const m = mo !== undefined ? mo : months;
+    const loadId = ++p1LoadId.current;
     setL1(true); setE1(null); setP1(null);
-    try { setP1(await loadPlayer(u, m)); }
-    catch(e) { setE1(e.message||"Failed to load"); }
-    finally { setL1(false); }
+    try {
+      const data = await loadPlayer(u, m);
+      if (loadId === p1LoadId.current) setP1(data);
+    }
+    catch(e) { if (loadId === p1LoadId.current) setE1(e.message||"Failed to load"); }
+    finally { if (loadId === p1LoadId.current) setL1(false); }
   };
 
   const load1 = () => {
@@ -1436,9 +1460,15 @@ export default function App() {
     const u = (username||p2In).trim().toLowerCase();
     if(!u)return;
     const m = mo !== undefined ? mo : months;
+    const loadId = ++p2LoadId.current;
     setL2(true);setP2(null);
-    try{setP2(await loadPlayer(u, m));}
-    catch{}finally{setL2(false);}
+    try{
+      const data = await loadPlayer(u, m);
+      if (loadId === p2LoadId.current) setP2(data);
+    }
+    catch{
+      // Compare failures are non-blocking; the primary player stays visible.
+    }finally{if (loadId === p2LoadId.current) setL2(false);}
   };
 
   // Update URL when tab changes to card tab
