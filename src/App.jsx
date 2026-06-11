@@ -965,7 +965,7 @@ function CompareTab({p1,p2,l1,l2,p2In,setP2In,loadP2,e2,t}) {
   const tip=(props)=><ChartTip {...props} t={t}/>;
   const form = <Card t={t}><div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
     <input placeholder="Opponent username…" value={p2In} onChange={e=>setP2In(e.target.value)} onKeyDown={e=>e.key==="Enter"&&loadP2()} style={{flex:1,minWidth:180}}/>
-    <button className="primary" onClick={loadP2} disabled={l2||!p2In.trim()}>{l2?"Comparing…":p2?"Change":"Compare"}</button>
+    <button className="primary" onClick={()=>loadP2()} disabled={l2||!p2In.trim()}>{l2?"Comparing…":p2?"Change":"Compare"}</button>
   </div>{e2&&<div style={{marginTop:10,color:t.loss,fontSize:12}}>{e2}</div>}</Card>;
   if (!p2&&!l2) return <div style={{display:"flex",flexDirection:"column",gap:16}}>
     <div style={{textAlign:"center",padding:"24px 0 12px",color:t.textDim}}>
