@@ -1281,14 +1281,17 @@ export default function App() {
   // ── On mount: read URL and auto-load player ──
   useEffect(()=>{
     const {user} = parseHash();
-    if (user) doLoad1(user);
+    const startLoad = user ? setTimeout(() => doLoad1(user), 0) : null;
     // Listen for hash changes (back/forward)
     const onHash = () => {
       const {user:u, sub:s} = parseHash();
       if (u) { setP1In(u); doLoad1(u); if(s==="card") setTab(5); }
     };
     window.addEventListener("hashchange", onHash);
-    return ()=>window.removeEventListener("hashchange", onHash);
+    return ()=>{
+      if (startLoad) clearTimeout(startLoad);
+      window.removeEventListener("hashchange", onHash);
+    };
   }, [doLoad1]);
 
   const load1 = () => {
