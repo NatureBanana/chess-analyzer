@@ -4,6 +4,7 @@ import {
   PieChart, Pie, Cell, RadarChart, Radar, PolarGrid, PolarAngleAxis,
   PolarRadiusAxis, Legend, LineChart, Line, CartesianGrid,
 } from "recharts";
+import { loadPlayer, openingLink, uniqueNamedOpenings } from "./chesscom.js";
 
 // ── Fonts ─────────────────────────────────────────────────────────────────────
 const fl = document.createElement("link");
@@ -77,9 +78,7 @@ function ThemeBg({t}) {
 // ── Player comparison colors (theme-independent, always high contrast) ──────
 // P1 = vivid orange-amber, P2 = vivid violet — contrast on every theme
 const P1_COLOR = "#f97316";   // orange
-const P1_FILL  = "rgba(249,115,22,.18)";
 const P2_COLOR = "#a78bfa";   // violet
-const P2_FILL  = "rgba(167,139,250,.14)";
 
 // ── Global styles ─────────────────────────────────────────────────────────────
 const styleEl = document.createElement("style");
@@ -181,157 +180,6 @@ function injectTheme(t) {
   `;
 }
 
-// ── Fetch ─────────────────────────────────────────────────────────────────────
-const PROXIES = [
-  u => u,
-  u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
-  u => `https://corsproxy.io/?url=${encodeURIComponent(u)}`,
-  u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
-];
-async function tryFetch(url, asText) {
-  let lastErr = "network error";
-  for (const mk of PROXIES) {
-    try {
-      const r = await fetch(mk(url), { method:"GET", mode:"cors" });
-      if (r.status === 404) throw new Error("Player not found");
-      if (!r.ok) { lastErr = `HTTP ${r.status}`; continue; }
-      return asText ? await r.text() : await r.json();
-    } catch(e) {
-      if (e.message?.includes("not found")) throw e;
-      lastErr = e.message || "failed";
-    }
-  }
-  throw new Error(`Cannot reach Chess.com API (${lastErr})`);
-}
-const fetchJSON = u => tryFetch(u, false);
-const fetchText = u => tryFetch(u, true);
-
-// ── PGN parser ────────────────────────────────────────────────────────────────
-function inferTimeControl(tc) {
-  if (!tc) return "other";
-  const raw = String(tc).trim();
-  if (raw === "-" || raw.includes("/")) return "daily";
-  const [baseRaw, incRaw = "0"] = raw.split("+");
-  const base = parseInt(baseRaw, 10);
-  const inc = parseInt(incRaw, 10) || 0;
-  if (Number.isNaN(base)) return "other";
-  const estimatedSeconds = base + inc * 40;
-  if (estimatedSeconds < 180) return "bullet";
-  if (estimatedSeconds < 600) return "blitz";
-  return "rapid";
-}
-
-function normalizeTimeClass(timeClass, timeControl) {
-  const cls = String(timeClass || "").toLowerCase();
-  if (["bullet", "blitz", "rapid", "daily"].includes(cls)) return cls;
-  return inferTimeControl(timeControl);
-}
-
-function formatDateFromTimestamp(timestamp) {
-  if (!timestamp) return null;
-  const d = new Date(timestamp * 1000);
-  if (Number.isNaN(d.getTime())) return null;
-  return d.toISOString().slice(0, 10).replace(/-/g, ".");
-}
-
-function cleanOpeningNameFromUrl(url) {
-  const slug = url.split("/openings/")[1]?.split(/[?#]/)[0];
-  if (!slug) return "Unknown";
-  const decoded = decodeURIComponent(slug).replace(/[-_]+/g, " ");
-  return decoded.replace(/\s*(?:\.{3})?\d+\..*$/, "").replace(/\s+/g, " ").trim() || "Unknown";
-}
-
-function extractOpeningInfo(tags) {
-  const ecoUrl = tags.ECOUrl;
-  const openingUrl = ecoUrl?.includes("chess.com/openings/") ? ecoUrl : null;
-  const opening = tags.Opening?.trim() || (openingUrl ? cleanOpeningNameFromUrl(openingUrl) : "Unknown");
-  return { opening, openingUrl };
-}
-
-function openingLink(opening, openingUrl) {
-  if (openingUrl) return openingUrl;
-  return `https://www.chess.com/openings/${opening.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")}`;
-}
-
-function uniqueNamedOpenings(games) {
-  return new Set(games.filter(g=>g.opening&&g.opening!=="Unknown").map(g=>g.opening)).size;
-}
-
-function pgnTags(pgn) {
-  const tags = {};
-  if (!pgn) return tags;
-  for (const m of pgn.matchAll(/^\[([A-Za-z0-9_]+) "([^"]*)"\]/gm)) tags[m[1]] = m[2];
-  return tags;
-}
-
-const DRAW_RESULTS = new Set(["agreed", "repetition", "stalemate", "insufficient", "50move", "timevsinsufficient"]);
-
-function resultFromArchive(raw, sideResult, color) {
-  if (raw==="1-0") return color==="white" ? "win":"loss";
-  if (raw==="0-1") return color==="black" ? "win":"loss";
-  if (raw==="1/2-1/2") return "draw";
-  const normalized = String(sideResult || "").toLowerCase();
-  if (normalized === "win") return "win";
-  if (DRAW_RESULTS.has(normalized)) return "draw";
-  return normalized ? "loss" : "draw";
-}
-
-function parsePGNGame(pgn, user, game={}) {
-  const tags = pgnTags(pgn);
-  const w = game.white?.username || tags.White;
-  const b = game.black?.username || tags.Black;
-  if (!w || !b) return null;
-  const userLower = user.toLowerCase();
-  const color = w.toLowerCase() === userLower ? "white" : b.toLowerCase() === userLower ? "black" : null;
-  if (!color) return null;
-  const raw = tags.Result;
-  const side = color==="white" ? game.white : game.black;
-  const result = resultFromArchive(raw, side?.result, color);
-  const opp = color==="white" ? game.black : game.white;
-  const oppEloRaw = opp?.rating ?? (color==="white" ? tags.BlackElo : tags.WhiteElo);
-  const oppElo = oppEloRaw ? parseInt(oppEloRaw, 10) : null;
-  const timeControl = normalizeTimeClass(game.time_class, game.time_control || tags.TimeControl);
-  const dateStr = formatDateFromTimestamp(game.end_time) || tags.EndDate || tags.UTCDate || tags.Date;
-  const openingInfo = extractOpeningInfo(tags);
-  return { ...openingInfo, eco:tags.ECO||"?", color, result, oppElo:(!oppElo||isNaN(oppElo))?null:oppElo, timeControl, date:dateStr, endTime:game.end_time||0, opponent:color==="white"?b:w };
-}
-
-function parsePGN(pgn, user) {
-  if (!pgn || pgn.length < 10) return [];
-  return pgn.split(/\r?\n\r?\n(?=\[)/).filter(g => g.includes("[White ") && g.includes("[Black ")).map(g => parsePGNGame(g, user)).filter(Boolean);
-}
-
-function normalizeArchiveGame(game, user) {
-  if (!game) return null;
-  if (typeof game.pgn === "string") return parsePGNGame(game.pgn, user, game);
-  if (game.white?.username && game.black?.username) return parsePGNGame("", user, game);
-  return game.color && game.result ? game : null;
-}
-
-async function fetchArchiveGames(url, user) {
-  try {
-    const data = await fetchJSON(url);
-    if (Array.isArray(data?.games)) return data.games;
-  } catch {
-    // Fall back to the PGN endpoint when an archive JSON request/proxy fails.
-  }
-  const games = parsePGN(await fetchText(`${url}/pgn`), user);
-  if (!games.length) throw new Error(`No games parsed from archive ${url}`);
-  return games;
-}
-
-async function loadPlayer(user, months=3) {
-  const base = `https://api.chess.com/pub/player/${user}`;
-  const [profile, stats, archives] = await Promise.all([fetchJSON(base), fetchJSON(`${base}/stats`), fetchJSON(`${base}/games/archives`)]);
-  if (!profile.username) throw new Error(`Player "${user}" not found on Chess.com`);
-  const allUrls = archives.archives || [];
-  // months=0 means all time
-  const urls = months === 0 ? allUrls : allUrls.slice(-months);
-  const archiveData = await Promise.all(urls.map(u => fetchArchiveGames(u, user)));
-  const games = archiveData.flatMap(games => games.map(g => normalizeArchiveGame(g, user)).filter(Boolean)).sort((a,b)=>(b.endTime||0)-(a.endTime||0));
-  return { profile, stats, games, monthsLoaded: urls.length };
-}
-
 // ── Analytics helpers ─────────────────────────────────────────────────────────
 function getRating(stats, tc) { const s = stats?.[`chess_${tc}`]; return { last:s?.last?.rating??null, best:s?.best?.rating??null }; }
 
@@ -359,9 +207,13 @@ function colorStats(games) {
   return { white:calc(games.filter(g=>g.color==="white")), black:calc(games.filter(g=>g.color==="black")) };
 }
 
+function winRate(games) {
+  return games.length?Math.round(games.filter(g=>g.result==="win").length/games.length*100):null;
+}
+
 function eloBrackets(games) {
   return [["<1000",0,1000],["1000-1199",1000,1200],["1200-1399",1200,1400],["1400-1599",1400,1600],["1600-1799",1600,1800],["1800-1999",1800,2000],["2000+",2000,9999]]
-    .map(([label,mn,mx])=>{ const g=games.filter(x=>x.oppElo>=mn&&x.oppElo<mx); return {label,games:g.length,winPct:g.length?Math.round(g.filter(x=>x.result==="win").length/g.length*100):0}; })
+    .map(([label,mn,mx])=>{ const g=games.filter(x=>x.oppElo!=null&&x.oppElo>=mn&&x.oppElo<mx); return {label,games:g.length,winPct:g.length?Math.round(g.filter(x=>x.result==="win").length/g.length*100):0}; })
     .filter(b=>b.games>0);
 }
 
@@ -375,8 +227,6 @@ function computeStreak(games) {
 function computeInsights(games) {
   const total = games.length;
   if (!total) return [];
-  const wins = games.filter(g=>g.result==="win").length;
-  const losses = games.filter(g=>g.result==="loss").length;
   const draws = games.filter(g=>g.result==="draw").length;
   const openings = aggOpenings(games);
   const streak = computeStreak(games);
@@ -525,7 +375,7 @@ function computeInsights(games) {
   return [...all].sort((a,b)=>b.score-a.score).slice(0,3);
 }
 
-function computePersonality(games, stats) {
+function computePersonality(games) {
   if (!games?.length) return null;
   const total=games.length, wins=games.filter(g=>g.result==="win").length, losses=games.filter(g=>g.result==="loss").length, draws=games.filter(g=>g.result==="draw").length;
   const winPct=wins/total, drawPct=draws/total;
@@ -546,7 +396,7 @@ function computePersonality(games, stats) {
   else if(aggression==="high"){title="The Tactical Storm";icon="🌩️";titleColor="#f87171";archetype="The Attacker";desc="Sacrifices, combinations, chaos — all welcome. Pressure is your language.";}
   else if(speed==="deep"&&aggression==="low"){title="The Endgame Virtuoso";icon="♟";titleColor="#34d399";archetype="The Endgame Wizard";desc="When others trade into the endgame to draw, you convert. Technical mastery.";}
   else if(speed==="sharp"&&breadth==="balanced"){title="The Blitz Craftsman";icon="⚔️";titleColor="#fb923c";archetype="The Attacker";desc="Blitz is your art — fast but precise, varied repertoire, always dangerous.";}
-  else if(aggression==="low"&&drawTend==="high"){title="The Positional Maestro";icon="🎼";titleColor="#c084fc";archetype="The Positional Grinder";desc="Tiny advantages compound into wins your opponents never see coming.";}
+  else if(aggression==="low"){title="The Positional Maestro";icon="🎼";titleColor="#c084fc";archetype="The Positional Grinder";desc="Tiny advantages compound into wins your opponents never see coming.";}
   else if(breadth==="explorer"){title="The Chess Wanderer";icon="🗺️";titleColor="#67e8f9";archetype="The Positional Grinder";desc="Variety is your spice. You roam openings, picking up something new every session.";}
   else if(total>200&&winPct>.5){title="The Grinder";icon="⚙️";titleColor="#a3e635";archetype="The Endgame Wizard";desc="Volume meets quality. Hundreds of games, winning record — that's consistency.";}
   else{title="The Eternal Student";icon="📚";titleColor="#94a3b8";archetype="The Positional Grinder";desc="Every game is a lesson. You're building the foundation of a stronger player.";}
@@ -587,16 +437,73 @@ function Donut({wins,losses,draws,size=100,t}) {
   </PieChart>;
 }
 
+function ColorPanel({label,s,icon,t}) {
+  const tot=s.total||1;
+  return <Card t={t} style={{flex:1,minWidth:200}}>
+    <div style={{fontFamily:t.headingFont,fontSize:18,fontWeight:700,color:t.text,marginBottom:4}}>{icon} {label}</div>
+    <div style={{fontSize:12,color:t.textDim,marginBottom:14}}>{s.total} games</div>
+    <div style={{display:"flex",gap:14,alignItems:"center",flexWrap:"wrap"}}>
+      <Donut wins={s.wins} losses={s.losses} draws={s.draws} t={t} size={100}/>
+      <div style={{display:"flex",flexDirection:"column",gap:5}}>
+        {[["Wins",s.wins,t.win],["Losses",s.losses,t.loss],["Draws",s.draws,t.draw]].map(([l,v,c])=>(
+          <div key={l} style={{display:"flex",alignItems:"center",gap:8,fontSize:13}}>
+            <div style={{width:9,height:9,borderRadius:2,background:c,flexShrink:0}}/>
+            <span style={{color:t.textDim}}>{l}:</span><span style={{color:c,fontWeight:700}}>{v}</span>
+            <span style={{color:t.textDim,fontSize:11}}>({Math.round(v/tot*100)}%)</span>
+          </div>
+        ))}
+      </div>
+    </div>
+    <div style={{marginTop:12,display:"flex",flexDirection:"column",gap:1}}>
+      {[["Avg opp",s.avgOpp||"—"],["Best win",s.bestWinElo?`${s.bestWinOpp} (${s.bestWinElo})`:"—"]].map(([l,v])=>(
+        <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:`1px solid ${t.cardBorder}40`,fontSize:13}}>
+          <span style={{color:t.textDim}}>{l}</span><span style={{color:t.accent,fontWeight:600}}>{v}</span>
+        </div>
+      ))}
+    </div>
+  </Card>;
+}
+
+function CompareMiniCard({p,accent,t}) {
+  const wr=p.games.length?Math.round(p.games.filter(g=>g.result==="win").length/p.games.length*100):null;
+  return <Card t={t} style={{flex:1,minWidth:180}}>
+    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
+      <div style={{width:44,height:44,borderRadius:"50%",border:`2px solid ${accent}50`,overflow:"hidden",background:t.bg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>
+        {p.profile.avatar?<img src={p.profile.avatar} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}} onError={e=>{e.target.style.display="none";}}/>:"♟"}
+      </div>
+      <div><div style={{fontFamily:t.headingFont,fontSize:16,fontWeight:700,color:accent}}>{p.profile.username}</div><div style={{fontSize:11,color:t.textDim}}>{p.games.length} games</div></div>
+    </div>
+    {["rapid","blitz","bullet"].map(tc=>{const r=getRating(p.stats,tc);return r.last?<div key={tc} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:`1px solid ${t.cardBorder}40`,fontSize:13}}><span style={{color:t.textDim,textTransform:"capitalize"}}>{tc}</span><span style={{color:t.text,fontWeight:600}}>{r.last}</span></div>:null;})}
+    <div style={{display:"flex",justifyContent:"space-between",padding:"6px 0",fontSize:13}}><span style={{color:t.textDim}}>Win rate</span><span style={{color:accent,fontWeight:700}}>{wr??"—"}{p.games.length?"%":""}</span></div>
+  </Card>;
+}
+
+function OverviewStatCard({label,value,color,sub,i,t}) {
+  return <Card t={t} className={`stagger-${i+1}`} style={{padding:"16px 18px",textAlign:"center",minWidth:100}}>
+    <div style={{fontSize:10,color:t.textDim,textTransform:"uppercase",letterSpacing:".07em",marginBottom:6,fontFamily:t.font}}>{label}</div>
+    <div style={{fontSize:28,fontWeight:700,color:color||t.text,fontFamily:t.headingFont}}>{typeof value==="number"?<AnimatedNumber value={value} duration={600}/>:value}</div>
+    {sub&&<div style={{fontSize:11,color:t.textDim,marginTop:3}}>{sub}</div>}
+  </Card>;
+}
+
 // ── Animated counter ──────────────────────────────────────────────────────────
 function AnimatedNumber({value, duration=800, style={}}) {
-  const [display, setDisplay] = useState(0);
+  const initial = typeof value === "number" ? value : parseFloat(value) || 0;
+  const [display, setDisplay] = useState(initial);
   const ref = useRef(null);
+  const previous = useRef(initial);
   useEffect(() => {
-    if (value === 0 || value === null || value === undefined) { setDisplay(value); return; }
+    if (value === null || value === undefined) {
+      previous.current = 0;
+      ref.current = requestAnimationFrame(() => setDisplay(value));
+      return () => cancelAnimationFrame(ref.current);
+    }
     const start = Date.now();
-    const from = 0;
+    const from = previous.current;
     const to = typeof value === "number" ? value : parseFloat(value) || 0;
+    previous.current = to;
     const isFloat = String(value).includes(".");
+    if (from === to) return undefined;
     const tick = () => {
       const elapsed = Date.now() - start;
       const progress = Math.min(elapsed / duration, 1);
@@ -608,35 +515,20 @@ function AnimatedNumber({value, duration=800, style={}}) {
     };
     ref.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(ref.current);
-  }, [value]);
+  }, [value, duration]);
   return <span style={style}>{display}</span>;
 }
 
 // ── Page transition wrapper ───────────────────────────────────────────────────
-function PageTransition({children, keyVal}) {
-  const [visible, setVisible] = useState(false);
-  useEffect(() => {
-    setVisible(false);
-    const t = setTimeout(() => setVisible(true), 20);
-    return () => clearTimeout(t);
-  }, [keyVal]);
-  return <div style={{opacity: visible ? 1 : 0, transform: visible ? "translateY(0)" : "translateY(12px)", transition:"opacity .3s cubic-bezier(.22,1,.36,1), transform .3s cubic-bezier(.22,1,.36,1)"}}>{children}</div>;
+function PageTransition({children}) {
+  return <div style={{animation:"fadeInUp .3s cubic-bezier(.22,1,.36,1) both"}}>{children}</div>;
 }
 
 // ── Loading bar ───────────────────────────────────────────────────────────────
 function LoadingBar({active, t}) {
-  const [width, setWidth] = useState(0);
-  useEffect(() => {
-    if (!active) { setWidth(0); return; }
-    setWidth(20);
-    const t1 = setTimeout(() => setWidth(55), 400);
-    const t2 = setTimeout(() => setWidth(75), 1200);
-    const t3 = setTimeout(() => setWidth(88), 2500);
-    return () => [t1,t2,t3].forEach(clearTimeout);
-  }, [active]);
-  if (!active && width === 0) return null;
+  if (!active) return null;
   return <div style={{position:"fixed",top:0,left:0,right:0,zIndex:9999,height:3,background:`${t.glowC}30`,transition:"all .3s ease"}}>
-    <div style={{height:"100%",width:`${active ? width : 100}%`,background:`linear-gradient(90deg,${t.accent2},${t.accent},${t.hl})`,borderRadius:"0 3px 3px 0",transition:active?"width 0.8s cubic-bezier(.4,0,.2,1)":"width .3s ease",boxShadow:`0 0 10px ${t.glowC}`}}/>
+    <div style={{height:"100%",width:"88%",background:`linear-gradient(90deg,${t.accent2},${t.accent},${t.hl})`,borderRadius:"0 3px 3px 0",transition:"width 0.8s cubic-bezier(.4,0,.2,1)",boxShadow:`0 0 10px ${t.glowC}`}}/>
   </div>;
 }
 
@@ -812,7 +704,7 @@ function PlayerHeroCard({data,loading,t}) {
   if (loading) return <Card t={t} style={{display:"flex",gap:20,alignItems:"center"}}><Sk w={88} h={88} style={{borderRadius:"50%",flexShrink:0}}/><div style={{flex:1,display:"flex",flexDirection:"column",gap:10}}><Sk w="50%" h={24}/><Sk w="70%" h={15}/><Sk w="60%" h={12}/></div></Card>;
   if (!data) return null;
   const {profile,stats,games}=data;
-  const p=computePersonality(games,stats);
+  const p=computePersonality(games);
   const ratings=["rapid","blitz","bullet","daily"].map(tc=>({tc,...getRating(stats,tc)})).filter(r=>r.last);
   const joined=profile.joined?new Date(profile.joined*1000).getFullYear():null;
   const total=games.length, wins=games.filter(g=>g.result==="win").length, losses=games.filter(g=>g.result==="loss").length, draws=games.filter(g=>g.result==="draw").length;
@@ -923,7 +815,8 @@ function PerformanceChart({games,stats,loading,t}) {
     const now=new Date();
     chartData=Array.from({length:14},(_,i)=>{
       const d=new Date(now); d.setDate(d.getDate()-(13-i));
-      return {date:`${d.getMonth()+1}/${d.getDate()}`,rating:Math.round(baseR+Math.sin(i*.7)*30+Math.random()*20-10)};
+      const variance = ((i * 17) % 11) - 5;
+      return {date:`${d.getMonth()+1}/${d.getDate()}`,rating:Math.round(baseR+Math.sin(i*.7)*30+variance)};
     });
   }
 
@@ -1030,34 +923,8 @@ function ColorTab({games,loading,t}) {
   if (loading) return <Sk h={240}/>;
   if (!games?.length) return <div style={{color:t.textDim}}>No games.</div>;
   const {white,black}=colorStats(games);
-  const Panel=({label,s,icon})=>{
-    const tot=s.total||1;
-    return <Card t={t} style={{flex:1,minWidth:200}}>
-      <div style={{fontFamily:t.headingFont,fontSize:18,fontWeight:700,color:t.text,marginBottom:4}}>{icon} {label}</div>
-      <div style={{fontSize:12,color:t.textDim,marginBottom:14}}>{s.total} games</div>
-      <div style={{display:"flex",gap:14,alignItems:"center",flexWrap:"wrap"}}>
-        <Donut wins={s.wins} losses={s.losses} draws={s.draws} t={t} size={100}/>
-        <div style={{display:"flex",flexDirection:"column",gap:5}}>
-          {[["Wins",s.wins,t.win],["Losses",s.losses,t.loss],["Draws",s.draws,t.draw]].map(([l,v,c])=>(
-            <div key={l} style={{display:"flex",alignItems:"center",gap:8,fontSize:13}}>
-              <div style={{width:9,height:9,borderRadius:2,background:c,flexShrink:0}}/>
-              <span style={{color:t.textDim}}>{l}:</span><span style={{color:c,fontWeight:700}}>{v}</span>
-              <span style={{color:t.textDim,fontSize:11}}>({Math.round(v/tot*100)}%)</span>
-            </div>
-          ))}
-        </div>
-      </div>
-      <div style={{marginTop:12,display:"flex",flexDirection:"column",gap:1}}>
-        {[["Avg opp",s.avgOpp||"—"],["Best win",s.bestWinElo?`${s.bestWinOpp} (${s.bestWinElo})`:"—"]].map(([l,v])=>(
-          <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:`1px solid ${t.cardBorder}40`,fontSize:13}}>
-            <span style={{color:t.textDim}}>{l}</span><span style={{color:t.accent,fontWeight:600}}>{v}</span>
-          </div>
-        ))}
-      </div>
-    </Card>;
-  };
   return <div style={{display:"flex",flexDirection:"column",gap:16}}>
-    <div style={{display:"flex",gap:14,flexWrap:"wrap"}}><Panel label="White" s={white} icon="♙"/><Panel label="Black" s={black} icon="♟"/></div>
+    <div style={{display:"flex",gap:14,flexWrap:"wrap"}}><ColorPanel label="White" s={white} icon="♙" t={t}/><ColorPanel label="Black" s={black} icon="♟" t={t}/></div>
     <Card t={t}>
       <SecTitle t={t}>White vs Black</SecTitle>
       <ResponsiveContainer width="100%" height={160}>
@@ -1074,7 +941,7 @@ function ColorTab({games,loading,t}) {
 }
 
 // ── Elo Tab ───────────────────────────────────────────────────────────────────
-function EloTab({games,stats,loading,t}) {
+function EloTab({games,loading,t}) {
   const tip=(props)=><ChartTip {...props} t={t}/>;
   if (loading) return <Sk h={240}/>;
   if (!games?.length) return <div style={{color:t.textDim}}>No games.</div>;
@@ -1094,54 +961,54 @@ function EloTab({games,stats,loading,t}) {
 }
 
 // ── Compare Tab ───────────────────────────────────────────────────────────────
-function CompareTab({p1,p2,l1,l2,p2In,setP2In,loadP2,t}) {
+function CompareTab({p1,p2,l1,l2,p2In,setP2In,loadP2,e2,t}) {
   const tip=(props)=><ChartTip {...props} t={t}/>;
+  const form = <Card t={t}><div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
+    <input placeholder="Opponent username…" value={p2In} onChange={e=>setP2In(e.target.value)} onKeyDown={e=>e.key==="Enter"&&loadP2()} style={{flex:1,minWidth:180}}/>
+    <button className="primary" onClick={loadP2} disabled={l2||!p2In.trim()}>{l2?"Comparing…":p2?"Change":"Compare"}</button>
+  </div>{e2&&<div style={{marginTop:10,color:t.loss,fontSize:12}}>{e2}</div>}</Card>;
   if (!p2&&!l2) return <div style={{display:"flex",flexDirection:"column",gap:16}}>
     <div style={{textAlign:"center",padding:"24px 0 12px",color:t.textDim}}>
       <div style={{fontSize:48,marginBottom:10}}>⚔️</div>
-      <div style={{fontFamily:t.headingFont,fontSize:20,color:t.textMid,marginBottom:6}}>Head-to-Head</div>
-      <div style={{fontSize:13}}>Load a second player to compare</div>
+      <div style={{fontFamily:t.headingFont,fontSize:20,color:t.textMid,marginBottom:6}}>Player Comparison</div>
+      <div style={{fontSize:13}}>Load a second player to compare stats and direct games</div>
     </div>
-    <Card t={t}><div style={{display:"flex",gap:10}}>
-      <input placeholder="Opponent username…" value={p2In} onChange={e=>setP2In(e.target.value)} onKeyDown={e=>e.key==="Enter"&&loadP2()}/>
-      <button className="primary" onClick={loadP2} disabled={!p2In.trim()}>Compare</button>
-    </div></Card>
+    {form}
   </div>;
-  if (l1||l2) return <Sk h={300}/>;
+  if (l1||(l2&&!p2)) return <Sk h={300}/>;
   if (!p1||!p2) return null;
   const norm=(v,mx)=>Math.round((v/Math.max(mx,1))*100);
-  const p1r=getRating(p1.stats,"blitz").last||0, p2r=getRating(p2.stats,"blitz").last||0;
-  const p1w=p1.games.length?Math.round(p1.games.filter(g=>g.result==="win").length/p1.games.length*100):0;
-  const p2w=p2.games.length?Math.round(p2.games.filter(g=>g.result==="win").length/p2.games.length*100):0;
+  const bestRating = stats => Math.max(...["rapid","blitz","bullet","daily"].map(tc=>getRating(stats,tc).last||0));
+  const p1r=bestRating(p1.stats), p2r=bestRating(p2.stats);
+  const p1w=winRate(p1.games), p2w=winRate(p2.games);
   const p1pz=p1.stats?.tactics?.highest?.rating||0, p2pz=p2.stats?.tactics?.highest?.rating||0;
-  const e1=p1.games.filter(g=>g.oppElo).map(g=>g.oppElo), e2=p2.games.filter(g=>g.oppElo).map(g=>g.oppElo);
-  const ao1=e1.length?Math.round(e1.reduce((a,b)=>a+b,0)/e1.length):0, ao2=e2.length?Math.round(e2.reduce((a,b)=>a+b,0)/e2.length):0;
+  const p1Elos=p1.games.filter(g=>g.oppElo).map(g=>g.oppElo), p2Elos=p2.games.filter(g=>g.oppElo).map(g=>g.oppElo);
+  const ao1=p1Elos.length?Math.round(p1Elos.reduce((a,b)=>a+b,0)/p1Elos.length):0, ao2=p2Elos.length?Math.round(p2Elos.reduce((a,b)=>a+b,0)/p2Elos.length):0;
   const d1=uniqueNamedOpenings(p1.games), d2=uniqueNamedOpenings(p2.games);
-  const radar=[{subject:"Win%",[p1.profile.username]:p1w,[p2.profile.username]:p2w},{subject:"Rating",[p1.profile.username]:norm(p1r,Math.max(p1r,p2r)),[p2.profile.username]:norm(p2r,Math.max(p1r,p2r))},{subject:"Puzzle",[p1.profile.username]:norm(p1pz,Math.max(p1pz,p2pz)),[p2.profile.username]:norm(p2pz,Math.max(p1pz,p2pz))},{subject:"Avg Opp",[p1.profile.username]:norm(ao1,Math.max(ao1,ao2)),[p2.profile.username]:norm(ao2,Math.max(ao1,ao2))},{subject:"Diversity",[p1.profile.username]:norm(d1,Math.max(d1,d2)),[p2.profile.username]:norm(d2,Math.max(d1,d2))}];
-  const p1open=aggOpenings(p1.games).sort((a,b)=>b.games-a.games).slice(0,5);
-  const p2open=aggOpenings(p2.games);
-  const shared=p1open.map(o=>({opening:o.opening.length>18?o.opening.slice(0,16)+"…":o.opening,[p1.profile.username]:o.winPct,[p2.profile.username]:p2open.find(x=>x.opening===o.opening)?.winPct??0}));
-  const MiniCard=({p,accent})=>(
-    <Card t={t} style={{flex:1,minWidth:180}}>
-      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
-        <div style={{width:44,height:44,borderRadius:"50%",border:`2px solid ${accent}50`,overflow:"hidden",background:t.bg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>
-          {p.profile.avatar?<img src={p.profile.avatar} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}} onError={e=>{e.target.style.display="none";}}/>:"♟"}
-        </div>
-        <div><div style={{fontFamily:t.headingFont,fontSize:16,fontWeight:700,color:accent}}>{p.profile.username}</div><div style={{fontSize:11,color:t.textDim}}>{p.games.length} games</div></div>
-      </div>
-      {["rapid","blitz","bullet"].map(tc=>{const r=getRating(p.stats,tc);return r.last?<div key={tc} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:`1px solid ${t.cardBorder}40`,fontSize:13}}><span style={{color:t.textDim,textTransform:"capitalize"}}>{tc}</span><span style={{color:t.text,fontWeight:600}}>{r.last}</span></div>:null;})}
-      <div style={{display:"flex",justifyContent:"space-between",padding:"6px 0",fontSize:13}}><span style={{color:t.textDim}}>Win rate</span><span style={{color:accent,fontWeight:700}}>{p.games.length?Math.round(p.games.filter(g=>g.result==="win").length/p.games.length*100):0}%</span></div>
-    </Card>
-  );
+  const radar=[{subject:"Win%",[p1.profile.username]:p1w??0,[p2.profile.username]:p2w??0},{subject:"Rating",[p1.profile.username]:norm(p1r,Math.max(p1r,p2r)),[p2.profile.username]:norm(p2r,Math.max(p1r,p2r))},{subject:"Puzzle",[p1.profile.username]:norm(p1pz,Math.max(p1pz,p2pz)),[p2.profile.username]:norm(p2pz,Math.max(p1pz,p2pz))},{subject:"Avg Opp",[p1.profile.username]:norm(ao1,Math.max(ao1,ao2)),[p2.profile.username]:norm(ao2,Math.max(ao1,ao2))},{subject:"Diversity",[p1.profile.username]:norm(d1,Math.max(d1,d2)),[p2.profile.username]:norm(d2,Math.max(d1,d2))}];
+  const openingKey = o => `${o.eco&&o.eco!=="?"?o.eco:""}|${o.opening.toLowerCase().replace(/[^a-z0-9]+/g," ")}`.trim();
+  const p2ByOpening = new Map(aggOpenings(p2.games).map(o=>[openingKey(o),o]));
+  const shared=aggOpenings(p1.games).map(o=>({p1:o,p2:p2ByOpening.get(openingKey(o))})).filter(x=>x.p2).sort((a,b)=>(b.p1.games+b.p2.games)-(a.p1.games+a.p2.games)).slice(0,5).map(({p1:o,p2:o2})=>({opening:o.opening.length>18?o.opening.slice(0,16)+"…":o.opening,[p1.profile.username]:o.winPct,[p2.profile.username]:o2.winPct}));
+  const h2h=p1.games.filter(g=>String(g.opponent||"").toLowerCase()===p2.profile.username.toLowerCase());
+  const hWins=h2h.filter(g=>g.result==="win").length, hLosses=h2h.filter(g=>g.result==="loss").length, hDraws=h2h.filter(g=>g.result==="draw").length;
   return <div style={{display:"flex",flexDirection:"column",gap:16}}>
+    {form}
     {/* VS section */}
     <div style={{display:"flex",gap:12,alignItems:"stretch",flexWrap:"wrap"}}>
-      <MiniCard p={p1} accent={P1_COLOR}/>
+      <CompareMiniCard p={p1} accent={P1_COLOR} t={t}/>
       <div style={{display:"flex",alignItems:"center",justifyContent:"center",padding:"0 4px"}}>
         <div style={{fontFamily:t.headingFont,fontSize:28,fontWeight:900,color:t.textDim,textShadow:`0 0 20px ${t.glowC}`}}>VS</div>
       </div>
-      <MiniCard p={p2} accent={P2_COLOR}/>
+      <CompareMiniCard p={p2} accent={P2_COLOR} t={t}/>
     </div>
+    <Card t={t}><SecTitle t={t} sub="Games found in the selected range">Direct Games</SecTitle>
+      {h2h.length?<div style={{display:"flex",gap:18,flexWrap:"wrap",fontSize:14}}>
+        <span style={{color:t.win,fontWeight:700}}>{hWins} wins</span>
+        <span style={{color:t.loss,fontWeight:700}}>{hLosses} losses</span>
+        <span style={{color:t.draw,fontWeight:700}}>{hDraws} draws</span>
+        <span style={{color:t.textDim}}>{h2h.length} total</span>
+      </div>:<div style={{color:t.textDim,fontSize:13}}>No direct games found between these players in this range.</div>}
+    </Card>
     <Card t={t}><SecTitle t={t}>Radar Comparison</SecTitle>
       <ResponsiveContainer width="100%" height={250}>
         <RadarChart data={radar} cx="50%" cy="50%">
@@ -1153,7 +1020,7 @@ function CompareTab({p1,p2,l1,l2,p2In,setP2In,loadP2,t}) {
       </ResponsiveContainer>
     </Card>
     <Card t={t}><SecTitle t={t}>Shared Opening Win%</SecTitle>
-      <ResponsiveContainer width="100%" height={200}>
+      {shared.length?<ResponsiveContainer width="100%" height={200}>
         <BarChart data={shared} layout="vertical" margin={{left:125}}>
           <XAxis type="number" domain={[0,100]} tick={{fill:t.textDim,fontSize:10}} axisLine={false} tickLine={false}/>
           <YAxis type="category" dataKey="opening" tick={{fill:t.textMid,fontSize:11}} width={120} axisLine={false} tickLine={false}/>
@@ -1161,16 +1028,16 @@ function CompareTab({p1,p2,l1,l2,p2In,setP2In,loadP2,t}) {
           <Bar dataKey={p1.profile.username} fill={P1_COLOR} radius={[0,4,4,0]}/><Bar dataKey={p2.profile.username} fill={P2_COLOR} radius={[0,4,4,0]}/>
           <Legend wrapperStyle={{color:t.textMid,fontSize:12}}/>
         </BarChart>
-      </ResponsiveContainer>
+      </ResponsiveContainer>:<div style={{color:t.textDim,fontSize:13,padding:"18px 0"}}>No shared openings found in this range.</div>}
     </Card>
   </div>;
 }
 
 // ── DNA Tab ───────────────────────────────────────────────────────────────────
-function DnaTab({games,stats,loading,t,profile}) {
+function DnaTab({games,loading,t,profile}) {
   const tip=(props)=><ChartTip {...props} t={t}/>;
   if (loading) return <Sk h={300}/>;
-  const p=computePersonality(games,stats);
+  const p=computePersonality(games);
   if (!p) return <div style={{color:t.textDim,textAlign:"center",padding:40,fontSize:14}}>Load a player to reveal their Chess DNA.</div>;
   return <div style={{display:"flex",flexDirection:"column",gap:20}}>
     <TradingCard p={p} profile={profile||{username:""}} t={t}/>
@@ -1232,24 +1099,16 @@ function OverviewTab({data,loading,t}) {
   // Opening diversity
   const uniqueO=uniqueNamedOpenings(games);
 
-  const StatCard=({label,value,color,sub,i})=>(
-    <Card t={t} className={`stagger-${i+1}`} style={{padding:"16px 18px",textAlign:"center",minWidth:100}}>
-      <div style={{fontSize:10,color:t.textDim,textTransform:"uppercase",letterSpacing:".07em",marginBottom:6,fontFamily:t.font}}>{label}</div>
-      <div style={{fontSize:28,fontWeight:700,color:color||t.text,fontFamily:t.headingFont}}>{typeof value==="number"?<AnimatedNumber value={value} duration={600}/>:value}</div>
-      {sub&&<div style={{fontSize:11,color:t.textDim,marginTop:3}}>{sub}</div>}
-    </Card>
-  );
-
   return <div style={{display:"flex",flexDirection:"column",gap:16}}>
 
     {/* Row 1 — 6 key stats */}
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(100px,1fr))",gap:10}}>
-      <StatCard i={1} label="Total Games" value={total} color={t.accent}/>
-      <StatCard i={2} label="Wins" value={wins} color={t.win} sub={winPct+"%"}/>
-      <StatCard i={3} label="Losses" value={losses} color={t.loss} sub={lossPct+"%"}/>
-      <StatCard i={4} label="Draws" value={draws} color={t.draw} sub={drawPct+"%"}/>
-      <StatCard i={5} label="Avg Opponent" value={avgOpp||"—"} color={t.textMid}/>
-      <StatCard i={6} label="Openings Used" value={uniqueO} color={t.hl}/>
+      <OverviewStatCard i={1} label="Total Games" value={total} color={t.accent} t={t}/>
+      <OverviewStatCard i={2} label="Wins" value={wins} color={t.win} sub={winPct+"%"} t={t}/>
+      <OverviewStatCard i={3} label="Losses" value={losses} color={t.loss} sub={lossPct+"%"} t={t}/>
+      <OverviewStatCard i={4} label="Draws" value={draws} color={t.draw} sub={drawPct+"%"} t={t}/>
+      <OverviewStatCard i={5} label="Avg Opponent" value={avgOpp||"—"} color={t.textMid} t={t}/>
+      <OverviewStatCard i={6} label="Openings Used" value={uniqueO} color={t.hl} t={t}/>
     </div>
 
     {/* Row 2 — WDL bar + recent form + best win */}
@@ -1398,15 +1257,15 @@ function parseHash() {
   const parts = hash.split("/").filter(Boolean);
   return { user: parts[0]||null, sub: parts[1]||null, other: parts[2]||null };
 }
-function setHash(user, sub) {
-  const path = sub ? `/${user}/${sub}` : user ? `/${user}` : "";
+function setHash(user, sub, other) {
+  const path = sub ? `/${user}/${sub}${other?`/${other}`:""}` : user ? `/${user}` : "";
   window.location.hash = path;
 }
 
 export default function App() {
   const [themeKey,setThemeKey]=useState(()=>localStorage.getItem("chessdna-theme")||"slate");
   const t=THEMES[themeKey];
-  useEffect(()=>{ injectTheme(t); document.body.style.background=t.bg; localStorage.setItem("chessdna-theme",themeKey); },[t]);
+  useEffect(()=>{ injectTheme(t); document.body.style.background=t.bg; localStorage.setItem("chessdna-theme",themeKey); },[t, themeKey]);
 
   const [tab,setTab]=useState(0);
   const [p1In,setP1In]=useState("");
@@ -1416,39 +1275,28 @@ export default function App() {
   const [l1,setL1]=useState(false);
   const [l2,setL2]=useState(false);
   const [e1,setE1]=useState(null);
+  const [e2,setE2]=useState(null);
   const [months,setMonths]=useState(getSavedRange);
   const monthsRef=useRef(months);
   const p1LoadId=useRef(0);
   const p2LoadId=useRef(0);
 
-  // ── On mount: read URL and auto-load player ──
-  useEffect(()=>{
-    const {user,sub} = parseHash();
-    if (user) {
-      setP1In(user);
-      doLoad1(user);
-      if (sub==="card") setTab(5);
-    }
-    // Listen for hash changes (back/forward)
-    const onHash = () => {
-      const {user:u, sub:s} = parseHash();
-      if (u) { setP1In(u); doLoad1(u); if(s==="card") setTab(5); }
-    };
-    window.addEventListener("hashchange", onHash);
-    return ()=>window.removeEventListener("hashchange", onHash);
-  }, []);
-
-  const doLoad1 = async (username, mo) => {
+  const doLoad1 = async (username, mo, opts={}) => {
     const u = (username||p1In).trim().toLowerCase();
-    if (!u) return;
+    if (!u) return null;
     const m = mo !== undefined ? mo : monthsRef.current;
     const loadId = ++p1LoadId.current;
-    setL1(true); setE1(null); setP1(null);
+    const clearCompare = opts.clearCompare ?? true;
+    const samePlayer = p1?.profile?.username?.toLowerCase() === u;
+    setL1(true); setE1(null);
+    if (!samePlayer) setP1(null);
+    if (clearCompare) { p2LoadId.current++; setP2(null); setP2In(""); setE2(null); }
     try {
       const data = await loadPlayer(u, m);
       if (loadId === p1LoadId.current) setP1(data);
+      return data;
     }
-    catch(e) { if (loadId === p1LoadId.current) setE1(e.message||"Failed to load"); }
+    catch(e) { if (loadId === p1LoadId.current) setE1(e.message||"Failed to load"); return null; }
     finally { if (loadId === p1LoadId.current) setL1(false); }
   };
 
@@ -1463,34 +1311,62 @@ export default function App() {
     monthsRef.current = m;
     localStorage.setItem("chessdna-range", String(m));
     setMonths(m);
-    if (p1) doLoad1(p1.profile.username, m);
-    if (p2) load2(p2.profile.username, m);
+    if (p1) doLoad1(p1.profile.username, m, { clearCompare:false });
+    if (p2) load2(p2.profile.username, m, { updateHash:false });
   };
 
-  const load2=async(username, mo)=>{
+  const load2=async(username, mo, opts={})=>{
     const u = (username||p2In).trim().toLowerCase();
     if(!u)return;
     const m = mo !== undefined ? mo : monthsRef.current;
     const loadId = ++p2LoadId.current;
-    setL2(true);setP2(null);
+    const samePlayer = p2?.profile?.username?.toLowerCase() === u;
+    setL2(true); setE2(null);
+    if (!samePlayer) setP2(null);
     try{
       const data = await loadPlayer(u, m);
-      if (loadId === p2LoadId.current) setP2(data);
+      if (loadId === p2LoadId.current) {
+        setP2(data);
+        setP2In(data.profile.username || u);
+        if ((opts.updateHash ?? true) && p1) setHash(p1.profile.username, "compare", data.profile.username || u);
+      }
     }
-    catch{
-      // Compare failures are non-blocking; the primary player stays visible.
+    catch(e){
+      if (loadId === p2LoadId.current) setE2(e.message||"Failed to load comparison player");
     }finally{if (loadId === p2LoadId.current) setL2(false);}
   };
+
+  // ── On mount: read URL and auto-load player ──
+  useEffect(()=>{
+    const loadFromHash = () => {
+      const {user,sub,other} = parseHash();
+      if (!user) return;
+      const isCompare = sub==="compare";
+      setP1In(user);
+      if (sub==="card") setTab(5);
+      if (isCompare) { setTab(4); if (other) setP2In(other); }
+      doLoad1(user, undefined, { clearCompare: !isCompare }).then(()=>{
+        if (isCompare&&other) load2(other, undefined, { updateHash:false });
+      });
+    };
+    loadFromHash();
+    // Listen for hash changes (back/forward)
+    const onHash = () => loadFromHash();
+    window.addEventListener("hashchange", onHash);
+    return ()=>window.removeEventListener("hashchange", onHash);
+    // Hash routing is a mount/subscription effect; loaders receive explicit usernames from the URL.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Update URL when tab changes to card tab
   const handleTabChange = (i) => {
     setTab(i);
-    if (p1) setHash(p1.profile.username);
+    if (p1) {
+      if (i===5) setHash(p1.profile.username, "card");
+      else if (i===4&&p2) setHash(p1.profile.username, "compare", p2.profile.username);
+      else setHash(p1.profile.username);
+    }
   };
-
-  const p=p1?computePersonality(p1.games,p1.stats):null;
-  const insights=p1?computeInsights(p1.games):null;
-  const tip=(props)=><ChartTip {...props} t={t}/>;
 
   return <div style={{minHeight:"100vh",position:"relative"}}>
     {/* Background */}
@@ -1577,9 +1453,9 @@ export default function App() {
         {tab===0&&<OverviewTab data={p1} loading={l1} t={t}/>}
         {tab===1&&<OpeningsTab games={p1?.games} loading={l1} t={t}/>}
         {tab===2&&<ColorTab games={p1?.games} loading={l1} t={t}/>}
-        {tab===3&&<EloTab games={p1?.games} stats={p1?.stats} loading={l1} t={t}/>}
-        {tab===4&&<CompareTab p1={p1} p2={p2} l1={l1} l2={l2} p2In={p2In} setP2In={setP2In} loadP2={load2} t={t}/>}
-        {tab===5&&<DnaTab games={p1?.games} stats={p1?.stats} loading={l1} t={t} profile={p1?.profile}/>}
+        {tab===3&&<EloTab games={p1?.games} loading={l1} t={t}/>}
+        {tab===4&&<CompareTab p1={p1} p2={p2} l1={l1} l2={l2} p2In={p2In} setP2In={setP2In} loadP2={load2} e2={e2} t={t}/>}
+        {tab===5&&<DnaTab games={p1?.games} loading={l1} t={t} profile={p1?.profile}/>}
       </PageTransition>}
 
       {/* ── Empty state ── */}
