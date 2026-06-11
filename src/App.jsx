@@ -4,6 +4,7 @@ import {
   PieChart, Pie, Cell, RadarChart, Radar, PolarGrid, PolarAngleAxis,
   PolarRadiusAxis, Legend, LineChart, Line, CartesianGrid,
 } from "recharts";
+import { loadPlayer, openingLink, uniqueNamedOpenings } from "./chesscom.js";
 
 // ── Fonts ─────────────────────────────────────────────────────────────────────
 const fl = document.createElement("link");
@@ -179,157 +180,6 @@ function injectTheme(t) {
     ::selection{background:${t.accent}30;color:${t.text}}
     @media(max-width:700px){.three-col{flex-direction:column!important}.hide-mobile{display:none!important}}
   `;
-}
-
-// ── Fetch ─────────────────────────────────────────────────────────────────────
-const PROXIES = [
-  u => u,
-  u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
-  u => `https://corsproxy.io/?url=${encodeURIComponent(u)}`,
-  u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
-];
-async function tryFetch(url, asText) {
-  let lastErr = "network error";
-  for (const mk of PROXIES) {
-    try {
-      const r = await fetch(mk(url), { method:"GET", mode:"cors" });
-      if (r.status === 404) throw new Error("Player not found");
-      if (!r.ok) { lastErr = `HTTP ${r.status}`; continue; }
-      return asText ? await r.text() : await r.json();
-    } catch(e) {
-      if (e.message?.includes("not found")) throw e;
-      lastErr = e.message || "failed";
-    }
-  }
-  throw new Error(`Cannot reach Chess.com API (${lastErr})`);
-}
-const fetchJSON = u => tryFetch(u, false);
-const fetchText = u => tryFetch(u, true);
-
-// ── PGN parser ────────────────────────────────────────────────────────────────
-function inferTimeControl(tc) {
-  if (!tc) return "other";
-  const raw = String(tc).trim();
-  if (raw === "-" || raw.includes("/")) return "daily";
-  const [baseRaw, incRaw = "0"] = raw.split("+");
-  const base = parseInt(baseRaw, 10);
-  const inc = parseInt(incRaw, 10) || 0;
-  if (Number.isNaN(base)) return "other";
-  const estimatedSeconds = base + inc * 40;
-  if (estimatedSeconds < 180) return "bullet";
-  if (estimatedSeconds < 600) return "blitz";
-  return "rapid";
-}
-
-function normalizeTimeClass(timeClass, timeControl) {
-  const cls = String(timeClass || "").toLowerCase();
-  if (["bullet", "blitz", "rapid", "daily"].includes(cls)) return cls;
-  return inferTimeControl(timeControl);
-}
-
-function formatDateFromTimestamp(timestamp) {
-  if (!timestamp) return null;
-  const d = new Date(timestamp * 1000);
-  if (Number.isNaN(d.getTime())) return null;
-  return d.toISOString().slice(0, 10).replace(/-/g, ".");
-}
-
-function cleanOpeningNameFromUrl(url) {
-  const slug = url.split("/openings/")[1]?.split(/[?#]/)[0];
-  if (!slug) return "Unknown";
-  const decoded = decodeURIComponent(slug).replace(/[-_]+/g, " ");
-  return decoded.replace(/\s*(?:\.{3})?\d+\..*$/, "").replace(/\s+/g, " ").trim() || "Unknown";
-}
-
-function extractOpeningInfo(tags) {
-  const ecoUrl = tags.ECOUrl;
-  const openingUrl = ecoUrl?.includes("chess.com/openings/") ? ecoUrl : null;
-  const opening = tags.Opening?.trim() || (openingUrl ? cleanOpeningNameFromUrl(openingUrl) : "Unknown");
-  return { opening, openingUrl };
-}
-
-function openingLink(opening, openingUrl) {
-  if (openingUrl) return openingUrl;
-  return `https://www.chess.com/openings/${opening.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")}`;
-}
-
-function uniqueNamedOpenings(games) {
-  return new Set(games.filter(g=>g.opening&&g.opening!=="Unknown").map(g=>g.opening)).size;
-}
-
-function pgnTags(pgn) {
-  const tags = {};
-  if (!pgn) return tags;
-  for (const m of pgn.matchAll(/^\[([A-Za-z0-9_]+) "([^"]*)"\]/gm)) tags[m[1]] = m[2];
-  return tags;
-}
-
-const DRAW_RESULTS = new Set(["agreed", "repetition", "stalemate", "insufficient", "50move", "timevsinsufficient"]);
-
-function resultFromArchive(raw, sideResult, color) {
-  if (raw==="1-0") return color==="white" ? "win":"loss";
-  if (raw==="0-1") return color==="black" ? "win":"loss";
-  if (raw==="1/2-1/2") return "draw";
-  const normalized = String(sideResult || "").toLowerCase();
-  if (normalized === "win") return "win";
-  if (DRAW_RESULTS.has(normalized)) return "draw";
-  return normalized ? "loss" : "draw";
-}
-
-function parsePGNGame(pgn, user, game={}) {
-  const tags = pgnTags(pgn);
-  const w = game.white?.username || tags.White;
-  const b = game.black?.username || tags.Black;
-  if (!w || !b) return null;
-  const userLower = user.toLowerCase();
-  const color = w.toLowerCase() === userLower ? "white" : b.toLowerCase() === userLower ? "black" : null;
-  if (!color) return null;
-  const raw = tags.Result;
-  const side = color==="white" ? game.white : game.black;
-  const result = resultFromArchive(raw, side?.result, color);
-  const opp = color==="white" ? game.black : game.white;
-  const oppEloRaw = opp?.rating ?? (color==="white" ? tags.BlackElo : tags.WhiteElo);
-  const oppElo = oppEloRaw ? parseInt(oppEloRaw, 10) : null;
-  const timeControl = normalizeTimeClass(game.time_class, game.time_control || tags.TimeControl);
-  const dateStr = formatDateFromTimestamp(game.end_time) || tags.EndDate || tags.UTCDate || tags.Date;
-  const openingInfo = extractOpeningInfo(tags);
-  return { ...openingInfo, eco:tags.ECO||"?", color, result, oppElo:(!oppElo||isNaN(oppElo))?null:oppElo, timeControl, date:dateStr, endTime:game.end_time||0, opponent:color==="white"?b:w };
-}
-
-function parsePGN(pgn, user) {
-  if (!pgn || pgn.length < 10) return [];
-  return pgn.split(/\r?\n\r?\n(?=\[)/).filter(g => g.includes("[White ") && g.includes("[Black ")).map(g => parsePGNGame(g, user)).filter(Boolean);
-}
-
-function normalizeArchiveGame(game, user) {
-  if (!game) return null;
-  if (typeof game.pgn === "string") return parsePGNGame(game.pgn, user, game);
-  if (game.white?.username && game.black?.username) return parsePGNGame("", user, game);
-  return game.color && game.result ? game : null;
-}
-
-async function fetchArchiveGames(url, user) {
-  try {
-    const data = await fetchJSON(url);
-    if (Array.isArray(data?.games)) return data.games;
-  } catch {
-    // Fall back to the PGN endpoint when an archive JSON request/proxy fails.
-  }
-  const games = parsePGN(await fetchText(`${url}/pgn`), user);
-  if (!games.length) throw new Error(`No games parsed from archive ${url}`);
-  return games;
-}
-
-async function loadPlayer(user, months=3) {
-  const base = `https://api.chess.com/pub/player/${user}`;
-  const [profile, stats, archives] = await Promise.all([fetchJSON(base), fetchJSON(`${base}/stats`), fetchJSON(`${base}/games/archives`)]);
-  if (!profile.username) throw new Error(`Player "${user}" not found on Chess.com`);
-  const allUrls = archives.archives || [];
-  // months=0 means all time
-  const urls = months === 0 ? allUrls : allUrls.slice(-months);
-  const archiveData = await Promise.all(urls.map(u => fetchArchiveGames(u, user)));
-  const games = archiveData.flatMap(games => games.map(g => normalizeArchiveGame(g, user)).filter(Boolean)).sort((a,b)=>(b.endTime||0)-(a.endTime||0));
-  return { profile, stats, games, monthsLoaded: urls.length };
 }
 
 // ── Analytics helpers ─────────────────────────────────────────────────────────
@@ -1443,7 +1293,8 @@ export default function App() {
     if (!u) return;
     const m = mo !== undefined ? mo : monthsRef.current;
     const loadId = ++p1LoadId.current;
-    setL1(true); setE1(null); setP1(null);
+    setL1(true); setE1(null);
+    if (p1?.profile?.username?.toLowerCase() !== u) setP1(null);
     try {
       const data = await loadPlayer(u, m);
       if (loadId === p1LoadId.current) setP1(data);
