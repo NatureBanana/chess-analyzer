@@ -1246,13 +1246,12 @@ function setHash(user, sub) {
 }
 
 export default function App() {
-  const initialRoute = useRef(parseHash()).current;
   const [themeKey,setThemeKey]=useState(()=>localStorage.getItem("chessdna-theme")||"slate");
   const t=THEMES[themeKey];
   useEffect(()=>{ injectTheme(t); document.body.style.background=t.bg; localStorage.setItem("chessdna-theme",themeKey); },[t, themeKey]);
 
-  const [tab,setTab]=useState(()=>initialRoute.sub==="card"?5:0);
-  const [p1In,setP1In]=useState(()=>initialRoute.user||"");
+  const [tab,setTab]=useState(()=>parseHash().sub==="card"?5:0);
+  const [p1In,setP1In]=useState(()=>parseHash().user||"");
   const [p2In,setP2In]=useState("");
   const [p1,setP1]=useState(null);
   const [p2,setP2]=useState(null);
@@ -1281,7 +1280,8 @@ export default function App() {
 
   // ── On mount: read URL and auto-load player ──
   useEffect(()=>{
-    if (initialRoute.user) doLoad1(initialRoute.user);
+    const {user} = parseHash();
+    if (user) doLoad1(user);
     // Listen for hash changes (back/forward)
     const onHash = () => {
       const {user:u, sub:s} = parseHash();
@@ -1289,7 +1289,7 @@ export default function App() {
     };
     window.addEventListener("hashchange", onHash);
     return ()=>window.removeEventListener("hashchange", onHash);
-  }, [doLoad1, initialRoute]);
+  }, [doLoad1]);
 
   const load1 = () => {
     const u = p1In.trim().toLowerCase();
