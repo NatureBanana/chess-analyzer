@@ -1297,8 +1297,8 @@ export default function App() {
   const load1 = () => {
     const u = p1In.trim().toLowerCase();
     if (!u) return;
-    setHash(u);
-    doLoad1(u, monthsRef.current);
+    if (parseHash().user?.toLowerCase() === u) doLoad1(u, monthsRef.current);
+    else setHash(u);
   };
 
   const changeMonths = (m) => {
