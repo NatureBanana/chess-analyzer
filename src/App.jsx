@@ -1,5 +1,6 @@
 /* eslint-disable react-hooks/set-state-in-effect, react-hooks/static-components, react-hooks/immutability */
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
+import { resolveOpeningInfo, openingCoverage, ecoFamily } from "./openingResolver.js";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, RadarChart, Radar, PolarGrid, PolarAngleAxis,
@@ -118,6 +119,11 @@ function injectTheme(t) {
     @keyframes auroraDrift{0%,100%{transform:translate3d(0,0,0) scale(1)}50%{transform:translate3d(18px,-14px,0) scale(1.08)}}
     @keyframes strandPulse{0%,100%{transform:translateY(0) scaleY(1);filter:saturate(1)}50%{transform:translateY(-6px) scaleY(1.08);filter:saturate(1.35)}}
     @keyframes softBlink{0%,100%{opacity:.36}50%{opacity:.82}}
+    @keyframes ripple{0%{transform:scale(0);opacity:.5}100%{transform:scale(2.5);opacity:0}}
+    @keyframes popIn{0%{opacity:0;transform:scale(.7)}60%{transform:scale(1.06)}100%{opacity:1;transform:scale(1)}}
+    @keyframes slideUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+    @keyframes winBar{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+    @keyframes numberPop{0%{transform:scale(1)}50%{transform:scale(1.08)}100%{transform:scale(1)}}
 
     /* ── Stagger classes ── */
     .stagger-1{animation:fadeInUp .45s .04s cubic-bezier(.22,1,.36,1) both}
@@ -126,6 +132,17 @@ function injectTheme(t) {
     .stagger-4{animation:fadeInUp .45s .22s cubic-bezier(.22,1,.36,1) both}
     .stagger-5{animation:fadeInUp .45s .28s cubic-bezier(.22,1,.36,1) both}
     .stagger-6{animation:fadeInUp .45s .34s cubic-bezier(.22,1,.36,1) both}
+    .tab-content{animation:tabSlideIn .35s cubic-bezier(.22,1,.36,1) both}
+    .bar-grow{animation:barGrow .7s cubic-bezier(.22,1,.36,1) both;transform-origin:left}
+    .ring-pop{animation:ringPop .45s cubic-bezier(.22,1,.36,1) both}
+    .pop-in{animation:popIn .4s cubic-bezier(.22,1,.36,1) both}
+    .filter-pill{transition:all .22s cubic-bezier(.22,1,.36,1)}
+    .filter-pill:hover{transform:translateY(-2px) scale(1.04)}
+    .filter-pill.active{animation:popIn .25s cubic-bezier(.22,1,.36,1) both}
+    .opening-row{transition:transform .2s cubic-bezier(.22,1,.36,1),background .2s ease,border-color .2s ease,box-shadow .2s ease}
+    .opening-row:hover{transform:translateX(4px);background:${t.accent}10!important;border-color:${t.accent}35!important;box-shadow:0 4px 16px rgba(0,0,0,.25)}
+    .stat-pulse:hover .stat-value{animation:numberPop .35s ease}
+    .eco-badge{font-size:10px;font-weight:700;letter-spacing:.04em;padding:2px 7px;border-radius:4px;font-family:${t.font}}
 
     /* ── Skeleton ── */
     .skel{background:linear-gradient(90deg,${t.skA} 25%,${t.skB} 50%,${t.skA} 75%);background-size:200% 100%;animation:shimmerMove 1.6s ease infinite;border-radius:8px}
@@ -238,27 +255,19 @@ function formatDateFromTimestamp(timestamp) {
   return d.toISOString().slice(0, 10).replace(/-/g, ".");
 }
 
-function cleanOpeningNameFromUrl(url) {
-  const slug = url.split("/openings/")[1]?.split(/[?#]/)[0];
-  if (!slug) return "Unknown";
-  const decoded = decodeURIComponent(slug).replace(/[-_]+/g, " ");
-  return decoded.replace(/\s*(?:\.{3})?\d+\..*$/, "").replace(/\s+/g, " ").trim() || "Unknown";
-}
-
-function extractOpeningInfo(tags) {
-  const ecoUrl = tags.ECOUrl;
-  const openingUrl = ecoUrl?.includes("chess.com/openings/") ? ecoUrl : null;
-  const opening = tags.Opening?.trim() || (openingUrl ? cleanOpeningNameFromUrl(openingUrl) : "Unknown");
-  return { opening, openingUrl };
-}
-
 function openingLink(opening, openingUrl) {
   if (openingUrl) return openingUrl;
   return `https://www.chess.com/openings/${opening.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")}`;
 }
 
 function uniqueNamedOpenings(games) {
-  return new Set(games.filter(g=>g.opening&&g.opening!=="Unknown").map(g=>g.opening)).size;
+  return new Set(games.filter(g=>g.opening).map(g=>g.opening)).size;
+}
+
+const ECO_COLORS = { A:"#58a6ff", B:"#3fb950", C:"#ffd700", D:"#a78bfa", E:"#ff7b72" };
+function ecoBadgeStyle(family, t) {
+  const c = ECO_COLORS[family] || t.textDim;
+  return { background:`${c}18`, color:c, border:`1px solid ${c}35` };
 }
 
 function pgnTags(pgn) {
@@ -296,8 +305,8 @@ function parsePGNGame(pgn, user, game={}) {
   const oppElo = oppEloRaw ? parseInt(oppEloRaw, 10) : null;
   const timeControl = normalizeTimeClass(game.time_class, game.time_control || tags.TimeControl);
   const dateStr = formatDateFromTimestamp(game.end_time) || tags.EndDate || tags.UTCDate || tags.Date;
-  const openingInfo = extractOpeningInfo(tags);
-  return { ...openingInfo, eco:tags.ECO||"?", color, result, oppElo:(!oppElo||isNaN(oppElo))?null:oppElo, timeControl, date:dateStr, endTime:game.end_time||0, opponent:color==="white"?b:w };
+  const openingInfo = resolveOpeningInfo(tags, pgn);
+  return { ...openingInfo, openingSource:openingInfo.source, color, result, oppElo:(!oppElo||isNaN(oppElo))?null:oppElo, timeControl, date:dateStr, endTime:game.end_time||0, opponent:color==="white"?b:w };
 }
 
 function parsePGN(pgn, user) {
@@ -307,8 +316,32 @@ function parsePGN(pgn, user) {
 
 function normalizeArchiveGame(game, user) {
   if (!game) return null;
-  if (typeof game.pgn === "string") return parsePGNGame(game.pgn, user, game);
-  if (game.white?.username && game.black?.username) return parsePGNGame("", user, game);
+  if (typeof game.pgn === "string" && game.pgn.trim().length > 0) return parsePGNGame(game.pgn, user, game);
+  if (game.white?.username && game.black?.username) {
+    const tags = {};
+    if (game.eco) tags.ECO = game.eco;
+    if (game.opening) tags.Opening = game.opening;
+    const openingInfo = resolveOpeningInfo(tags, "");
+    const w = game.white.username, b = game.black.username;
+    const userLower = user.toLowerCase();
+    const color = w.toLowerCase() === userLower ? "white" : b.toLowerCase() === userLower ? "black" : null;
+    if (!color) return null;
+    const side = color === "white" ? game.white : game.black;
+    const result = resultFromArchive(game.result || tags.Result, side?.result, color);
+    const opp = color === "white" ? game.black : game.white;
+    const oppEloRaw = opp?.rating;
+    const oppElo = oppEloRaw ? parseInt(oppEloRaw, 10) : null;
+    return {
+      ...openingInfo,
+      openingSource: openingInfo.source,
+      color, result,
+      oppElo: (!oppElo || isNaN(oppElo)) ? null : oppElo,
+      timeControl: normalizeTimeClass(game.time_class, game.time_control),
+      date: formatDateFromTimestamp(game.end_time),
+      endTime: game.end_time || 0,
+      opponent: color === "white" ? b : w,
+    };
+  }
   return game.color && game.result ? game : null;
 }
 
@@ -355,10 +388,12 @@ function aggOpenings(games, tc="all") {
   const f = tc==="all" ? games : games.filter(g=>g.timeControl===tc);
   const map = {};
   for (const g of f) {
-    if (!g.opening || (g.opening==="Unknown" && (!g.eco || g.eco==="?"))) continue;
-    const k = g.opening==="Unknown" ? (g.eco||"?")+" Opening" : g.opening;
-    if (!map[k]) map[k]={opening:k,openingUrl:g.openingUrl||null,eco:g.eco||"?",games:0,wins:0,losses:0,draws:0,elos:[]};
+    if (!g.opening) continue;
+    const k = g.opening;
+    if (!map[k]) map[k]={opening:k,openingUrl:g.openingUrl||null,eco:g.eco||"?",ecoFamily:g.ecoFamily||ecoFamily(g.eco),games:0,wins:0,losses:0,draws:0,elos:[]};
     if (!map[k].openingUrl && g.openingUrl) map[k].openingUrl = g.openingUrl;
+    if (map[k].eco === "?" && g.eco && g.eco !== "?") map[k].eco = g.eco;
+    if (!map[k].ecoFamily && g.ecoFamily) map[k].ecoFamily = g.ecoFamily;
     map[k].games++; if(g.result==="win")map[k].wins++; else if(g.result==="loss")map[k].losses++; else map[k].draws++;
     if(g.oppElo)map[k].elos.push(g.oppElo);
   }
@@ -755,10 +790,10 @@ function PageTransition({children, keyVal}) {
   const [visible, setVisible] = useState(false);
   useEffect(() => {
     setVisible(false);
-    const t = setTimeout(() => setVisible(true), 20);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setVisible(true), 30);
+    return () => clearTimeout(timer);
   }, [keyVal]);
-  return <div style={{opacity: visible ? 1 : 0, transform: visible ? "translateY(0)" : "translateY(12px)", transition:"opacity .3s cubic-bezier(.22,1,.36,1), transform .3s cubic-bezier(.22,1,.36,1)"}}>{children}</div>;
+  return <div className="tab-content" style={{opacity: visible ? 1 : 0, transform: visible ? "translateY(0) scale(1)" : "translateY(16px) scale(.98)", transition:"opacity .35s cubic-bezier(.22,1,.36,1), transform .35s cubic-bezier(.22,1,.36,1)"}}>{children}</div>;
 }
 
 // ── Loading bar ───────────────────────────────────────────────────────────────
@@ -804,9 +839,9 @@ function WDLBar({wins,draws,losses,t}) {
   const wp=Math.round(wins/total*100), dp=Math.round(draws/total*100), lp=Math.round(losses/total*100);
   return <div>
     <div style={{display:"flex",height:10,borderRadius:6,overflow:"hidden",gap:2,marginBottom:6}}>
-      <div style={{width:`${wp}%`,background:t.win,borderRadius:4,transition:"width .6s"}}/>
-      <div style={{width:`${dp}%`,background:t.draw,borderRadius:4,transition:"width .6s"}}/>
-      <div style={{width:`${lp}%`,background:t.loss,borderRadius:4,transition:"width .6s"}}/>
+      <div className="bar-grow" style={{width:`${wp}%`,background:t.win,borderRadius:4,transition:"width .6s"}}/>
+      <div className="bar-grow" style={{width:`${dp}%`,background:t.draw,borderRadius:4,transition:"width .6s",animationDelay:".08s"}}/>
+      <div className="bar-grow" style={{width:`${lp}%`,background:t.loss,borderRadius:4,transition:"width .6s",animationDelay:".16s"}}/>
     </div>
     <div style={{display:"flex",gap:16,fontSize:12}}>
       <span style={{color:t.win}}>W {wp}%</span>
@@ -1047,18 +1082,20 @@ function PlayerHeroCard({data,loading,t}) {
 function DataTruthStrip({data,months,t}) {
   if (!data) return null;
   const ratings=getAllRatings(data.stats).length;
+  const cov=openingCoverage(data.games);
   const items=[
     ["Profile",data.profile.username,"Chess.com /player"],
     ["Official ratings",ratings?`${ratings} formats`:"None listed","Chess.com /stats"],
     ["Archive games",data.games.length.toLocaleString(),`${data.monthsLoaded} archive${data.monthsLoaded===1?"":"s"} · ${rangeLabel(months)}`],
-    ["Derived stats","W/D/L · openings · DNA","Calculated from loaded archives"],
+    ["Opening coverage",`${cov.pct}% identified`,`${cov.named}/${cov.total} games · ${uniqueNamedOpenings(data.games)} unique openings`],
+    ["Derived stats","W/D/L · DNA · insights","Calculated from loaded archives"],
   ];
   return <Card t={t} hover={false} style={{padding:"14px 16px",marginBottom:20,animation:"fadeInUp .35s .08s cubic-bezier(.22,1,.36,1) both"}}>
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:10}}>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:10}}>
       {items.map(([label,value,source],i)=>(
-        <div key={label} style={{background:`${t.accent}08`,border:`1px solid ${t.cardBorder}`,borderRadius:12,padding:"10px 12px",animation:`fadeInUp .35s ${.05+i*.04}s cubic-bezier(.22,1,.36,1) both`}}>
+        <div key={label} className="stat-pulse" style={{background:`${t.accent}08`,border:`1px solid ${t.cardBorder}`,borderRadius:12,padding:"10px 12px",animation:`fadeInUp .35s ${.05+i*.04}s cubic-bezier(.22,1,.36,1) both`,transition:"transform .2s ease,box-shadow .2s ease"}} onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow=`0 6px 20px rgba(0,0,0,.3)`;}} onMouseLeave={e=>{e.currentTarget.style.transform="";e.currentTarget.style.boxShadow="";}}>
           <div style={{fontSize:10,color:t.textDim,textTransform:"uppercase",letterSpacing:".1em",fontWeight:700,marginBottom:4}}>{label}</div>
-          <div style={{fontFamily:t.headingFont,fontSize:18,color:t.text,fontWeight:800,lineHeight:1.05}}>{value}</div>
+          <div className="stat-value" style={{fontFamily:t.headingFont,fontSize:18,color:label==="Opening coverage"&&cov.pct>=90?t.win:label==="Opening coverage"&&cov.pct<70?t.loss:t.text,fontWeight:800,lineHeight:1.05}}>{value}</div>
           <div style={{fontSize:11,color:t.textDim,marginTop:4}}>{source}</div>
         </div>
       ))}
@@ -1071,18 +1108,25 @@ function OpeningDNA({games,loading,t,tc="all"}) {
   if (loading) return <div style={{display:"flex",flexDirection:"column",gap:8}}>{[...Array(5)].map((_,i)=><Sk key={i} h={44}/>)}</div>;
   if (!games?.length) return <div style={{color:t.textDim,fontSize:13}}>No games loaded.</div>;
   const top5=aggOpenings(games,tc).filter(o=>o.games>=2).sort((a,b)=>b.games-a.games).slice(0,5);
+  const maxGames=top5[0]?.games||1;
   return <div style={{display:"flex",flexDirection:"column",gap:8}}>
     {top5.map((o,i)=>(
-      <div key={i} style={{background:`${t.accent}06`,border:`1px solid ${t.cardBorder}`,borderRadius:10,padding:"10px 12px",display:"flex",alignItems:"center",gap:10,animation:`fadeInUp .4s ${.05+i*.06}s cubic-bezier(.22,1,.36,1) both`}}>
-        <div style={{width:22,height:22,borderRadius:"50%",background:i===0?t.accent:`${t.accent}20`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:i===0?t.bg:t.textDim,flexShrink:0,fontFamily:t.font}}>{i+1}</div>
+      <div key={o.opening} className="opening-row" style={{background:`${t.accent}06`,border:`1px solid ${t.cardBorder}`,borderRadius:10,padding:"10px 12px",display:"flex",alignItems:"center",gap:10,animation:`fadeInUp .4s ${.05+i*.06}s cubic-bezier(.22,1,.36,1) both`}}>
+        <div className="ring-pop" style={{width:22,height:22,borderRadius:"50%",background:i===0?t.accent:`${t.accent}20`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:i===0?t.bg:t.textDim,flexShrink:0,fontFamily:t.font,animationDelay:`${.1+i*.05}s`}}>{i+1}</div>
         <div style={{flex:1,minWidth:0}}>
-          <a href={openingLink(o.opening,o.openingUrl)} target="_blank" rel="noopener noreferrer" style={{fontSize:12,color:t.text,fontWeight:500,textDecoration:"none",display:"block",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",transition:"color .15s"}} onMouseEnter={e=>e.target.style.color=t.accent} onMouseLeave={e=>e.target.style.color=t.text}>{o.opening.length>28?o.opening.slice(0,26)+"…":o.opening}</a>
-          <div style={{fontSize:11,color:t.textDim}}>{o.games} games</div>
+          <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:3}}>
+            {o.ecoFamily&&o.eco!=="?"&&<span className="eco-badge" style={ecoBadgeStyle(o.ecoFamily,t)}>{o.eco}</span>}
+            <a href={openingLink(o.opening,o.openingUrl)} target="_blank" rel="noopener noreferrer" style={{fontSize:12,color:t.text,fontWeight:500,textDecoration:"none",display:"block",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",transition:"color .15s",flex:1}} onMouseEnter={e=>e.target.style.color=t.accent} onMouseLeave={e=>e.target.style.color=t.text}>{o.opening.length>24?o.opening.slice(0,22)+"…":o.opening}</a>
+          </div>
+          <div style={{height:4,borderRadius:2,background:`${t.accent}15`,overflow:"hidden"}}>
+            <div className="bar-grow" style={{height:"100%",width:`${Math.round(o.games/maxGames*100)}%`,background:`linear-gradient(90deg,${t.accent2},${t.accent})`,borderRadius:2,animationDelay:`${.15+i*.06}s`}}/>
+          </div>
+          <div style={{fontSize:11,color:t.textDim,marginTop:3}}>{o.games} games · {o.winPct}% win</div>
         </div>
         <span className={`badge ${o.winPct>=55?"green":o.winPct>=45?"yellow":"red"}`}>{o.winPct}%</span>
       </div>
     ))}
-    {!top5.length&&<div style={{color:t.textDim,fontSize:13}}>Not enough games with opening data.</div>}
+    {!top5.length&&<div style={{color:t.textDim,fontSize:13}}>Play more games to see opening patterns.</div>}
   </div>;
 }
 
@@ -1117,7 +1161,7 @@ function PerformanceChart({games,loading,t}) {
       <XAxis dataKey="date" tick={{fill:t.textDim,fontSize:10}} axisLine={false} tickLine={false}/>
       <YAxis tick={{fill:t.textDim,fontSize:10}} axisLine={false} tickLine={false} domain={[0,100]} width={36}/>
       <Tooltip content={tip}/>
-      <Line type="monotone" dataKey="winPct" stroke={t.accent} strokeWidth={2} dot={{r:3,fill:t.accent}} activeDot={{r:5}} name="Win%"/>
+      <Line type="monotone" dataKey="winPct" stroke={t.accent} strokeWidth={2} dot={{r:3,fill:t.accent}} activeDot={{r:5}} name="Win%" isAnimationActive animationDuration={900}/>
     </LineChart>
   </ResponsiveContainer>;
 }
@@ -1146,7 +1190,7 @@ function InsightsColumn({games,loading,t}) {
   const items = computeInsights(games);
   if (!items.length) return <div style={{color:t.textDim,fontSize:13}}>Not enough game data for insights.</div>;
   return <div style={{display:"flex",flexDirection:"column",gap:10}}>
-    {items.map(item=><InsightCard key={item.id} item={item} t={t}/>)}
+    {items.map((item,i)=><div key={item.id} style={{animation:`fadeInUp .4s ${.05+i*.06}s cubic-bezier(.22,1,.36,1) both`}}><InsightCard item={item} t={t}/></div>)}
     <div style={{fontSize:10,color:t.textDim,textAlign:"center",marginTop:2}}>Hover any card for details</div>
   </div>;
 }
@@ -1156,22 +1200,72 @@ function OpeningsTab({games,loading,t}) {
   const [tc,setTc]=useState("all");
   const [sort,setSort]=useState({key:"games",dir:-1});
   const [min,setMin]=useState(1);
+  const [animKey,setAnimKey]=useState(0);
   const toggleSort=k=>setSort(s=>({key:k,dir:s.key===k?-s.dir:-1}));
   const tip=(props)=><ChartTip {...props} t={t}/>;
+  const data=useMemo(()=>games?.length?aggOpenings(games,tc).filter(o=>o.games>=min):[],[games,tc,min]);
+  const sorted=useMemo(()=>[...data].sort((a,b)=>sort.dir*((a[sort.key]??"")<(b[sort.key]??"")? -1:1)),[data,sort]);
+  const top10=useMemo(()=>[...data].sort((a,b)=>b.games-a.games).slice(0,10),[data]);
+  const cov=useMemo(()=>games?.length?openingCoverage(games):{total:0,named:0,pct:0},[games]);
+  const best=useMemo(()=>[...data].filter(o=>o.games>=3).sort((a,b)=>b.winPct-a.winPct)[0],[data]);
+  const worst=useMemo(()=>[...data].filter(o=>o.games>=3).sort((a,b)=>b.lossPct-a.lossPct)[0],[data]);
+  const ecoBreakdown=useMemo(()=>{
+    const m={}; data.forEach(o=>{const f=o.ecoFamily||"?"; m[f]=(m[f]||0)+o.games;});
+    return Object.entries(m).sort((a,b)=>b[1]-a[1]).map(([family,games])=>({family,games}));
+  },[data]);
+  const setTcFilter=x=>{setTc(x);setAnimKey(k=>k+1);};
+  const setMinFilter=v=>{setMin(v);setAnimKey(k=>k+1);};
+
   if (loading) return <div style={{display:"flex",flexDirection:"column",gap:10}}>{[...Array(5)].map((_,i)=><Sk key={i} h={34}/>)}</div>;
   if (!games?.length) return <div style={{color:t.textDim}}>No games.</div>;
-  const data=aggOpenings(games,tc).filter(o=>o.games>=min);
-  const sorted=[...data].sort((a,b)=>sort.dir*((a[sort.key]??"")<(b[sort.key]??"")? -1:1));
-  const top10=[...data].sort((a,b)=>b.games-a.games).slice(0,10);
-  return <div style={{display:"flex",flexDirection:"column",gap:16}}>
+
+  return <div key={animKey} style={{display:"flex",flexDirection:"column",gap:16}}>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:10}}>
+      {[
+        ["Total Openings",data.length,t.accent],
+        ["Games Covered",`${cov.pct}%`,cov.pct>=90?t.win:cov.pct>=70?t.hl:t.loss],
+        ["Best Line",best?`${best.winPct}%`:"—",t.win,best?.opening],
+        ["Toughest Line",worst?`${worst.lossPct}% loss`:"—",t.loss,worst?.opening],
+      ].map(([label,val,color,sub],i)=>(
+        <Card key={label} t={t} hover={true} style={{padding:"14px 16px",animation:`popIn .4s ${.04+i*.05}s cubic-bezier(.22,1,.36,1) both`}}>
+          <div style={{fontSize:10,color:t.textDim,textTransform:"uppercase",letterSpacing:".08em",fontWeight:700,marginBottom:6}}>{label}</div>
+          <div style={{fontFamily:t.headingFont,fontSize:26,fontWeight:900,color,lineHeight:1}}>{val}</div>
+          {sub&&<div style={{fontSize:11,color:t.textDim,marginTop:4,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{sub}</div>}
+        </Card>
+      ))}
+    </div>
+
     <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
       <span style={{fontSize:12,color:t.textDim}}>Time control:</span>
       {["all","daily","rapid","blitz","bullet"].map(x=>(
-        <button key={x} onClick={()=>setTc(x)} style={{background:tc===x?`${t.accent}18`:"none",border:`1px solid ${tc===x?t.accent+"60":t.cardBorder}`,borderRadius:20,color:tc===x?t.accent:t.textDim,cursor:"pointer",fontFamily:t.font,fontSize:12,fontWeight:tc===x?600:400,padding:"4px 12px",transition:"all .2s"}}>{x}</button>
+        <button key={x} className={`filter-pill ${tc===x?"active":""}`} onClick={()=>setTcFilter(x)} style={{background:tc===x?`${t.accent}18`:"none",border:`1px solid ${tc===x?t.accent+"60":t.cardBorder}`,borderRadius:20,color:tc===x?t.accent:t.textDim,cursor:"pointer",fontFamily:t.font,fontSize:12,fontWeight:tc===x?600:400,padding:"4px 12px"}}>{x}</button>
       ))}
-      <span style={{fontSize:12,color:t.textDim,marginLeft:8}}>Min:</span>
-      <select value={min} onChange={e=>setMin(+e.target.value)}>{[1,2,3,5,10].map(n=><option key={n} value={n}>{n}</option>)}</select>
+      <span style={{fontSize:12,color:t.textDim,marginLeft:8}}>Min games:</span>
+      <select value={min} onChange={e=>setMinFilter(+e.target.value)}>{[1,2,3,5,10].map(n=><option key={n} value={n}>{n}+</option>)}</select>
+      <span style={{fontSize:11,color:t.textDim,marginLeft:8}}>{data.length} openings · {sorted.reduce((a,o)=>a+o.games,0)} games</span>
     </div>
+
+    {ecoBreakdown.length>0&&<Card t={t} style={{padding:"14px 18px"}}>
+      <div style={{fontSize:11,color:t.textDim,textTransform:"uppercase",letterSpacing:".08em",fontWeight:700,marginBottom:10}}>ECO Volume Distribution</div>
+      <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+        {ecoBreakdown.map(({family,games},i)=>{
+          const total=data.reduce((a,o)=>a+o.games,0)||1;
+          const pct=Math.round(games/total*100);
+          const c=ECO_COLORS[family]||t.textDim;
+          return <div key={family} style={{flex:"1 1 80px",minWidth:70,animation:`fadeInUp .35s ${.05+i*.04}s cubic-bezier(.22,1,.36,1) both`}}>
+            <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:4}}>
+              <span className="eco-badge" style={ecoBadgeStyle(family,t)}>Vol {family}</span>
+              <span style={{color:t.textDim}}>{pct}%</span>
+            </div>
+            <div style={{height:6,borderRadius:3,background:`${c}20`,overflow:"hidden"}}>
+              <div className="bar-grow" style={{height:"100%",width:`${pct}%`,background:c,borderRadius:3,animationDelay:`${.1+i*.05}s`}}/>
+            </div>
+            <div style={{fontSize:10,color:t.textDim,marginTop:3}}>{games} games</div>
+          </div>;
+        })}
+      </div>
+    </Card>}
+
     <Card t={t}>
       <SecTitle t={t}>Top Openings — Outcome Split</SecTitle>
       <ResponsiveContainer width="100%" height={Math.max(180,top10.length*36)}>
@@ -1179,22 +1273,23 @@ function OpeningsTab({games,loading,t}) {
           <XAxis type="number" domain={[0,100]} tick={{fill:t.textDim,fontSize:10}} axisLine={false} tickLine={false}/>
           <YAxis type="category" dataKey="opening" tick={{fill:t.textMid,fontSize:11}} width={155} axisLine={false} tickLine={false} tickFormatter={v=>v.length>22?v.slice(0,20)+"…":v}/>
           <Tooltip content={tip}/><Legend wrapperStyle={{color:t.textMid,fontSize:12}}/>
-          <Bar dataKey="winPct" name="Win %" stackId="a" fill={t.win}/>
-          <Bar dataKey="drawPct" name="Draw %" stackId="a" fill={t.draw}/>
-          <Bar dataKey="lossPct" name="Loss %" stackId="a" fill={t.loss} radius={[0,4,4,0]}/>
+          <Bar dataKey="winPct" name="Win %" stackId="a" fill={t.win} isAnimationActive animationDuration={700} animationBegin={100}/>
+          <Bar dataKey="drawPct" name="Draw %" stackId="a" fill={t.draw} isAnimationActive animationDuration={700} animationBegin={200}/>
+          <Bar dataKey="lossPct" name="Loss %" stackId="a" fill={t.loss} radius={[0,4,4,0]} isAnimationActive animationDuration={700} animationBegin={300}/>
         </BarChart>
       </ResponsiveContainer>
     </Card>
     <Card t={t}>
-      <SecTitle t={t}>All Openings</SecTitle>
+      <SecTitle t={t} sub={`${sorted.length} openings sorted by ${sort.key}`}>All Openings</SecTitle>
       <div style={{overflowX:"auto"}}>
         <table>
-          <thead><tr>{[["opening","Opening"],["games","Games"],["winPct","Win%"],["lossPct","Loss%"],["drawPct","Draw%"],["avgOpp","Avg Opp"]].map(([k,l])=><th key={k} onClick={()=>toggleSort(k)}>{l}{sort.key===k?sort.dir===1?" ↑":" ↓":""}</th>)}</tr></thead>
+          <thead><tr>{[["opening","Opening"],["eco","ECO"],["games","Games"],["winPct","Win%"],["lossPct","Loss%"],["drawPct","Draw%"],["avgOpp","Avg Opp"]].map(([k,l])=><th key={k} onClick={()=>toggleSort(k)}>{l}{sort.key===k?sort.dir===1?" ↑":" ↓":""}</th>)}</tr></thead>
           <tbody>{sorted.map((o,i)=>(
-            <tr key={i}>
+            <tr key={o.opening} className="opening-row" style={{animation:`slideUp .3s ${Math.min(i*.02,.4)}s cubic-bezier(.22,1,.36,1) both`}}>
               <td style={{maxWidth:240,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                 <a href={openingLink(o.opening,o.openingUrl)} target="_blank" rel="noopener noreferrer" style={{color:t.text,textDecoration:"none",transition:"color .15s"}} onMouseEnter={e=>e.target.style.color=t.accent} onMouseLeave={e=>e.target.style.color=t.text}>{o.opening} ↗</a>
               </td>
+              <td>{o.eco&&o.eco!=="?"?<span className="eco-badge" style={ecoBadgeStyle(o.ecoFamily,t)}>{o.eco}</span>:<span style={{color:t.textDim,fontSize:11}}>—</span>}</td>
               <td style={{fontWeight:600,color:t.text}}>{o.games}</td>
               <td><span style={{color:t.win,fontWeight:700}}>{o.winPct}%</span></td>
               <td><span style={{color:t.loss}}>{o.lossPct}%</span></td>
@@ -1249,7 +1344,7 @@ function ColorTab({games,loading,t}) {
           <XAxis dataKey="name" tick={{fill:t.textDim,fontSize:12}} axisLine={false} tickLine={false}/>
           <YAxis domain={[0,100]} tick={{fill:t.textDim,fontSize:11}} axisLine={false} tickLine={false}/>
           <Tooltip content={tip}/>
-          <Bar dataKey="White" fill="#f8c840" radius={[4,4,0,0]}/><Bar dataKey="Black" fill="#6e7ff3" radius={[4,4,0,0]}/>
+          <Bar dataKey="White" fill="#f8c840" radius={[4,4,0,0]} isAnimationActive animationDuration={700}/><Bar dataKey="Black" fill="#6e7ff3" radius={[4,4,0,0]} isAnimationActive animationDuration={700} animationBegin={150}/>
           <Legend wrapperStyle={{color:t.textMid,fontSize:12}}/>
         </BarChart>
       </ResponsiveContainer>
@@ -1271,7 +1366,7 @@ function EloTab({games,loading,t}) {
         <XAxis dataKey="label" tick={{fill:t.textDim,fontSize:11}} axisLine={false} tickLine={false}/>
         <YAxis domain={[0,100]} tick={{fill:t.textDim,fontSize:11}} axisLine={false} tickLine={false}/>
         <Tooltip content={tip}/>
-        <Bar dataKey="winPct" name="Win%" radius={[5,5,0,0]}>{data.map((e,i)=><Cell key={i} fill={e.winPct>=55?t.win:e.winPct>=45?"#ffc800":t.loss}/>)}</Bar>
+        <Bar dataKey="winPct" name="Win%" radius={[5,5,0,0]} isAnimationActive animationDuration={800}>{data.map((e,i)=><Cell key={i} fill={e.winPct>=55?t.win:e.winPct>=45?"#ffc800":t.loss}/>)}</Bar>
       </BarChart>
     </ResponsiveContainer>
   </Card>;
@@ -1622,9 +1717,9 @@ function OverviewTab({data,loading,t}) {
   const uniqueO=uniqueNamedOpenings(games);
 
   const StatCard=({label,value,color,sub,i})=>(
-    <Card t={t} className={`stagger-${i+1}`} style={{padding:"16px 18px",textAlign:"center",minWidth:100}}>
+    <Card t={t} className={`stagger-${i+1} stat-pulse`} style={{padding:"16px 18px",textAlign:"center",minWidth:100,transition:"transform .2s ease"}} onMouseEnter={e=>e.currentTarget.style.transform="translateY(-3px) scale(1.02)"} onMouseLeave={e=>e.currentTarget.style.transform=""}>
       <div style={{fontSize:10,color:t.textDim,textTransform:"uppercase",letterSpacing:".07em",marginBottom:6,fontFamily:t.font}}>{label}</div>
-      <div style={{fontSize:28,fontWeight:700,color:color||t.text,fontFamily:t.headingFont}}>{typeof value==="number"?<AnimatedNumber value={value} duration={600}/>:value}</div>
+      <div className="stat-value" style={{fontSize:28,fontWeight:700,color:color||t.text,fontFamily:t.headingFont}}>{typeof value==="number"?<AnimatedNumber value={value} duration={600}/>:value}</div>
       {sub&&<div style={{fontSize:11,color:t.textDim,marginTop:3}}>{sub}</div>}
     </Card>
   );
@@ -1638,7 +1733,7 @@ function OverviewTab({data,loading,t}) {
       <StatCard i={3} label="Losses" value={losses} color={t.loss} sub={lossPct+"%"}/>
       <StatCard i={4} label="Draws" value={draws} color={t.draw} sub={drawPct+"%"}/>
       <StatCard i={5} label="Avg Opponent" value={avgOpp||"—"} color={t.textMid}/>
-      <StatCard i={6} label="Openings Used" value={uniqueO} color={t.hl}/>
+      <StatCard i={6} label="Openings Used" value={uniqueO} color={t.hl} sub={`${openingCoverage(games).pct}% identified`}/>
     </div>
 
     {/* Row 2 — WDL bar + recent form + best win */}
@@ -1663,7 +1758,7 @@ function OverviewTab({data,loading,t}) {
           <div style={{fontSize:11,color:t.textDim,textTransform:"uppercase",letterSpacing:".07em",marginBottom:8}}>Recent form (last 20)</div>
           <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
             {recent.map((g,i)=>(
-              <div key={i} style={{width:16,height:16,borderRadius:3,background:g.result==="win"?t.win:g.result==="loss"?t.loss:t.draw,opacity:.85,title:g.result}}/>
+              <div key={i} className="pop-in" style={{width:16,height:16,borderRadius:3,background:g.result==="win"?t.win:g.result==="loss"?t.loss:t.draw,opacity:.85,title:`${g.result} · ${g.opening||"—"}`,animationDelay:`${i*.03}s`,transition:"transform .15s ease"}} onMouseEnter={e=>e.target.style.transform="scale(1.3)"} onMouseLeave={e=>e.target.style.transform="scale(1)"}/>
             ))}
           </div>
           <div style={{fontSize:12,color:formColor,marginTop:8,fontWeight:600}}>{formTrend} · {recentForm}% last 20 games</div>
@@ -1702,7 +1797,7 @@ function OverviewTab({data,loading,t}) {
             <XAxis dataKey="name" tick={{fill:t.textDim,fontSize:12}} axisLine={false} tickLine={false}/>
             <YAxis tick={{fill:t.textDim,fontSize:10}} axisLine={false} tickLine={false} domain={["auto","auto"]}/>
             <Tooltip content={tip}/>
-            <Bar dataKey="rating" name="Current" fill={t.accent} radius={[5,5,0,0]}/>
+            <Bar dataKey="rating" name="Current" fill={t.accent} radius={[5,5,0,0]} isAnimationActive animationDuration={800}/>
           </BarChart>
         </ResponsiveContainer>
         <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:8}}>
@@ -1746,9 +1841,9 @@ function OverviewTab({data,loading,t}) {
             <XAxis type="number" domain={[0,100]} tick={{fill:t.textDim,fontSize:10}} axisLine={false} tickLine={false}/>
             <YAxis type="category" dataKey="opening" tick={{fill:t.textMid,fontSize:10}} width={145} axisLine={false} tickLine={false} tickFormatter={v=>v.length>22?v.slice(0,20)+"…":v}/>
             <Tooltip content={tip}/>
-            <Bar dataKey="winPct" name="Win%" stackId="a" fill={t.win}/>
-            <Bar dataKey="drawPct" name="Draw%" stackId="a" fill={t.draw}/>
-            <Bar dataKey="lossPct" name="Loss%" stackId="a" fill={t.loss} radius={[0,4,4,0]}/>
+            <Bar dataKey="winPct" name="Win%" stackId="a" fill={t.win} isAnimationActive animationDuration={700}/>
+            <Bar dataKey="drawPct" name="Draw%" stackId="a" fill={t.draw} isAnimationActive animationDuration={700} animationBegin={100}/>
+            <Bar dataKey="lossPct" name="Loss%" stackId="a" fill={t.loss} radius={[0,4,4,0]} isAnimationActive animationDuration={700} animationBegin={200}/>
           </BarChart>
         </ResponsiveContainer>
       </Card>
@@ -1991,7 +2086,7 @@ export default function App() {
       {/* ── Tabs ── */}
       {(p1||l1)&&<div style={{background:t.card,border:`1px solid ${t.cardBorder}`,borderRadius:10,padding:6,display:"flex",gap:2,flexWrap:"wrap",marginBottom:14,animation:"fadeInUp .35s ease both"}}>
         {TABS.map(([icon,name],i)=>(
-          <button key={name} className={`tab-btn ${tab===i?"active":""}`} onClick={()=>handleTabChange(i)}>{icon} {name}</button>
+          <button key={name} className={`tab-btn ${tab===i?"active":""}`} onClick={()=>handleTabChange(i)} style={tab===i?{animation:"popIn .2s cubic-bezier(.22,1,.36,1) both"}:{}}>{icon} {name}</button>
         ))}
       </div>}
 
