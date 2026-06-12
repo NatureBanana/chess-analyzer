@@ -4,7 +4,7 @@ import { resolveOpeningInfo, openingCoverage, ecoFamily } from "./openingResolve
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, RadarChart, Radar, PolarGrid, PolarAngleAxis,
-  PolarRadiusAxis, Legend, LineChart, Line, CartesianGrid,
+  PolarRadiusAxis, Legend, LineChart, Line, CartesianGrid, ComposedChart,
 } from "recharts";
 
 // ── Fonts ─────────────────────────────────────────────────────────────────────
@@ -124,6 +124,17 @@ function injectTheme(t) {
     @keyframes slideUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
     @keyframes winBar{from{transform:scaleX(0)}to{transform:scaleX(1)}}
     @keyframes numberPop{0%{transform:scale(1)}50%{transform:scale(1.08)}100%{transform:scale(1)}}
+    @keyframes drawStroke{from{stroke-dashoffset:1400}to{stroke-dashoffset:0}}
+    @keyframes helixDrift{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+    @keyframes rungPulse{0%,100%{opacity:.55;transform:scaleY(.92)}50%{opacity:1;transform:scaleY(1.06)}}
+    @keyframes heatPop{0%{opacity:0;transform:scale(.3)}100%{opacity:1;transform:scale(1)}}
+    @keyframes timelineDraw{from{height:0}to{height:100%}}
+    @keyframes flipIn{0%{opacity:0;transform:perspective(700px) rotateX(-14deg) translateY(16px)}100%{opacity:1;transform:perspective(700px) rotateX(0) translateY(0)}}
+    @keyframes gradientShift{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+    @keyframes breathe{0%,100%{transform:scale(1);opacity:.85}50%{transform:scale(1.045);opacity:1}}
+    @keyframes orbit{from{transform:rotate(0deg) translateX(11px) rotate(0deg)}to{transform:rotate(360deg) translateX(11px) rotate(-360deg)}}
+    @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
+    @keyframes tickerSlide{from{opacity:0;transform:translateY(100%)}to{opacity:1;transform:translateY(0)}}
 
     /* ── Stagger classes ── */
     .stagger-1{animation:fadeInUp .45s .04s cubic-bezier(.22,1,.36,1) both}
@@ -196,9 +207,42 @@ function injectTheme(t) {
 
     /* ── Misc ── */
     .fi{animation:fadeInUp .4s cubic-bezier(.22,1,.36,1) both}
+    .flip-in{animation:flipIn .55s cubic-bezier(.22,1,.36,1) both}
+    .heat-cell{animation:heatPop .3s cubic-bezier(.22,1,.36,1) both;transition:transform .15s ease,box-shadow .15s ease;cursor:default}
+    .heat-cell:hover{transform:scale(1.45);z-index:2;box-shadow:0 2px 10px rgba(0,0,0,.5)}
+    .rival-row{transition:transform .2s cubic-bezier(.22,1,.36,1),background .2s ease}
+    .rival-row:hover{transform:translateX(4px);background:${t.accent}0c!important}
+    .dim-card{transition:transform .3s cubic-bezier(.16,1,.3,1),box-shadow .3s ease,border-color .3s ease}
+    .dim-card:hover{transform:translateY(-4px);box-shadow:0 12px 38px rgba(0,0,0,.5)}
+    .cheat-row{transition:background .2s ease,transform .2s ease}
+    .cheat-row:hover{background:${t.accent}10;transform:translateX(3px)}
+    .tab-strip{display:flex;gap:2;flex-wrap:wrap}
     * {-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
     ::selection{background:${t.accent}30;color:${t.text}}
-    @media(max-width:700px){.three-col{flex-direction:column!important}.hide-mobile{display:none!important}}
+
+    /* ── Responsive ── */
+    @media(max-width:900px){
+      .two-col-900{flex-direction:column!important}
+      .grid-2-900{grid-template-columns:1fr!important}
+    }
+    @media(max-width:700px){
+      .three-col{flex-direction:column!important}
+      .hide-mobile{display:none!important}
+      .tab-strip{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+      .tab-strip::-webkit-scrollbar{display:none}
+      .tab-btn{white-space:nowrap;flex-shrink:0}
+      .card-pad-sm{padding:16px!important}
+    }
+    @media(max-width:480px){
+      .hero-emoji{font-size:54px!important}
+      .hero-pad{padding:44px 0 30px!important}
+      .card-pad-sm{padding:13px!important}
+      button.primary{width:100%}
+      .stat-grid{grid-template-columns:repeat(2,1fr)!important}
+    }
+    @media(prefers-reduced-motion:reduce){
+      *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}
+    }
   `;
 }
 
@@ -289,6 +333,20 @@ function resultFromArchive(raw, sideResult, color) {
   return normalized ? "loss" : "draw";
 }
 
+// Extract full-move count and White's first move from PGN movetext
+function parseMovetextMeta(pgn) {
+  if (!pgn) return { moveCount:null, firstMove:null };
+  const idx = pgn.lastIndexOf("]");
+  const movetext = idx >= 0 ? pgn.slice(idx + 1) : pgn;
+  let moveCount = null;
+  for (const m of movetext.matchAll(/(\d+)\.(?!\.)/g)) {
+    const n = parseInt(m[1], 10);
+    if (!Number.isNaN(n) && (moveCount === null || n > moveCount)) moveCount = n;
+  }
+  const fm = movetext.match(/\b1\.\s*(?:\{[^}]*\}\s*)?([A-Za-z][a-zA-Z0-9+#=-]*)/);
+  return { moveCount, firstMove: fm ? fm[1] : null };
+}
+
 function parsePGNGame(pgn, user, game={}) {
   const tags = pgnTags(pgn);
   const w = game.white?.username || tags.White;
@@ -303,10 +361,13 @@ function parsePGNGame(pgn, user, game={}) {
   const opp = color==="white" ? game.black : game.white;
   const oppEloRaw = opp?.rating ?? (color==="white" ? tags.BlackElo : tags.WhiteElo);
   const oppElo = oppEloRaw ? parseInt(oppEloRaw, 10) : null;
+  const myEloRaw = side?.rating ?? (color==="white" ? tags.WhiteElo : tags.BlackElo);
+  const myElo = myEloRaw ? parseInt(myEloRaw, 10) : null;
   const timeControl = normalizeTimeClass(game.time_class, game.time_control || tags.TimeControl);
   const dateStr = formatDateFromTimestamp(game.end_time) || tags.EndDate || tags.UTCDate || tags.Date;
   const openingInfo = resolveOpeningInfo(tags, pgn);
-  return { ...openingInfo, openingSource:openingInfo.source, color, result, oppElo:(!oppElo||isNaN(oppElo))?null:oppElo, timeControl, date:dateStr, endTime:game.end_time||0, opponent:color==="white"?b:w };
+  const { moveCount, firstMove } = parseMovetextMeta(pgn);
+  return { ...openingInfo, openingSource:openingInfo.source, color, result, oppElo:(!oppElo||isNaN(oppElo))?null:oppElo, myElo:(!myElo||isNaN(myElo))?null:myElo, timeControl, date:dateStr, endTime:game.end_time||0, opponent:color==="white"?b:w, moveCount, firstMove };
 }
 
 function parsePGN(pgn, user) {
@@ -331,15 +392,19 @@ function normalizeArchiveGame(game, user) {
     const opp = color === "white" ? game.black : game.white;
     const oppEloRaw = opp?.rating;
     const oppElo = oppEloRaw ? parseInt(oppEloRaw, 10) : null;
+    const myEloRaw = side?.rating;
+    const myElo = myEloRaw ? parseInt(myEloRaw, 10) : null;
     return {
       ...openingInfo,
       openingSource: openingInfo.source,
       color, result,
       oppElo: (!oppElo || isNaN(oppElo)) ? null : oppElo,
+      myElo: (!myElo || isNaN(myElo)) ? null : myElo,
       timeControl: normalizeTimeClass(game.time_class, game.time_control),
       date: formatDateFromTimestamp(game.end_time),
       endTime: game.end_time || 0,
       opponent: color === "white" ? b : w,
+      moveCount: null, firstMove: null,
     };
   }
   return game.color && game.result ? game : null;
@@ -421,6 +486,165 @@ function computeStreak(games) {
   let c=1; const l=games[0].result;
   for (let i=1;i<games.length;i++) { if(games[i].result===l)c++; else break; }
   return {type:l,count:c};
+}
+
+// Longest win/loss streaks across the loaded range (games arrive newest-first)
+function streakRecords(games) {
+  let bestWin=0, bestLoss=0, cw=0, cl=0;
+  for (let i=games.length-1;i>=0;i--) {
+    const r=games[i].result;
+    if (r==="win"){cw++;cl=0;} else if (r==="loss"){cl++;cw=0;} else {cw=0;cl=0;}
+    if (cw>bestWin)bestWin=cw;
+    if (cl>bestLoss)bestLoss=cl;
+  }
+  return {bestWin,bestLoss};
+}
+
+// Win% by local time-of-day block (uses game end timestamps)
+const HOUR_BLOCKS=[["🌅","Morning",5,12],["☀️","Afternoon",12,17],["🌆","Evening",17,22],["🌙","Night",22,5]];
+function hourBlockLabel(d) {
+  const h=d.getHours();
+  for (const [,label,from,to] of HOUR_BLOCKS) {
+    if (from<to ? (h>=from&&h<to) : (h>=from||h<to)) return label;
+  }
+  return "Night";
+}
+function timeOfDayStats(games) {
+  const m={};
+  for (const g of games) {
+    if (!g.endTime) continue;
+    const label=hourBlockLabel(new Date(g.endTime*1000));
+    if (!m[label]) m[label]={label,games:0,wins:0,losses:0,draws:0};
+    m[label].games++;
+    if (g.result==="win")m[label].wins++; else if (g.result==="loss")m[label].losses++; else m[label].draws++;
+  }
+  return HOUR_BLOCKS.filter(([,label])=>m[label]).map(([icon,label])=>({icon,...m[label],winPct:percent(m[label].wins,m[label].games)}));
+}
+
+function dayOfWeekStats(games) {
+  const names=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  const m=names.map(day=>({day,games:0,wins:0}));
+  for (const g of games) {
+    if (!g.endTime) continue;
+    const e=m[new Date(g.endTime*1000).getDay()];
+    e.games++; if (g.result==="win")e.wins++;
+  }
+  return m.map(e=>({...e,winPct:percent(e.wins,e.games)}));
+}
+
+// Tilt: how does the very next game (same session, <3h gap) go after a loss vs after a win?
+function tiltStats(games) {
+  const seq=[...games].filter(g=>g.endTime).sort((a,b)=>a.endTime-b.endTime);
+  const afterLoss={w:0,t:0}, afterWin={w:0,t:0};
+  for (let i=1;i<seq.length;i++) {
+    if (seq[i].endTime-seq[i-1].endTime>3*3600) continue;
+    const prev=seq[i-1].result;
+    if (prev==="loss") { afterLoss.t++; if (seq[i].result==="win") afterLoss.w++; }
+    else if (prev==="win") { afterWin.t++; if (seq[i].result==="win") afterWin.w++; }
+  }
+  if (afterLoss.t<8 || afterWin.t<8) return null;
+  const afterLossPct=percent(afterLoss.w,afterLoss.t), afterWinPct=percent(afterWin.w,afterWin.t);
+  return { afterLossPct, afterWinPct, afterLossGames:afterLoss.t, afterWinGames:afterWin.t, tilt:afterWinPct-afterLossPct };
+}
+
+// Most-faced opponents with head-to-head record
+function rivalStats(games, limit=5) {
+  const m={};
+  for (const g of games) {
+    if (!g.opponent) continue;
+    const k=g.opponent.toLowerCase();
+    if (!m[k]) m[k]={opponent:g.opponent,games:0,wins:0,losses:0,draws:0,lastElo:null};
+    m[k].games++;
+    if (g.result==="win")m[k].wins++; else if (g.result==="loss")m[k].losses++; else m[k].draws++;
+    if (g.oppElo && !m[k].lastElo) m[k].lastElo=g.oppElo;
+  }
+  return Object.values(m).filter(r=>r.games>=2).sort((a,b)=>b.games-a.games).slice(0,limit).map(r=>({...r,winPct:percent(r.wins,r.games)}));
+}
+
+// GitHub-style daily activity grid for the last N weeks
+function activityCalendar(games, weeks=16) {
+  const byDay={};
+  for (const g of games) {
+    if (!g.endTime) continue;
+    const d=new Date(g.endTime*1000);
+    const key=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+    if (!byDay[key]) byDay[key]={games:0,wins:0};
+    byDay[key].games++; if (g.result==="win")byDay[key].wins++;
+  }
+  const today=new Date(); today.setHours(0,0,0,0);
+  const end=new Date(today); end.setDate(end.getDate()+(6-end.getDay()));
+  const cells=[];
+  for (let i=weeks*7-1;i>=0;i--) {
+    const d=new Date(end); d.setDate(end.getDate()-i);
+    const key=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+    const e=byDay[key];
+    cells.push({key,date:d,games:e?.games||0,winPct:e?percent(e.wins,e.games):0,future:d>today});
+  }
+  const max=Math.max(1,...cells.map(c=>c.games));
+  const active=cells.filter(c=>c.games>0).length;
+  return {cells,max,active};
+}
+
+// Per-month volume + win% + avg opponent for the loaded range
+function monthlyTrend(games) {
+  const m={};
+  for (const g of games) {
+    if (!g.date || g.date==="?") continue;
+    const key=g.date.slice(0,7);
+    if (!m[key]) m[key]={month:key,games:0,wins:0,elos:[]};
+    m[key].games++; if (g.result==="win")m[key].wins++;
+    if (g.oppElo) m[key].elos.push(g.oppElo);
+  }
+  return Object.values(m).sort((a,b)=>a.month<b.month?-1:1)
+    .map(e=>({month:e.month.replace(".","/"),games:e.games,winPct:percent(e.wins,e.games),avgOpp:e.elos.length?Math.round(avg(e.elos)):null}));
+}
+
+// White's first move distribution: your choices as White, your results facing each as Black
+function firstMoveStats(games) {
+  const asWhite={}, asBlack={};
+  for (const g of games) {
+    if (!g.firstMove) continue;
+    const tgt=g.color==="white"?asWhite:asBlack;
+    if (!tgt[g.firstMove]) tgt[g.firstMove]={move:g.firstMove,games:0,wins:0};
+    tgt[g.firstMove].games++; if (g.result==="win")tgt[g.firstMove].wins++;
+  }
+  const fmt=m=>Object.values(m).map(e=>({...e,winPct:percent(e.wins,e.games)})).sort((a,b)=>b.games-a.games);
+  return {asWhite:fmt(asWhite),asBlack:fmt(asBlack)};
+}
+
+// Move-count derived stats (only games where PGN movetext was available)
+function gameLengthStats(games) {
+  const withMoves=games.filter(g=>g.moveCount&&g.moveCount>1);
+  if (withMoves.length<10) return null;
+  const avgMoves=Math.round(avg(withMoves.map(g=>g.moveCount)));
+  const quickWins=withMoves.filter(g=>g.result==="win"&&g.moveCount<=20).length;
+  const marathons=withMoves.filter(g=>g.moveCount>=60).length;
+  const longest=withMoves.reduce((a,b)=>b.moveCount>(a?.moveCount||0)?b:a,null);
+  const short=withMoves.filter(g=>g.moveCount<=20), long=withMoves.filter(g=>g.moveCount>=40);
+  return {
+    avgMoves, quickWins, marathons, longest, sample:withMoves.length,
+    shortWinPct:short.length>=8?percent(short.filter(g=>g.result==="win").length,short.length):null,
+    shortGames:short.length,
+    longWinPct:long.length>=8?percent(long.filter(g=>g.result==="win").length,long.length):null,
+    longGames:long.length,
+  };
+}
+
+// Wins against opponents rated meaningfully above you in that game
+function biggestUpsets(games, limit=5) {
+  return games.filter(g=>g.result==="win"&&g.oppElo&&g.myElo&&g.oppElo>g.myElo+50)
+    .map(g=>({...g,diff:g.oppElo-g.myElo}))
+    .sort((a,b)=>b.diff-a.diff).slice(0,limit);
+}
+
+function davidGoliath(games) {
+  const rated=games.filter(g=>g.oppElo&&g.myElo);
+  const f=g=>g.length?{games:g.length,winPct:percent(g.filter(x=>x.result==="win").length,g.length)}:null;
+  return {
+    up:f(rated.filter(g=>g.oppElo>=g.myElo+50)),
+    even:f(rated.filter(g=>Math.abs(g.oppElo-g.myElo)<50)),
+    down:f(rated.filter(g=>g.oppElo<=g.myElo-50)),
+  };
 }
 
 function computeInsights(games) {
@@ -650,11 +874,57 @@ function computePersonality(games, stats, profile={}) {
   const aggression=pressureScore>=62?"high":pressureScore>=44?"mid":"low";
   const breadth=breadthScore>=68?"explorer":breadthScore>=42?"balanced":"specialist";
   const dnaCode = `${favTC.slice(0,2).toUpperCase()}-${winPct}-${uniqueOpenings}-${(sigHash%4096).toString(16).toUpperCase().padStart(3,"0")}`;
-  const strandBase=[winPct,drawPct,lossPct,speedScore,breadthScore,pressureScore,consistencyScore,balanceScore,ratingScore,whitePct,blackPct,percent(upsetWins,total)];
-  const dnaSegments=strandBase.map((v,i)=>({value:Math.round(clamp(v)),tone:colorsPalette[(sigHash+i)%colorsPalette.length]}));
+  const strandBase=[
+    ["Win %",winPct],["Draw %",drawPct],["Loss %",lossPct],["Tempo",speedScore],["Breadth",breadthScore],["Pressure",pressureScore],
+    ["Consistency",consistencyScore],["Color balance",balanceScore],["Rating",ratingScore],["White win %",whitePct],["Black win %",blackPct],["Upset rate",percent(upsetWins,total)],
+  ];
+  const dnaSegments=strandBase.map(([label,v],i)=>({label,value:Math.round(clamp(v)),tone:colorsPalette[(sigHash+i)%colorsPalette.length]}));
   const traitChips=dimensions.slice(0,4).map(d=>`${d.label} ${d.value}`);
   const desc=`Inferred from ${total} loaded archive games: ${favTC} leads the time mix, ${uniqueOpenings} named openings shape the repertoire, and the top DNA signal is ${dimensions[0].label.toLowerCase()}.`;
   return { title, icon, titleColor, archetype, desc, winPct, drawPct, lossPct, favTC, uniqueOpenings, avgOpp, bestWin:bestWinGame?.oppElo||null, streak:computeStreak(games), total, wins, losses, draws, breadth, speed, aggression, bestOpening, axes, dimensions, dnaCode, dnaSegments, traitChips, timeMix, recentWinPct, whitePct, blackPct, colorGap, upsetWins };
+}
+
+// ── DNA dimension metadata ────────────────────────────────────────────────────
+const DIMENSION_META = {
+  pressure:    { icon:"🌩️", what:"How often you convert games into full points and punch above your rating.", high:"You force errors and finish games — keep sharpening tactics to feed this.", low:"Look for one more active plan per game; passive equality is leaving points behind." },
+  tempo:       { icon:"⚡",  what:"How fast the formats you choose are — bullet and blitz push this up.", high:"You thrive on the clock. Practice premove discipline and flag-proof endings.", low:"You prefer thinking time. That's a real strength — protect it by avoiding tilt-queueing blitz." },
+  breadth:     { icon:"🗺️", what:"How wide your opening repertoire runs across loaded games.", high:"Hard to prepare against. Make sure your best lines still get enough reps.", low:"Narrow and deep. Opponents who prep your pet lines are your main risk." },
+  resilience:  { icon:"🛡️", what:"Holding draws, beating stronger players, and not spiralling after setbacks.", high:"You save bad positions. That half-point habit compounds over a season.", low:"When a game turns, it tends to stay turned. Practice defending worse-but-holdable endings." },
+  consistency: { icon:"📐", what:"How stable your session-to-session win rate is.", high:"Your floor is high — ratings climb fastest on a stable base.", low:"Big swing sessions. Track when you play well and protect those hours." },
+  balance:     { icon:"⚖️", what:"How close your White and Black scores are.", high:"No exploitable color gap — pairings can't tilt the odds against you.", low:"One color is carrying you. Patch the weaker color's first 10 moves." },
+  rating:      { icon:"📈", what:"Signal from your official Chess.com ratings.", high:"Strong established rating across formats.", low:"Ratings still developing — every other dimension shows where the growth is." },
+};
+function dimensionTier(v) {
+  if (v>=80) return {tier:"Elite",color:"#39ffa0"};
+  if (v>=62) return {tier:"Strong",color:"#67e8f9"};
+  if (v>=42) return {tier:"Developing",color:"#ffc800"};
+  return {tier:"Emerging",color:"#fb923c"};
+}
+
+// Playful style-twin mapping from tempo + top dimension
+function styleTwin(p) {
+  if (p.favTC==="bullet" && p.dimensions[0].key==="pressure") return {name:"Hikaru Nakamura", why:"relentless speed plus constant pressure"};
+  if (p.favTC==="bullet") return {name:"Andrew Tang", why:"pure bullet instincts and flag wizardry"};
+  if (p.breadth==="explorer" && p.aggression==="high") return {name:"Magnus Carlsen", why:"plays everything, squeezes everywhere"};
+  if (p.breadth==="explorer") return {name:"Richard Rapport", why:"wide, creative opening map"};
+  if (p.aggression==="high" && p.favTC==="blitz") return {name:"Alireza Firouzja", why:"sharp blitz aggression"};
+  if (p.dimensions[0].key==="resilience") return {name:"Sergey Karjakin", why:"defensive resilience and half-point saves"};
+  if (p.dimensions[0].key==="consistency") return {name:"Fabiano Caruana", why:"steady, prepared, low-variance chess"};
+  if (p.breadth==="specialist") return {name:"Mikhail Botvinnik", why:"deep systems over wide repertoires"};
+  return {name:"Anish Giri", why:"balanced, solid all-round profile"};
+}
+
+// Compare oldest half vs newest half of loaded games per dimension
+function dnaEvolution(games, stats, profile) {
+  if (!games || games.length<40) return null;
+  const half=Math.floor(games.length/2);
+  const pNew=computePersonality(games.slice(0,half),stats,profile);
+  const pOld=computePersonality(games.slice(half),stats,profile);
+  if (!pNew||!pOld) return null;
+  return pNew.dimensions.map(d=>{
+    const od=pOld.dimensions.find(x=>x.key===d.key);
+    return {key:d.key,label:d.label,now:d.value,before:od?od.value:d.value,delta:od?d.value-od.value:0};
+  }).sort((a,b)=>Math.abs(b.delta)-Math.abs(a.delta));
 }
 
 function worstByWinPct(items, minGames=4) {
@@ -705,6 +975,17 @@ function computeWinPlan(player, opponent, months) {
   const playerOpenings=player?.games?.length?aggOpenings(player.games).filter(o=>o.games>=3).sort((a,b)=>b.winPct-a.winPct || b.games-a.games).slice(0,4):[];
   const playerColors=player?.games?.length?colorStats(player.games):null;
   const playerColorEdge=playerColors?[{color:"White",winPct:percent(playerColors.white.wins,playerColors.white.total)},{color:"Black",winPct:percent(playerColors.black.wins,playerColors.black.total)}].sort((a,b)=>b.winPct-a.winPct)[0]:null;
+  // Tilt: do they collapse after a loss within the same session?
+  const tilt=tiltStats(games);
+  // Worst time-of-day block with enough sample
+  const todRows=timeOfDayStats(games).filter(d=>d.games>=8).sort((a,b)=>a.winPct-b.winPct);
+  const weakHour=todRows[0]&&todRows.length>=2&&todRows[todRows.length-1].winPct-todRows[0].winPct>=8?todRows[0]:null;
+  // Endgame proxy: do they survive long games?
+  const lengths=gameLengthStats(games);
+  const grindWeak=lengths&&lengths.longWinPct!==null&&lengths.longWinPct<=winPct-8?lengths:null;
+  // Plan confidence from sample size and clarity of the strongest signal
+  const confidence=clamp(Math.min(60,total/6)+(targetOpenings[0]?Math.min(20,targetOpenings[0].lossPct-40):0)+(weakColor?Math.min(20,50-weakColor.winPct):0));
+  const confidenceTier=confidence>=70?"High":confidence>=45?"Medium":"Low";
   const riskFlags=[
     weakColor && {id:"color",icon:weakColor.icon,label:`Make them play ${weakColor.color}`,value:`${weakColor.winPct}% win · ${weakColor.lossPct}% loss`,detail:`Their weakest color in loaded archives is ${weakColor.color}. Prioritize lines that steer them into uncomfortable structures from that side.`,score:100-weakColor.winPct},
     weakTC && {id:"clock",icon:"⏱",label:`Choose ${weakTC.tc} pace`,value:`${weakTC.winPct}% win over ${weakTC.games} games`,detail:`Their lowest-scoring time control is ${weakTC.tc}. Keep clock pressure high and avoid letting them settle into slower decisions.`,score:90-weakTC.winPct},
@@ -713,7 +994,10 @@ function computeWinPlan(player, opponent, months) {
     recent.length>=8 && recentWinPct+8<winPct && {id:"form",icon:"❄️",label:"Recent form dip",value:`${recentWinPct}% last ${recent.length} vs ${winPct}% overall`,detail:"Their recent results are below their loaded-range baseline. Start with forcing but sound choices and make them rebuild confidence.",score:70},
     streak.count>=3 && streak.type==="loss" && {id:"streak",icon:"🧊",label:"Active losing streak",value:`${streak.count} losses in a row`,detail:"Do not bail them out with speculative sacrifices. Make the position feel survivable but unpleasant.",score:75+streak.count},
     volatility!==null && volatility>=28 && {id:"tilt",icon:"🎢",label:"Volatile sessions",value:`${volatility}% session swing`,detail:"Their day-to-day results swing hard. Keep the game practical and increase decisions under time pressure.",score:volatility},
-  ].filter(Boolean).sort((a,b)=>b.score-a.score).slice(0,5);
+    tilt && tilt.tilt>=12 && {id:"tiltprone",icon:"🫠",label:"Tilts after losses",value:`${tilt.afterLossPct}% after a loss vs ${tilt.afterWinPct}% after a win`,detail:`In same-session games, they score ${tilt.tilt}% worse right after losing (${tilt.afterLossGames} samples). If you take game one, accept the rematch — the next game is statistically yours to press.`,score:tilt.tilt+30},
+    weakHour && {id:"hour",icon:weakHour.icon,label:`Catch them in the ${weakHour.label.toLowerCase()}`,value:`${weakHour.winPct}% win across ${weakHour.games} ${weakHour.label.toLowerCase()} games`,detail:`Their ${weakHour.label.toLowerCase()} results are their softest time-of-day block in this range. If you can pick when to play, pick then.`,score:80-weakHour.winPct},
+    grindWeak && {id:"grind",icon:"🐢",label:"Grind long games",value:`${grindWeak.longWinPct}% win in 40+ move games`,detail:`Their score drops to ${grindWeak.longWinPct}% when games pass move 40 (${grindWeak.longGames} games). Decline early simplifications that bail them out — steer for long, technical positions instead.`,score:75-grindWeak.longWinPct},
+  ].filter(Boolean).sort((a,b)=>b.score-a.score).slice(0,6);
   const planSteps=[
     {phase:"Opening",icon:"1",title:targetOpenings[0]?`Prepare ${targetOpenings[0].opening}`:"Deny comfort early",text:targetOpenings[0]?`Use move orders that reach or resemble ${targetOpenings[0].opening}; they lose ${targetOpenings[0].lossPct}% there in this range.`:"Avoid their pet lines until more archive data reveals a clear opening leak."},
     {phase:"Middlegame",icon:"2",title:weakColor?`Keep them defending as ${weakColor.color}`:"Create repeated choices",text:weakColor?`Trade into structures where ${weakColor.color} must solve problems instead of attack. Their ${weakColor.color} score is ${weakColor.winPct}%.`:"Make them choose between king safety, pawn structure, and time; the goal is repeated practical strain."},
@@ -726,7 +1010,16 @@ function computeWinPlan(player, opponent, months) {
     oppDna && `${oppName}'s ChessDNA reads ${oppDna.title}; expect ${oppDna.favTC} habits and ${oppDna.uniqueOpenings} named openings in the sample.`,
   ].filter(Boolean);
   const summary=`${oppName} scores ${winPct}% across ${total} loaded games, but the clearest attack points are ${weakColor?weakColor.color+" color":"color selection"}, ${weakTC?weakTC.tc+" time control":"clock pressure"}, and ${targetOpenings[0]?targetOpenings[0].opening:"their most repeated openings"}.`;
-  return {oppName,total,wins,losses,draws,winPct,lossPct,drawPct,weakColor,weakTC,targetOpenings,overusedOpenings,eloWeak,recentWinPct,streak,volatility,riskFlags,planSteps,matchupNotes,summary,monthsLabel:rangeLabel(months)};
+  const cheatSheet=[
+    weakColor&&["Force their color",`Make them play ${weakColor.color} (${weakColor.winPct}% win)`],
+    weakTC&&["Pick the pace",`${weakTC.tc} — their softest format (${weakTC.winPct}% win)`],
+    targetOpenings[0]&&["Aim the opening",`${targetOpenings[0].opening} (${targetOpenings[0].lossPct}% loss rate)`],
+    weakHour&&["Pick the hour",`${weakHour.label} games: they score only ${weakHour.winPct}%`],
+    tilt&&tilt.tilt>=12&&["Rematch after winning",`They drop to ${tilt.afterLossPct}% right after a loss`],
+    grindWeak&&["Stretch the game",`Only ${grindWeak.longWinPct}% win past move 40 — don't simplify early`],
+    ["Convert calmly",`They still win ${winPct}% overall — remove counterplay, no hero moves`],
+  ].filter(Boolean);
+  return {oppName,total,wins,losses,draws,winPct,lossPct,drawPct,weakColor,weakTC,targetOpenings,overusedOpenings,eloWeak,recentWinPct,streak,volatility,tilt,weakHour,lengths,grindWeak,confidence,confidenceTier,riskFlags,planSteps,matchupNotes,summary,cheatSheet,monthsLabel:rangeLabel(months)};
 }
 
 // ── UI Primitives ─────────────────────────────────────────────────────────────
@@ -783,6 +1076,124 @@ function AnimatedNumber({value, duration=800, style={}}) {
     return () => cancelAnimationFrame(ref.current);
   }, [value]);
   return <span style={style}>{display}</span>;
+}
+
+// ── Copy-to-clipboard button ──────────────────────────────────────────────────
+function CopyButton({onCopy,t,label="Copy"}) {
+  const [copied,setCopied]=useState(false);
+  return <button className="secondary" onClick={()=>{onCopy();setCopied(true);setTimeout(()=>setCopied(false),1800);}}
+    style={copied?{background:`${t.win}18`,borderColor:`${t.win}50`,color:t.win}:{}}>
+    {copied?"✓ Copied":`📋 ${label}`}
+  </button>;
+}
+
+// ── Scroll reveal wrapper ─────────────────────────────────────────────────────
+function Reveal({children, delay=0, style={}, className=""}) {
+  const ref=useRef(null);
+  const [show,setShow]=useState(false);
+  useEffect(()=>{
+    const el=ref.current;
+    if (!el) return;
+    if (!("IntersectionObserver" in window)) { setShow(true); return; }
+    const obs=new IntersectionObserver(([e])=>{ if (e.isIntersecting) { setShow(true); obs.disconnect(); } },{threshold:.1,rootMargin:"0px 0px -36px 0px"});
+    obs.observe(el);
+    return ()=>obs.disconnect();
+  },[]);
+  return <div ref={ref} className={className} style={{opacity:show?1:0,transform:show?"none":"translateY(26px)",transition:`opacity .65s cubic-bezier(.22,1,.36,1) ${delay}s,transform .65s cubic-bezier(.22,1,.36,1) ${delay}s`,...style}}>{children}</div>;
+}
+
+// ── Circular gauge ────────────────────────────────────────────────────────────
+function RingGauge({value, size=84, stroke=8, color, t, label, delay=0, suffix=""}) {
+  const r=(size-stroke)/2, circ=2*Math.PI*r;
+  const [mounted,setMounted]=useState(false);
+  useEffect(()=>{ const id=setTimeout(()=>setMounted(true), 80+delay*1000); return ()=>clearTimeout(id); },[delay]);
+  const pct=clamp(value);
+  return <div style={{position:"relative",width:size,height:size,flexShrink:0}}>
+    <svg width={size} height={size} style={{transform:"rotate(-90deg)"}}>
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={`${color}1a`} strokeWidth={stroke}/>
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={stroke} strokeLinecap="round"
+        strokeDasharray={circ} strokeDashoffset={mounted?circ*(1-pct/100):circ}
+        style={{transition:"stroke-dashoffset 1.15s cubic-bezier(.22,1,.36,1)",filter:`drop-shadow(0 0 6px ${color}50)`}}/>
+    </svg>
+    <div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:0}}>
+      <span style={{fontFamily:t.headingFont,fontSize:size*.27,fontWeight:900,color,lineHeight:1}}><AnimatedNumber value={pct} duration={1100}/>{suffix}</span>
+      {label&&<span style={{fontSize:Math.max(8,size*.1),color:t.textDim,textTransform:"uppercase",letterSpacing:".06em",fontWeight:700,marginTop:2}}>{label}</span>}
+    </div>
+  </div>;
+}
+
+// ── Daily activity heatmap (GitHub-style) ─────────────────────────────────────
+function ActivityHeatmap({games,t}) {
+  const {cells,max,active}=useMemo(()=>activityCalendar(games,16),[games]);
+  if (!active) return <div style={{color:t.textDim,fontSize:13}}>No timestamped games in the last 16 weeks.</div>;
+  const cellColor=c=>{
+    if (!c.games) return `${t.accent}0a`;
+    const base=c.winPct>=55?t.win:c.winPct>=45?"#ffc800":t.loss;
+    const alpha=[0.35,0.55,0.75,1][Math.min(3,Math.floor(c.games/max*3.99))];
+    return base+Math.round(alpha*255).toString(16).padStart(2,"0");
+  };
+  const monthLabels=[];
+  cells.forEach((c,i)=>{
+    if (i%7===0 && c.date.getDate()<=7) monthLabels.push({week:Math.floor(i/7),label:c.date.toLocaleString("en",{month:"short"})});
+  });
+  return <div>
+    <div style={{position:"relative",height:14,marginLeft:0}}>
+      {monthLabels.map(m=><span key={m.week} style={{position:"absolute",left:m.week*15,fontSize:9,color:t.textDim,fontWeight:600}}>{m.label}</span>)}
+    </div>
+    <div style={{display:"grid",gridTemplateRows:"repeat(7,11px)",gridAutoFlow:"column",gap:4,overflowX:"auto",paddingBottom:4}}>
+      {cells.map((c,i)=>(
+        <div key={c.key} className="heat-cell" title={c.future?"":`${c.key} · ${c.games} game${c.games===1?"":"s"}${c.games?` · ${c.winPct}% win`:""}`}
+          style={{width:11,height:11,borderRadius:3,background:c.future?"transparent":cellColor(c),border:c.future?"none":`1px solid ${t.cardBorder}30`,animationDelay:`${Math.min(i*.004,.45)}s`}}/>
+      ))}
+    </div>
+    <div style={{display:"flex",gap:14,alignItems:"center",marginTop:8,fontSize:10,color:t.textDim,flexWrap:"wrap"}}>
+      <span>{active} active days in last 16 weeks</span>
+      <span style={{display:"inline-flex",alignItems:"center",gap:4}}><span style={{width:9,height:9,borderRadius:2,background:t.win}}/>winning day</span>
+      <span style={{display:"inline-flex",alignItems:"center",gap:4}}><span style={{width:9,height:9,borderRadius:2,background:"#ffc800"}}/>even day</span>
+      <span style={{display:"inline-flex",alignItems:"center",gap:4}}><span style={{width:9,height:9,borderRadius:2,background:t.loss}}/>losing day</span>
+    </div>
+  </div>;
+}
+
+// ── Animated DNA double helix ─────────────────────────────────────────────────
+function DnaHelix({segments, c, t, height=170}) {
+  if (!segments?.length) return null;
+  const n=segments.length;
+  const w=640, h=height, amp=h*0.3, mid=h/2, pad=26;
+  const xAt=i=>pad+(w-pad*2)*i/(n-1);
+  const phaseAt=i=>i/(n-1)*Math.PI*3;
+  const samples=72;
+  const strand=offset=>[...Array(samples+1)].map((_,s)=>{
+    const f=s/samples;
+    const x=pad+(w-pad*2)*f, y=mid+Math.sin(f*Math.PI*3+offset)*amp;
+    return `${s?"L":"M"}${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(" ");
+  return <div style={{overflowX:"auto"}}>
+    <svg viewBox={`0 0 ${w} ${h}`} style={{width:"100%",minWidth:420,height:"auto",display:"block",animation:"helixDrift 5s ease-in-out infinite"}}>
+      <defs>
+        <linearGradient id="helixGradA" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor={c}/><stop offset="100%" stopColor={t.accent}/>
+        </linearGradient>
+        <linearGradient id="helixGradB" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor={t.accent}/><stop offset="100%" stopColor={c}/>
+        </linearGradient>
+      </defs>
+      {segments.map((seg,i)=>{
+        const x=xAt(i), p=phaseAt(i);
+        const y1=mid+Math.sin(p)*amp, y2=mid+Math.sin(p+Math.PI)*amp;
+        return <g key={i}>
+          <line x1={x} y1={y1} x2={x} y2={y2} stroke={seg.tone} strokeWidth={3.4} strokeLinecap="round" opacity={.8}
+            style={{animation:`rungPulse ${2+i*.13}s ease-in-out infinite`,animationDelay:`${i*.08}s`,transformOrigin:`${x}px ${mid}px`}}/>
+          <circle cx={x} cy={y1} r={4.6} fill={seg.tone} style={{filter:`drop-shadow(0 0 5px ${seg.tone})`}}/>
+          <circle cx={x} cy={y2} r={4.6} fill={seg.tone} opacity={.75}/>
+        </g>;
+      })}
+      <path d={strand(0)} fill="none" stroke="url(#helixGradA)" strokeWidth={3} strokeLinecap="round"
+        strokeDasharray={1400} style={{animation:"drawStroke 1.6s cubic-bezier(.22,1,.36,1) both",filter:`drop-shadow(0 0 8px ${c}40)`}}/>
+      <path d={strand(Math.PI)} fill="none" stroke="url(#helixGradB)" strokeWidth={3} strokeLinecap="round" opacity={.85}
+        strokeDasharray={1400} style={{animation:"drawStroke 1.6s .15s cubic-bezier(.22,1,.36,1) both"}}/>
+    </svg>
+  </div>;
 }
 
 // ── Page transition wrapper ───────────────────────────────────────────────────
@@ -1213,6 +1624,11 @@ function OpeningsTab({games,loading,t}) {
     const m={}; data.forEach(o=>{const f=o.ecoFamily||"?"; m[f]=(m[f]||0)+o.games;});
     return Object.entries(m).sort((a,b)=>b[1]-a[1]).map(([family,games])=>({family,games}));
   },[data]);
+  const fm=useMemo(()=>{
+    if (!games?.length) return {asWhite:[],asBlack:[]};
+    const f=tc==="all"?games:games.filter(g=>g.timeControl===tc);
+    return firstMoveStats(f);
+  },[games,tc]);
   const setTcFilter=x=>{setTc(x);setAnimKey(k=>k+1);};
   const setMinFilter=v=>{setMin(v);setAnimKey(k=>k+1);};
 
@@ -1265,6 +1681,29 @@ function OpeningsTab({games,loading,t}) {
         })}
       </div>
     </Card>}
+
+    {(fm.asWhite.length>0||fm.asBlack.length>0)&&<div className="two-col-900" style={{display:"flex",gap:14,flexWrap:"wrap"}}>
+      {[["♙ Your First Move as White","How you open the game",fm.asWhite.slice(0,4)],["♟ Facing White's First Move","Your score against each as Black",fm.asBlack.slice(0,4)]].map(([title,sub,rows],col)=>rows.length>0&&(
+        <Card key={title} t={t} style={{flex:1,minWidth:250}}>
+          <SecTitle t={t} sub={sub}>{title}</SecTitle>
+          <div style={{display:"flex",flexDirection:"column",gap:10}}>
+            {rows.map((r,i)=>{
+              const maxG=rows[0].games||1;
+              const barC=r.winPct>=55?t.win:r.winPct>=45?"#ffc800":t.loss;
+              return <div key={r.move} style={{animation:`fadeInUp .4s ${.06+i*.06+col*.05}s cubic-bezier(.22,1,.36,1) both`}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:4}}>
+                  <span style={{fontFamily:t.headingFont,fontSize:16,fontWeight:800,color:t.text}}>1.{r.move}</span>
+                  <span style={{fontSize:12,color:t.textDim}}>{r.games} games · <span style={{color:barC,fontWeight:800}}>{r.winPct}% win</span></span>
+                </div>
+                <div style={{height:7,borderRadius:4,background:`${t.accent}12`,overflow:"hidden",display:"flex"}}>
+                  <div className="bar-grow" style={{height:"100%",width:`${Math.round(r.games/maxG*100)}%`,background:`linear-gradient(90deg,${t.accent2},${barC})`,borderRadius:4,animationDelay:`${.12+i*.06}s`}}/>
+                </div>
+              </div>;
+            })}
+          </div>
+        </Card>
+      ))}
+    </div>}
 
     <Card t={t}>
       <SecTitle t={t}>Top Openings — Outcome Split</SecTitle>
@@ -1335,12 +1774,64 @@ function ColorTab({games,loading,t}) {
       </div>
     </Card>;
   };
+  const wWp=percent(white.wins,white.total), bWp=percent(black.wins,black.total);
+  const gap=Math.abs(wWp-bWp);
+  const colorOpenings=color=>{
+    const ops=aggOpenings(games.filter(g=>g.color===color)).filter(o=>o.games>=3);
+    return {
+      best:[...ops].sort((a,b)=>b.winPct-a.winPct||b.games-a.games)[0]||null,
+      worst:[...ops].sort((a,b)=>b.lossPct-a.lossPct||b.games-a.games)[0]||null,
+    };
+  };
+  const wOps=colorOpenings("white"), bOps=colorOpenings("black");
+  const tcColor=["bullet","blitz","rapid","daily"].map(tc=>{
+    const w=games.filter(g=>g.timeControl===tc&&g.color==="white"), b=games.filter(g=>g.timeControl===tc&&g.color==="black");
+    if (w.length+b.length<6) return null;
+    return {name:tc,White:percent(w.filter(g=>g.result==="win").length,w.length),Black:percent(b.filter(g=>g.result==="win").length,b.length)};
+  }).filter(Boolean);
+
   return <div style={{display:"flex",flexDirection:"column",gap:16}}>
     <div style={{display:"flex",gap:14,flexWrap:"wrap"}}><Panel label="White" s={white} icon="♙"/><Panel label="Black" s={black} icon="♟"/></div>
-    <Card t={t}>
+
+    {/* Color gap verdict */}
+    <Card t={t} hover={false} style={{display:"flex",gap:18,alignItems:"center",flexWrap:"wrap",justifyContent:"center",textAlign:"center"}}>
+      <RingGauge value={100-Math.min(gap*3,100)} size={86} stroke={8} color={gap<=5?t.win:gap<=12?"#ffc800":t.loss} t={t} label="balance"/>
+      <div style={{maxWidth:520}}>
+        <div style={{fontFamily:t.headingFont,fontSize:20,fontWeight:900,color:t.text}}>
+          {gap<=5?"Perfectly two-handed":gap<=12?`${wWp>bWp?"White":"Black"} leans ${gap}% ahead`:`${wWp>bWp?"White":"Black"} carries you by ${gap}%`}
+        </div>
+        <div style={{fontSize:13,color:t.textMid,lineHeight:1.6,marginTop:6}}>
+          White {wWp}% · Black {bWp}%. {gap<=5?"No color gap worth fixing — pairings can't hurt you.":gap<=12?"A mild gap; worth one study session on your weaker color's first 10 moves.":"A real leak. Half your games start in your weak color — patching it is the cheapest rating gain available."}
+        </div>
+      </div>
+    </Card>
+
+    {/* Best weapon / worst leak per color */}
+    <Reveal><div className="two-col-900" style={{display:"flex",gap:14,flexWrap:"wrap"}}>
+      {[["♙ White",wOps],["♟ Black",bOps]].map(([label,ops])=>(
+        <Card key={label} t={t} style={{flex:1,minWidth:250}}>
+          <SecTitle t={t} sub="Best weapon and biggest leak (3+ games)">{label} Repertoire</SecTitle>
+          <div style={{display:"flex",flexDirection:"column",gap:9}}>
+            {ops.best&&<div style={{background:`${t.win}0b`,border:`1px solid ${t.win}25`,borderRadius:12,padding:"11px 13px"}}>
+              <div style={{fontSize:10,color:t.win,textTransform:"uppercase",letterSpacing:".1em",fontWeight:800,marginBottom:4}}>⭐ Weapon</div>
+              <a href={openingLink(ops.best.opening,ops.best.openingUrl)} target="_blank" rel="noopener noreferrer" style={{fontSize:13,fontWeight:700,color:t.text,textDecoration:"none",overflowWrap:"anywhere"}}>{ops.best.opening}</a>
+              <div style={{fontSize:11,color:t.textDim,marginTop:3}}>{ops.best.winPct}% win · {ops.best.games} games{ops.best.eco!=="?"?` · ${ops.best.eco}`:""}</div>
+            </div>}
+            {ops.worst&&ops.worst.lossPct>=40&&<div style={{background:`${t.loss}0b`,border:`1px solid ${t.loss}25`,borderRadius:12,padding:"11px 13px"}}>
+              <div style={{fontSize:10,color:t.loss,textTransform:"uppercase",letterSpacing:".1em",fontWeight:800,marginBottom:4}}>💀 Leak</div>
+              <a href={openingLink(ops.worst.opening,ops.worst.openingUrl)} target="_blank" rel="noopener noreferrer" style={{fontSize:13,fontWeight:700,color:t.text,textDecoration:"none",overflowWrap:"anywhere"}}>{ops.worst.opening}</a>
+              <div style={{fontSize:11,color:t.textDim,marginTop:3}}>{ops.worst.lossPct}% loss · {ops.worst.games} games{ops.worst.eco!=="?"?` · ${ops.worst.eco}`:""}</div>
+            </div>}
+            {!ops.best&&!ops.worst&&<div style={{color:t.textDim,fontSize:13}}>Not enough repeated openings with this color yet.</div>}
+          </div>
+        </Card>
+      ))}
+    </div></Reveal>
+
+    <Reveal><Card t={t}>
       <SecTitle t={t}>White vs Black</SecTitle>
       <ResponsiveContainer width="100%" height={160}>
-        <BarChart data={[{name:"Win%",White:white.total?Math.round(white.wins/white.total*100):0,Black:black.total?Math.round(black.wins/black.total*100):0},{name:"Draw%",White:white.total?Math.round(white.draws/white.total*100):0,Black:black.total?Math.round(black.draws/black.total*100):0},{name:"Loss%",White:white.total?Math.round(white.losses/white.total*100):0,Black:black.total?Math.round(black.losses/black.total*100):0}]}>
+        <BarChart data={[{name:"Win%",White:wWp,Black:bWp},{name:"Draw%",White:percent(white.draws,white.total),Black:percent(black.draws,black.total)},{name:"Loss%",White:percent(white.losses,white.total),Black:percent(black.losses,black.total)}]}>
           <XAxis dataKey="name" tick={{fill:t.textDim,fontSize:12}} axisLine={false} tickLine={false}/>
           <YAxis domain={[0,100]} tick={{fill:t.textDim,fontSize:11}} axisLine={false} tickLine={false}/>
           <Tooltip content={tip}/>
@@ -1348,7 +1839,21 @@ function ColorTab({games,loading,t}) {
           <Legend wrapperStyle={{color:t.textMid,fontSize:12}}/>
         </BarChart>
       </ResponsiveContainer>
-    </Card>
+    </Card></Reveal>
+
+    {tcColor.length>0&&<Reveal><Card t={t}>
+      <SecTitle t={t} sub="Win% as each color, per time control">Color × Time Control</SecTitle>
+      <ResponsiveContainer width="100%" height={180}>
+        <BarChart data={tcColor} barCategoryGap="25%">
+          <XAxis dataKey="name" tick={{fill:t.textDim,fontSize:12}} axisLine={false} tickLine={false}/>
+          <YAxis domain={[0,100]} tick={{fill:t.textDim,fontSize:10}} axisLine={false} tickLine={false} width={30}/>
+          <Tooltip content={tip}/>
+          <Bar dataKey="White" fill="#f8c840" radius={[4,4,0,0]} isAnimationActive animationDuration={700}/>
+          <Bar dataKey="Black" fill="#6e7ff3" radius={[4,4,0,0]} isAnimationActive animationDuration={700} animationBegin={120}/>
+          <Legend wrapperStyle={{color:t.textMid,fontSize:12}}/>
+        </BarChart>
+      </ResponsiveContainer>
+    </Card></Reveal>}
   </div>;
 }
 
@@ -1359,17 +1864,72 @@ function EloTab({games,loading,t}) {
   if (!games?.length) return <div style={{color:t.textDim}}>No games.</div>;
   const data=eloBrackets(games);
   const avgOpp=(() => { const e=games.filter(g=>g.oppElo).map(g=>g.oppElo); return e.length?Math.round(e.reduce((a,b)=>a+b,0)/e.length):0; })();
-  return <Card t={t}>
-    <SecTitle t={t} sub={`Avg opponent: ${avgOpp}`}>Win% by Opponent Rating</SecTitle>
-    <ResponsiveContainer width="100%" height={220}>
-      <BarChart data={data}>
-        <XAxis dataKey="label" tick={{fill:t.textDim,fontSize:11}} axisLine={false} tickLine={false}/>
-        <YAxis domain={[0,100]} tick={{fill:t.textDim,fontSize:11}} axisLine={false} tickLine={false}/>
-        <Tooltip content={tip}/>
-        <Bar dataKey="winPct" name="Win%" radius={[5,5,0,0]} isAnimationActive animationDuration={800}>{data.map((e,i)=><Cell key={i} fill={e.winPct>=55?t.win:e.winPct>=45?"#ffc800":t.loss}/>)}</Bar>
-      </BarChart>
-    </ResponsiveContainer>
-  </Card>;
+  const dg=davidGoliath(games);
+  const upsets=biggestUpsets(games,5);
+  const dgRows=[
+    dg.up&&{label:"Punching up",sub:"opponent 50+ above you",icon:"🏔️",...dg.up,color:"#a78bfa"},
+    dg.even&&{label:"Even matchups",sub:"within ±50 points",icon:"⚖️",...dg.even,color:t.accent},
+    dg.down&&{label:"Punching down",sub:"opponent 50+ below you",icon:"🎯",...dg.down,color:t.win},
+  ].filter(Boolean);
+
+  return <div style={{display:"flex",flexDirection:"column",gap:16}}>
+    <Card t={t}>
+      <SecTitle t={t} sub={`Avg opponent: ${avgOpp} · bar width shows sample size below`}>Win% by Opponent Rating</SecTitle>
+      <ResponsiveContainer width="100%" height={220}>
+        <BarChart data={data}>
+          <XAxis dataKey="label" tick={{fill:t.textDim,fontSize:11}} axisLine={false} tickLine={false}/>
+          <YAxis domain={[0,100]} tick={{fill:t.textDim,fontSize:11}} axisLine={false} tickLine={false}/>
+          <Tooltip content={tip}/>
+          <Bar dataKey="winPct" name="Win%" radius={[5,5,0,0]} isAnimationActive animationDuration={800}>{data.map((e,i)=><Cell key={i} fill={e.winPct>=55?t.win:e.winPct>=45?"#ffc800":t.loss}/>)}</Bar>
+        </BarChart>
+      </ResponsiveContainer>
+      <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:8}}>
+        {data.map((b,i)=>(
+          <div key={b.label} style={{flex:"1 1 80px",background:`${t.accent}08`,border:`1px solid ${t.cardBorder}`,borderRadius:8,padding:"6px 10px",textAlign:"center",animation:`fadeInUp .35s ${.05+i*.04}s cubic-bezier(.22,1,.36,1) both`}}>
+            <div style={{fontSize:9,color:t.textDim}}>{b.label}</div>
+            <div style={{fontSize:14,fontWeight:800,color:t.text,fontFamily:t.headingFont}}>{b.games}</div>
+            <div style={{fontSize:9,color:t.textDim}}>games</div>
+          </div>
+        ))}
+      </div>
+    </Card>
+
+    {dgRows.length>0&&<Reveal><Card t={t} hover={false}>
+      <SecTitle t={t} sub="Score split by rating difference in each individual game">David vs Goliath</SecTitle>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:12}}>
+        {dgRows.map((r,i)=>(
+          <div key={r.label} style={{display:"flex",gap:14,alignItems:"center",background:`${r.color}08`,border:`1px solid ${r.color}25`,borderRadius:14,padding:14,animation:`flipIn .5s ${.06+i*.08}s cubic-bezier(.22,1,.36,1) both`}}>
+            <RingGauge value={r.winPct} size={66} stroke={6} color={r.color} t={t} delay={i*.08}/>
+            <div>
+              <div style={{fontSize:14,fontWeight:800,color:t.text}}>{r.icon} {r.label}</div>
+              <div style={{fontSize:11,color:t.textDim,marginTop:2}}>{r.sub}</div>
+              <div style={{fontSize:11,color:r.color,fontWeight:700,marginTop:3}}>{r.games} games</div>
+            </div>
+          </div>
+        ))}
+      </div>
+      {dg.up&&dg.down&&dg.up.winPct>=40&&<div style={{fontSize:12,color:t.accent,marginTop:12,fontWeight:600}}>💡 You win {dg.up.winPct}% even against stronger opposition — you're underrated. Seek harder pairings.</div>}
+    </Card></Reveal>}
+
+    {upsets.length>0&&<Reveal><Card t={t} hover={false}>
+      <SecTitle t={t} sub="Wins against opponents rated above you in that game">Biggest Giant Kills</SecTitle>
+      <div style={{display:"flex",flexDirection:"column",gap:7}}>
+        {upsets.map((u,i)=>(
+          <div key={`${u.opponent}-${u.endTime}`} className="rival-row" style={{display:"grid",gridTemplateColumns:"auto 1fr auto",gap:12,alignItems:"center",background:`${t.win}07`,border:`1px solid ${t.win}20`,borderRadius:11,padding:"10px 13px",animation:`slideUp .35s ${.06+i*.06}s cubic-bezier(.22,1,.36,1) both`}}>
+            <div style={{fontSize:20}}>{i===0?"👑":"⚔️"}</div>
+            <div style={{minWidth:0}}>
+              <div style={{fontSize:13,fontWeight:700,color:t.text,overflowWrap:"anywhere"}}>beat {u.opponent} <span style={{color:t.win}}>({u.oppElo})</span> as a {u.myElo}</div>
+              <div style={{fontSize:11,color:t.textDim,marginTop:2}}>{u.opening||"Unknown opening"} · {u.timeControl}{u.date?` · ${u.date}`:""}</div>
+            </div>
+            <div style={{textAlign:"right"}}>
+              <div style={{fontFamily:t.headingFont,fontSize:20,fontWeight:900,color:t.win}}>+{u.diff}</div>
+              <div style={{fontSize:9,color:t.textDim,textTransform:"uppercase",letterSpacing:".06em"}}>elo gap</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </Card></Reveal>}
+  </div>;
 }
 
 // ── Compare Tab ───────────────────────────────────────────────────────────────
@@ -1431,14 +1991,20 @@ function CompareTab({p1,p2,l1,l2,p2In,setP2In,loadP2,e2,months,t,onChangeP2}) {
     }),
   ];
 
-  const MiniCard=({p,accent,anim})=>(
-    <Card t={t} style={{flex:1,minWidth:180,animation:`${anim} .55s cubic-bezier(.22,1,.36,1) both`}}>
-      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
+  const MiniCard=({p,accent,anim})=>{
+    const dna=computePersonality(p.games,p.stats,p.profile);
+    const form=p.games.slice(0,12);
+    return <Card t={t} style={{flex:1,minWidth:180,animation:`${anim} .55s cubic-bezier(.22,1,.36,1) both`}}>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
         <div style={{width:44,height:44,borderRadius:"50%",border:`2px solid ${accent}50`,overflow:"hidden",background:t.bg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0,boxShadow:`0 0 18px ${accent}25`}}>
           {p.profile.avatar?<img src={p.profile.avatar} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}} onError={e=>{e.target.style.display="none";}}/>:"♟"}
         </div>
         <div><div style={{fontFamily:t.headingFont,fontSize:16,fontWeight:700,color:accent}}>{p.profile.username}</div><div style={{fontSize:11,color:t.textDim}}>{p.games.length} games · {rangeLabel(months)}</div></div>
       </div>
+      {dna&&<div style={{display:"flex",alignItems:"center",gap:6,marginBottom:10,background:`${accent}0c`,border:`1px solid ${accent}22`,borderRadius:8,padding:"5px 10px"}}>
+        <span style={{fontSize:14}}>{dna.icon}</span>
+        <span style={{fontSize:11,fontWeight:700,color:accent,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{dna.title}</span>
+      </div>}
       {getAllRatings(p.stats).map(r=>(
         <div key={r.tc} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:`1px solid ${t.cardBorder}40`,fontSize:13}}>
           <span style={{color:t.textDim,textTransform:"capitalize"}}>{r.tc}</span>
@@ -1446,8 +2012,14 @@ function CompareTab({p1,p2,l1,l2,p2In,setP2In,loadP2,e2,months,t,onChangeP2}) {
         </div>
       ))}
       <div style={{display:"flex",justifyContent:"space-between",padding:"6px 0",fontSize:13}}><span style={{color:t.textDim}}>Win rate</span><span style={{color:accent,fontWeight:700}}>{p.games.length?Math.round(p.games.filter(g=>g.result==="win").length/p.games.length*100):0}%</span></div>
-    </Card>
-  );
+      {form.length>0&&<div style={{marginTop:6}}>
+        <div style={{fontSize:9,color:t.textDim,textTransform:"uppercase",letterSpacing:".08em",marginBottom:5}}>Last {form.length}</div>
+        <div style={{display:"flex",gap:3,flexWrap:"wrap"}}>
+          {form.map((g,i)=><div key={i} className="pop-in" title={`${g.result} vs ${g.opponent||"?"}`} style={{width:13,height:13,borderRadius:3,background:g.result==="win"?t.win:g.result==="loss"?t.loss:t.draw,opacity:.9,animationDelay:`${i*.04}s`}}/>)}
+        </div>
+      </div>}
+    </Card>;
+  };
 
   return <div style={{display:"flex",flexDirection:"column",gap:16,animation:"fadeInUp .4s cubic-bezier(.22,1,.36,1) both"}}>
     <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap",justifyContent:"space-between"}}>
@@ -1533,58 +2105,124 @@ function WinPlanTab({p1,p2,l1,l2,p2In,setP2In,loadP2,e2,months,t,onChangeP2}) {
     <div style={{fontSize:10,color:t.textDim,textTransform:"uppercase",letterSpacing:".1em",fontWeight:700,marginBottom:5}}>{label}</div>
     <div style={{fontFamily:t.headingFont,fontSize:24,lineHeight:1.1,color,overflowWrap:"anywhere",fontWeight:900}}>{value}</div>
   </div>;
+  const confColor=plan.confidence>=70?t.win:plan.confidence>=45?"#ffc800":t.loss;
+  const maxFlagScore=Math.max(1,...plan.riskFlags.map(f=>f.score));
+  const oppTod=timeOfDayStats(p2.games);
+
+  const copyCheatSheet=()=>{
+    const text=[`HOW TO BEAT ${plan.oppName.toUpperCase()} — cheat sheet (${plan.monthsLabel}, ${plan.total} games)`,
+      ...plan.cheatSheet.map(([k,v],i)=>`${i+1}. ${k}: ${v}`)].join("\n");
+    navigator.clipboard.writeText(text);
+  };
 
   return <div style={{display:"flex",flexDirection:"column",gap:18,animation:"fadeInUp .45s cubic-bezier(.22,1,.36,1) both"}}>
-    <Card t={t} glow={true} hover={false} style={{padding:"30px 28px",position:"relative",overflow:"hidden"}}>
+    <Card t={t} glow={true} hover={false} style={{padding:"30px 28px",position:"relative",overflow:"hidden"}} className="card-pad-sm">
       <div style={{position:"absolute",inset:-120,background:`radial-gradient(circle at 18% 12%,${t.loss}20,transparent 34%),radial-gradient(circle at 85% 10%,${t.accent}18,transparent 36%)`,animation:"auroraDrift 12s ease-in-out infinite",pointerEvents:"none"}}/>
       <div style={{position:"relative",display:"flex",justifyContent:"space-between",gap:18,alignItems:"flex-start",flexWrap:"wrap"}}>
-        <div style={{flex:"1 1 420px",minWidth:0}}>
+        <div style={{flex:"1 1 380px",minWidth:0}}>
           <div style={{fontSize:12,color:t.loss,textTransform:"uppercase",letterSpacing:".22em",fontWeight:900,marginBottom:8}}>Win plan</div>
-          <div style={{fontFamily:t.headingFont,fontSize:"clamp(38px,7vw,74px)",lineHeight:1.02,fontWeight:900,color:t.text,letterSpacing:"-.045em",overflowWrap:"anywhere"}}>How to beat {plan.oppName}</div>
+          <div style={{fontFamily:t.headingFont,fontSize:"clamp(34px,7vw,74px)",lineHeight:1.02,fontWeight:900,color:t.text,letterSpacing:"-.045em",overflowWrap:"anywhere"}}>How to beat {plan.oppName}</div>
           <div style={{fontSize:14,color:t.textMid,lineHeight:1.65,maxWidth:760,marginTop:14}}>{plan.summary}</div>
           <div style={{fontSize:11,color:t.textDim,lineHeight:1.5,marginTop:10}}>This is archive-pattern analysis, not engine evaluation. "Common mistakes" means repeated result leaks from their loaded Chess.com games.</div>
         </div>
-        <button className="secondary" onClick={onChangeP2}>Change opponent</button>
+        <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:10}}>
+          <RingGauge value={plan.confidence} size={92} stroke={9} color={confColor} t={t} label="confidence"/>
+          <div style={{fontSize:11,color:confColor,fontWeight:800,textTransform:"uppercase",letterSpacing:".08em"}}>{plan.confidenceTier} signal</div>
+          <button className="secondary" onClick={onChangeP2}>Change opponent</button>
+        </div>
       </div>
       <div style={{position:"relative",display:"flex",gap:10,flexWrap:"wrap",marginTop:22}}>
         <Pill label="Loaded games" value={plan.total} color={t.accent}/>
         <Pill label="Opponent W/D/L" value={`${plan.winPct}/${plan.drawPct}/${plan.lossPct}%`} color={t.text}/>
         <Pill label="Recent win%" value={`${plan.recentWinPct}%`} color={plan.recentWinPct<plan.winPct?t.loss:t.win}/>
+        {plan.tilt&&<Pill label="After-loss win%" value={`${plan.tilt.afterLossPct}%`} color={plan.tilt.tilt>=12?t.loss:t.text}/>}
+        {plan.lengths&&<Pill label="Avg game length" value={`${plan.lengths.avgMoves} moves`} color={t.hl}/>}
         <Pill label="Range" value={plan.monthsLabel} color={t.hl}/>
       </div>
     </Card>
 
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(210px,1fr))",gap:12}}>
-      {plan.riskFlags.map((f,i)=>(
-        <Card key={f.id} t={t} className={`stagger-${Math.min(i+1,6)}`} style={{padding:18}}>
-          <div style={{display:"flex",gap:12,alignItems:"flex-start"}}>
-            <div style={{width:34,height:34,borderRadius:12,background:`${t.loss}16`,border:`1px solid ${t.loss}35`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>{f.icon}</div>
-            <div style={{minWidth:0}}>
-              <div style={{fontSize:10,color:t.textDim,textTransform:"uppercase",letterSpacing:".09em",fontWeight:800,marginBottom:4}}>Target #{i+1}</div>
-              <div style={{fontFamily:t.headingFont,fontSize:21,lineHeight:1.12,color:t.text,fontWeight:900,overflowWrap:"anywhere"}}>{f.label}</div>
-              <div style={{fontSize:13,color:t.loss,fontWeight:800,marginTop:5,overflowWrap:"anywhere"}}>{f.value}</div>
-              <div style={{fontSize:12,color:t.textMid,lineHeight:1.55,marginTop:8}}>{f.detail}</div>
+    {/* Threat matrix with severity meters */}
+    <Reveal><Card t={t} hover={false}>
+      <SecTitle t={t} sub={`${plan.riskFlags.length} measurable leaks found, ranked by exploitability`}>Threat Matrix</SecTitle>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(230px,1fr))",gap:12}}>
+        {plan.riskFlags.map((f,i)=>(
+          <div key={f.id} className="dim-card" style={{background:`${t.loss}07`,border:`1px solid ${t.loss}22`,borderRadius:14,padding:16,animation:`flipIn .5s ${.05+i*.07}s cubic-bezier(.22,1,.36,1) both`}}>
+            <div style={{display:"flex",gap:12,alignItems:"flex-start"}}>
+              <div style={{width:34,height:34,borderRadius:12,background:`${t.loss}16`,border:`1px solid ${t.loss}35`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>{f.icon}</div>
+              <div style={{minWidth:0,flex:1}}>
+                <div style={{fontSize:10,color:t.textDim,textTransform:"uppercase",letterSpacing:".09em",fontWeight:800,marginBottom:4}}>Target #{i+1}</div>
+                <div style={{fontFamily:t.headingFont,fontSize:20,lineHeight:1.12,color:t.text,fontWeight:900,overflowWrap:"anywhere"}}>{f.label}</div>
+                <div style={{fontSize:13,color:t.loss,fontWeight:800,marginTop:5,overflowWrap:"anywhere"}}>{f.value}</div>
+              </div>
             </div>
-          </div>
-        </Card>
-      ))}
-    </div>
-
-    <Card t={t}>
-      <SecTitle t={t} sub="A practical sequence for the game">Step-by-step game plan</SecTitle>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(210px,1fr))",gap:12}}>
-        {plan.planSteps.map(step=>(
-          <div key={step.phase} style={{background:`${t.accent}08`,border:`1px solid ${t.cardBorder}`,borderRadius:14,padding:16}}>
-            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
-              <div style={{width:28,height:28,borderRadius:"50%",background:t.accent,color:t.bg,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontFamily:t.font}}>{step.icon}</div>
-              <div style={{fontSize:11,color:t.textDim,textTransform:"uppercase",letterSpacing:".1em",fontWeight:800}}>{step.phase}</div>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginTop:10}}>
+              <span style={{fontSize:9,color:t.textDim,textTransform:"uppercase",letterSpacing:".08em",fontWeight:700,flexShrink:0}}>Severity</span>
+              <div style={{flex:1,height:5,borderRadius:3,background:`${t.loss}18`,overflow:"hidden"}}>
+                <div className="bar-grow" style={{height:"100%",width:`${Math.round(f.score/maxFlagScore*100)}%`,background:`linear-gradient(90deg,#ffc800,${t.loss})`,borderRadius:3,animationDelay:`${.2+i*.08}s`}}/>
+              </div>
             </div>
-            <div style={{fontFamily:t.headingFont,fontSize:22,lineHeight:1.15,color:t.accent,fontWeight:900,overflowWrap:"anywhere"}}>{step.title}</div>
-            <div style={{fontSize:13,color:t.textMid,lineHeight:1.6,marginTop:8}}>{step.text}</div>
+            <div style={{fontSize:12,color:t.textMid,lineHeight:1.55,marginTop:8}}>{f.detail}</div>
           </div>
         ))}
       </div>
-    </Card>
+    </Card></Reveal>
+
+    {/* Cheat sheet + time-of-day */}
+    <Reveal><div className="two-col-900" style={{display:"flex",gap:14,flexWrap:"wrap"}}>
+      <Card t={t} style={{flex:3,minWidth:280,position:"relative",overflow:"hidden"}}>
+        <div style={{position:"absolute",top:0,right:0,width:160,height:160,background:`radial-gradient(circle at 100% 0%,${t.accent}14,transparent 70%)`,pointerEvents:"none"}}/>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,flexWrap:"wrap"}}>
+          <SecTitle t={t} sub="The whole plan in 10 seconds — copy it before the match">Pocket Cheat Sheet</SecTitle>
+          <CopyButton onCopy={copyCheatSheet} t={t}/>
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:7}}>
+          {plan.cheatSheet.map(([k,v],i)=>(
+            <div key={k} className="cheat-row" style={{display:"flex",gap:12,alignItems:"baseline",background:`${t.accent}06`,border:`1px solid ${t.cardBorder}`,borderRadius:10,padding:"10px 13px",animation:`slideInLeft .4s ${.06+i*.06}s cubic-bezier(.22,1,.36,1) both`}}>
+              <span style={{fontFamily:t.headingFont,fontSize:16,fontWeight:900,color:t.accent,flexShrink:0,width:20}}>{i+1}</span>
+              <span style={{fontSize:13,fontWeight:800,color:t.text,flexShrink:0}}>{k}</span>
+              <span style={{fontSize:13,color:t.textMid,lineHeight:1.5,overflowWrap:"anywhere"}}>{v}</span>
+            </div>
+          ))}
+        </div>
+      </Card>
+      <Card t={t} style={{flex:2,minWidth:230}}>
+        <SecTitle t={t} sub="Their win rate by local time-of-day block">When They're Beatable</SecTitle>
+        {oppTod.length?<div style={{display:"flex",flexDirection:"column",gap:10}}>
+          {oppTod.map((d,i)=>{
+            const isWeak=plan.weakHour&&plan.weakHour.label===d.label;
+            const barC=d.winPct>=55?t.win:d.winPct>=45?"#ffc800":t.loss;
+            return <div key={d.label} style={{animation:`fadeInUp .4s ${.08+i*.07}s cubic-bezier(.22,1,.36,1) both`}}>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:4}}>
+                <span style={{color:isWeak?t.loss:t.textMid,fontWeight:isWeak?800:500}}>{d.icon} {d.label}{isWeak&&" · strike window"}</span>
+                <span style={{color:barC,fontWeight:800}}>{d.winPct}%</span>
+              </div>
+              <div style={{height:8,borderRadius:4,background:`${barC}18`,overflow:"hidden"}}>
+                <div className="bar-grow" style={{height:"100%",width:`${d.winPct}%`,background:barC,borderRadius:4,animationDelay:`${.15+i*.08}s`,boxShadow:isWeak?`0 0 10px ${t.loss}60`:"none"}}/>
+              </div>
+              <div style={{fontSize:10,color:t.textDim,marginTop:2}}>{d.games} games · {d.wins}W {d.losses}L {d.draws}D</div>
+            </div>;
+          })}
+        </div>:<div style={{color:t.textDim,fontSize:13}}>No timestamped games to slice by hour.</div>}
+      </Card>
+    </div></Reveal>
+
+    {/* Phase timeline */}
+    <Reveal><Card t={t} hover={false}>
+      <SecTitle t={t} sub="A practical sequence for the game, phase by phase">Step-by-step Game Plan</SecTitle>
+      <div style={{position:"relative",paddingLeft:8}}>
+        <div style={{position:"absolute",left:21,top:8,bottom:8,width:2,background:`linear-gradient(180deg,${t.accent},${t.accent}20)`,borderRadius:2,animation:"timelineDraw 1s cubic-bezier(.22,1,.36,1) both"}}/>
+        {plan.planSteps.map((step,i)=>(
+          <div key={step.phase} style={{display:"flex",gap:16,alignItems:"flex-start",position:"relative",paddingBottom:i===plan.planSteps.length-1?0:22,animation:`slideInLeft .5s ${.15+i*.14}s cubic-bezier(.22,1,.36,1) both`}}>
+            <div style={{width:28,height:28,borderRadius:"50%",background:t.accent,color:t.bg,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontFamily:t.font,flexShrink:0,boxShadow:`0 0 14px ${t.glowC}`,zIndex:1}}>{step.icon}</div>
+            <div style={{flex:1,minWidth:0,background:`${t.accent}07`,border:`1px solid ${t.cardBorder}`,borderRadius:14,padding:"14px 16px"}}>
+              <div style={{fontSize:10,color:t.textDim,textTransform:"uppercase",letterSpacing:".1em",fontWeight:800,marginBottom:4}}>{step.phase}</div>
+              <div style={{fontFamily:t.headingFont,fontSize:21,lineHeight:1.15,color:t.accent,fontWeight:900,overflowWrap:"anywhere"}}>{step.title}</div>
+              <div style={{fontSize:13,color:t.textMid,lineHeight:1.6,marginTop:7}}>{step.text}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </Card></Reveal>
 
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:14}}>
       <Card t={t}>
@@ -1636,36 +2274,159 @@ function WinPlanTab({p1,p2,l1,l2,p2In,setP2In,loadP2,e2,months,t,onChangeP2}) {
 // ── DNA Tab ───────────────────────────────────────────────────────────────────
 function DnaTab({games,stats,loading,t,profile}) {
   const tip=(props)=><ChartTip {...props} t={t}/>;
+  const p=useMemo(()=>loading?null:computePersonality(games,stats,profile),[games,stats,profile,loading]);
+  const evolution=useMemo(()=>loading?null:dnaEvolution(games,stats,profile),[games,stats,profile,loading]);
+  const [activeSeg,setActiveSeg]=useState(null);
   if (loading) return <Sk h={300}/>;
-  const p=computePersonality(games,stats,profile);
   if (!p) return <div style={{color:t.textDim,textAlign:"center",padding:40,fontSize:14}}>Load a player to reveal their Chess DNA.</div>;
+  const c=p.titleColor;
+  const twin=styleTwin(p);
+  const strengths=p.dimensions.slice(0,2), growth=p.dimensions.slice(-2).reverse();
+
   return <div style={{display:"flex",flexDirection:"column",gap:20}}>
-    <Card t={t} glow={true} hover={false} style={{position:"relative",overflow:"hidden",padding:"30px 28px",animation:"fadeInUp .45s cubic-bezier(.22,1,.36,1) both"}}>
-      <div style={{position:"absolute",inset:-120,background:`radial-gradient(circle at 22% 20%,${p.titleColor}24,transparent 32%),radial-gradient(circle at 78% 18%,${t.accent}16,transparent 30%)`,animation:"auroraDrift 12s ease-in-out infinite",pointerEvents:"none"}}/>
-      <div style={{position:"relative",display:"flex",justifyContent:"space-between",gap:22,alignItems:"center",flexWrap:"wrap"}}>
+
+    {/* Hero */}
+    <Card t={t} glow={true} hover={false} style={{position:"relative",overflow:"hidden",padding:"30px 28px",animation:"fadeInUp .45s cubic-bezier(.22,1,.36,1) both"}} className="card-pad-sm">
+      <div style={{position:"absolute",inset:-120,background:`radial-gradient(circle at 22% 20%,${c}24,transparent 32%),radial-gradient(circle at 78% 18%,${t.accent}16,transparent 30%)`,animation:"auroraDrift 12s ease-in-out infinite",pointerEvents:"none"}}/>
+      <div className="two-col-900" style={{position:"relative",display:"flex",justifyContent:"space-between",gap:22,alignItems:"center",flexWrap:"wrap"}}>
         <div style={{flex:"1 1 360px"}}>
-          <div style={{fontSize:12,color:p.titleColor,textTransform:"uppercase",letterSpacing:".24em",fontWeight:800,marginBottom:8}}>ChessDNA focus mode</div>
-          <div style={{fontFamily:t.headingFont,fontSize:"clamp(44px,7.5vw,78px)",fontWeight:900,lineHeight:1.03,letterSpacing:"-.04em",color:t.text,overflowWrap:"anywhere",paddingBottom:4}}>Your measurable chess identity</div>
-          <div style={{fontSize:14,color:t.textMid,lineHeight:1.65,maxWidth:620,marginTop:16}}>Built from loaded Chess.com archives for this selected range. Ratings stay separate as official Chess.com /stats values.</div>
+          <div style={{fontSize:12,color:c,textTransform:"uppercase",letterSpacing:".24em",fontWeight:800,marginBottom:8}}>ChessDNA focus mode</div>
+          <div style={{fontFamily:t.headingFont,fontSize:"clamp(38px,7.5vw,78px)",fontWeight:900,lineHeight:1.03,letterSpacing:"-.04em",color:t.text,overflowWrap:"anywhere",paddingBottom:4}}>Your measurable chess identity</div>
+          <div style={{fontSize:14,color:t.textMid,lineHeight:1.65,maxWidth:620,marginTop:16}}>Built from {p.total} loaded Chess.com archive games. Every helix rung below is a real measured signal — hover them to decode your sequence.</div>
         </div>
-        <div style={{flex:"0 1 300px",width:"100%",background:`${t.bg}80`,border:`1px solid ${p.titleColor}25`,borderRadius:22,padding:18}}>
+        <div style={{flex:"0 1 300px",width:"100%",background:`${t.bg}80`,border:`1px solid ${c}25`,borderRadius:22,padding:18}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
             <span style={{fontSize:11,color:t.textDim,textTransform:"uppercase",letterSpacing:".12em",fontWeight:700}}>Signature</span>
-            <span style={{fontFamily:t.headingFont,fontSize:24,color:p.titleColor,fontWeight:900}}>{p.dnaCode}</span>
+            <span style={{fontFamily:t.headingFont,fontSize:24,color:c,fontWeight:900}}>{p.dnaCode}</span>
           </div>
-          <DnaStrand segments={p.dnaSegments} t={t} c={p.titleColor} large={false}/>
+          <DnaStrand segments={p.dnaSegments} t={t} c={c} large={false}/>
         </div>
       </div>
     </Card>
-    <TradingCard p={p} profile={profile||{username:""}} t={t}/>
-    <Card t={t}><SecTitle t={t} sub="Scores are normalized from loaded games and official ratings where noted">Playstyle DNA Radar</SecTitle>
+
+    {/* Helix sequencer */}
+    <Reveal><Card t={t} hover={false} style={{position:"relative",overflow:"hidden"}}>
+      <div style={{position:"absolute",inset:0,background:`radial-gradient(ellipse at 50% 120%,${c}12,transparent 55%)`,pointerEvents:"none"}}/>
+      <SecTitle t={t} sub="Two strands, twelve measured rungs — hover a rung to decode it">DNA Helix Sequencer</SecTitle>
+      <DnaHelix segments={p.dnaSegments} c={c} t={t}/>
+      <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:12,justifyContent:"center"}}>
+        {p.dnaSegments.map((seg,i)=>(
+          <div key={i} onMouseEnter={()=>setActiveSeg(i)} onMouseLeave={()=>setActiveSeg(null)}
+            style={{display:"flex",alignItems:"center",gap:6,background:activeSeg===i?`${seg.tone}1e`:`${t.accent}07`,border:`1px solid ${activeSeg===i?seg.tone+"60":t.cardBorder}`,borderRadius:999,padding:"4px 11px",cursor:"default",transition:"all .2s ease",transform:activeSeg===i?"translateY(-2px)":"none"}}>
+            <span style={{width:8,height:8,borderRadius:"50%",background:seg.tone,boxShadow:`0 0 8px ${seg.tone}80`}}/>
+            <span style={{fontSize:11,color:activeSeg===i?seg.tone:t.textMid,fontWeight:600}}>{seg.label}</span>
+            <span style={{fontSize:11,color:seg.tone,fontWeight:800,fontFamily:t.headingFont}}>{seg.value}</span>
+          </div>
+        ))}
+      </div>
+    </Card></Reveal>
+
+    {/* Dimension breakdown */}
+    <Reveal><Card t={t} hover={false}>
+      <SecTitle t={t} sub="Each score is normalized 0–100 from loaded games; hover a card for coaching notes">The 7 Dimensions</SecTitle>
+      <div className="grid-2-900" style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(265px,1fr))",gap:12}}>
+        {p.dimensions.map((d,i)=>{
+          const meta=DIMENSION_META[d.key]||{};
+          const tier=dimensionTier(d.value);
+          return <div key={d.key} className="dim-card" style={{background:`${t.accent}06`,border:`1px solid ${t.cardBorder}`,borderRadius:16,padding:16,animation:`flipIn .5s ${.06+i*.07}s cubic-bezier(.22,1,.36,1) both`}}>
+            <div style={{display:"flex",gap:14,alignItems:"center"}}>
+              <RingGauge value={d.value} size={72} stroke={7} color={tier.color} t={t} delay={i*.08}/>
+              <div style={{minWidth:0,flex:1}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                  <span style={{fontSize:16}}>{meta.icon}</span>
+                  <span style={{fontFamily:t.headingFont,fontSize:17,fontWeight:800,color:t.text}}>{d.label}</span>
+                  <span className="badge" style={{background:`${tier.color}16`,color:tier.color,border:`1px solid ${tier.color}40`}}>{tier.tier}</span>
+                </div>
+                <div style={{fontSize:11,color:t.textDim,marginTop:4}}>{d.detail}</div>
+              </div>
+            </div>
+            <div style={{fontSize:12,color:t.textMid,lineHeight:1.55,marginTop:10}}>{meta.what}</div>
+            <div style={{fontSize:12,color:d.value>=62?t.win:"#fb923c",lineHeight:1.5,marginTop:6,fontWeight:500}}>{d.value>=62?meta.high:meta.low}</div>
+          </div>;
+        })}
+      </div>
+    </Card></Reveal>
+
+    {/* Strengths vs growth + style twin */}
+    <Reveal><div className="two-col-900" style={{display:"flex",gap:14,flexWrap:"wrap"}}>
+      <Card t={t} style={{flex:2,minWidth:260}}>
+        <SecTitle t={t} sub="Your two strongest and two most improvable signals">Strengths & Growth Edges</SecTitle>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:14}}>
+          <div>
+            <div style={{fontSize:11,color:t.win,textTransform:"uppercase",letterSpacing:".12em",fontWeight:800,marginBottom:10}}>▲ Carry you</div>
+            {strengths.map((d,i)=>(
+              <div key={d.key} style={{background:`${t.win}0b`,border:`1px solid ${t.win}22`,borderRadius:12,padding:"11px 13px",marginBottom:8,animation:`slideInLeft .45s ${.1+i*.1}s cubic-bezier(.22,1,.36,1) both`}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline"}}>
+                  <span style={{fontWeight:700,color:t.text,fontSize:14}}>{DIMENSION_META[d.key]?.icon} {d.label}</span>
+                  <span style={{fontFamily:t.headingFont,fontSize:22,fontWeight:900,color:t.win}}>{d.value}</span>
+                </div>
+                <div style={{fontSize:12,color:t.textMid,marginTop:4,lineHeight:1.5}}>{DIMENSION_META[d.key]?.high}</div>
+              </div>
+            ))}
+          </div>
+          <div>
+            <div style={{fontSize:11,color:"#fb923c",textTransform:"uppercase",letterSpacing:".12em",fontWeight:800,marginBottom:10}}>▼ Hold you back</div>
+            {growth.map((d,i)=>(
+              <div key={d.key} style={{background:"rgba(251,146,60,.06)",border:"1px solid rgba(251,146,60,.22)",borderRadius:12,padding:"11px 13px",marginBottom:8,animation:`slideInRight .45s ${.1+i*.1}s cubic-bezier(.22,1,.36,1) both`}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline"}}>
+                  <span style={{fontWeight:700,color:t.text,fontSize:14}}>{DIMENSION_META[d.key]?.icon} {d.label}</span>
+                  <span style={{fontFamily:t.headingFont,fontSize:22,fontWeight:900,color:"#fb923c"}}>{d.value}</span>
+                </div>
+                <div style={{fontSize:12,color:t.textMid,marginTop:4,lineHeight:1.5}}>{DIMENSION_META[d.key]?.low}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </Card>
+      <Card t={t} style={{flex:1,minWidth:220,position:"relative",overflow:"hidden",display:"flex",flexDirection:"column",justifyContent:"center",textAlign:"center"}}>
+        <div style={{position:"absolute",inset:-60,background:`radial-gradient(circle at 50% 0%,${c}18,transparent 60%)`,pointerEvents:"none"}}/>
+        <div style={{position:"relative"}}>
+          <div style={{fontSize:11,color:t.textDim,textTransform:"uppercase",letterSpacing:".16em",fontWeight:800,marginBottom:10}}>Style Twin</div>
+          <div style={{fontSize:44,marginBottom:8,animation:"breathe 3.4s ease-in-out infinite",display:"inline-block"}}>👑</div>
+          <div style={{fontFamily:t.headingFont,fontSize:26,fontWeight:900,color:c,lineHeight:1.1}}>{twin.name}</div>
+          <div style={{fontSize:13,color:t.textMid,lineHeight:1.6,marginTop:10}}>Your measured profile rhymes with <span style={{color:c,fontWeight:600}}>{twin.why}</span>.</div>
+          <div style={{fontSize:10,color:t.textDim,marginTop:12}}>A playful mapping from your tempo, breadth and top dimension — not an engine verdict.</div>
+        </div>
+      </Card>
+    </div></Reveal>
+
+    {/* Evolution */}
+    {evolution&&<Reveal><Card t={t} hover={false}>
+      <SecTitle t={t} sub="Oldest half vs newest half of the loaded range — is your DNA mutating?">DNA Evolution</SecTitle>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(210px,1fr))",gap:10}}>
+        {evolution.map((e,i)=>{
+          const up=e.delta>0, flat=e.delta===0;
+          const dc=flat?t.textDim:up?t.win:t.loss;
+          return <div key={e.key} style={{background:`${t.accent}06`,border:`1px solid ${t.cardBorder}`,borderRadius:12,padding:"12px 14px",animation:`fadeInUp .4s ${.05+i*.05}s cubic-bezier(.22,1,.36,1) both`}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+              <span style={{fontSize:12,fontWeight:700,color:t.text}}>{DIMENSION_META[e.key]?.icon} {e.label}</span>
+              <span style={{fontSize:13,fontWeight:900,color:dc,fontFamily:t.headingFont}}>{flat?"=":(up?"▲":"▼")} {flat?"even":Math.abs(e.delta)}</span>
+            </div>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <span style={{fontSize:10,color:t.textDim,width:30}}>then</span>
+              <div style={{flex:1,height:5,borderRadius:3,background:`${t.textDim}20`,overflow:"hidden"}}><div className="bar-grow" style={{height:"100%",width:`${e.before}%`,background:t.textDim,animationDelay:`${.15+i*.05}s`}}/></div>
+              <span style={{fontSize:11,color:t.textDim,width:22,textAlign:"right",fontWeight:700}}>{e.before}</span>
+            </div>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginTop:5}}>
+              <span style={{fontSize:10,color:dc,width:30}}>now</span>
+              <div style={{flex:1,height:5,borderRadius:3,background:`${dc}20`,overflow:"hidden"}}><div className="bar-grow" style={{height:"100%",width:`${e.now}%`,background:dc,animationDelay:`${.25+i*.05}s`}}/></div>
+              <span style={{fontSize:11,color:dc,width:22,textAlign:"right",fontWeight:700}}>{e.now}</span>
+            </div>
+          </div>;
+        })}
+      </div>
+    </Card></Reveal>}
+
+    <Reveal><TradingCard p={p} profile={profile||{username:""}} t={t}/></Reveal>
+
+    <Reveal><Card t={t}><SecTitle t={t} sub="Scores are normalized from loaded games and official ratings where noted">Playstyle DNA Radar</SecTitle>
       <ResponsiveContainer width="100%" height={300}>
         <RadarChart data={p.axes} cx="50%" cy="50%">
-          <PolarGrid stroke={`${p.titleColor}20`}/><PolarAngleAxis dataKey="subject" tick={{fill:t.textMid,fontSize:12}}/><PolarRadiusAxis tick={false} axisLine={false} domain={[0,100]}/>
-          <Radar dataKey="value" stroke={p.titleColor} fill={p.titleColor} fillOpacity={.24} animationDuration={900}/><Tooltip content={tip}/>
+          <PolarGrid stroke={`${c}20`}/><PolarAngleAxis dataKey="subject" tick={{fill:t.textMid,fontSize:12}}/><PolarRadiusAxis tick={false} axisLine={false} domain={[0,100]}/>
+          <Radar dataKey="value" stroke={c} fill={c} fillOpacity={.24} animationDuration={900}/><Tooltip content={tip}/>
         </RadarChart>
       </ResponsiveContainer>
-    </Card>
+    </Card></Reveal>
   </div>;
 }
 
@@ -1716,6 +2477,16 @@ function OverviewTab({data,loading,t}) {
   // Opening diversity
   const uniqueO=uniqueNamedOpenings(games);
 
+  // New derived slices
+  const records=streakRecords(games);
+  const streak=computeStreak(games);
+  const tod=timeOfDayStats(games);
+  const dow=dayOfWeekStats(games).filter(d=>d.games>0);
+  const tilt=tiltStats(games);
+  const rivals=rivalStats(games,5);
+  const lengths=gameLengthStats(games);
+  const monthly=monthlyTrend(games);
+
   const StatCard=({label,value,color,sub,i})=>(
     <Card t={t} className={`stagger-${i+1} stat-pulse`} style={{padding:"16px 18px",textAlign:"center",minWidth:100,transition:"transform .2s ease"}} onMouseEnter={e=>e.currentTarget.style.transform="translateY(-3px) scale(1.02)"} onMouseLeave={e=>e.currentTarget.style.transform=""}>
       <div style={{fontSize:10,color:t.textDim,textTransform:"uppercase",letterSpacing:".07em",marginBottom:6,fontFamily:t.font}}>{label}</div>
@@ -1727,13 +2498,23 @@ function OverviewTab({data,loading,t}) {
   return <div style={{display:"flex",flexDirection:"column",gap:16}}>
 
     {/* Row 1 — 6 key stats */}
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(100px,1fr))",gap:10}}>
+    <div className="stat-grid" style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(100px,1fr))",gap:10}}>
       <StatCard i={1} label="Loaded Games" value={total} color={t.accent}/>
       <StatCard i={2} label="Wins" value={wins} color={t.win} sub={winPct+"%"}/>
       <StatCard i={3} label="Losses" value={losses} color={t.loss} sub={lossPct+"%"}/>
       <StatCard i={4} label="Draws" value={draws} color={t.draw} sub={drawPct+"%"}/>
       <StatCard i={5} label="Avg Opponent" value={avgOpp||"—"} color={t.textMid}/>
       <StatCard i={6} label="Openings Used" value={uniqueO} color={t.hl} sub={`${openingCoverage(games).pct}% identified`}/>
+    </div>
+
+    {/* Row 1b — streak & length records */}
+    <div className="stat-grid" style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(100px,1fr))",gap:10}}>
+      <StatCard i={1} label="Best Win Streak" value={records.bestWin} color={t.win} sub="in this range"/>
+      <StatCard i={2} label="Worst Skid" value={records.bestLoss} color={t.loss} sub="losses in a row"/>
+      <StatCard i={3} label="Current Streak" value={streak.count} color={streak.type==="win"?t.win:streak.type==="loss"?t.loss:t.draw} sub={streak.type==="none"?"—":streak.type+"s"}/>
+      {lengths&&<StatCard i={4} label="Avg Game Length" value={lengths.avgMoves} color={t.accent} sub="moves"/>}
+      {lengths&&<StatCard i={5} label="Quick Wins" value={lengths.quickWins} color={t.hl} sub="≤20 moves"/>}
+      {lengths&&<StatCard i={6} label="Marathons" value={lengths.marathons} color={t.textMid} sub="60+ moves"/>}
     </div>
 
     {/* Row 2 — WDL bar + recent form + best win */}
@@ -1861,6 +2642,104 @@ function OverviewTab({data,loading,t}) {
         </ResponsiveContainer>:<div style={{color:t.textDim,fontSize:12,padding:"20px 0"}}>Not enough rated games</div>}
       </Card>
     </div>
+
+    {/* Row 5 — Activity heatmap */}
+    <Reveal><Card t={t} hover={false}>
+      <SecTitle t={t} sub="Daily games over the last 16 weeks, colored by how the day went">Activity Heatmap</SecTitle>
+      <ActivityHeatmap games={games} t={t}/>
+    </Card></Reveal>
+
+    {/* Row 6 — Body clock: time-of-day + day-of-week */}
+    {(tod.length>0||dow.length>0)&&<Reveal><div className="two-col-900" style={{display:"flex",gap:14,flexWrap:"wrap"}}>
+      {tod.length>0&&<Card t={t} style={{flex:1,minWidth:240}}>
+        <SecTitle t={t} sub="Win rate by local time of day">Body Clock</SecTitle>
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          {tod.map((d,i)=>{
+            const barC=d.winPct>=55?t.win:d.winPct>=45?"#ffc800":t.loss;
+            return <div key={d.label} style={{animation:`fadeInUp .4s ${.06+i*.07}s cubic-bezier(.22,1,.36,1) both`}}>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:4}}>
+                <span style={{color:t.textMid}}>{d.icon} {d.label}</span>
+                <span style={{color:barC,fontWeight:800}}>{d.winPct}% · {d.games} games</span>
+              </div>
+              <div style={{height:8,borderRadius:4,background:`${barC}18`,overflow:"hidden"}}>
+                <div className="bar-grow" style={{height:"100%",width:`${d.winPct}%`,background:barC,borderRadius:4,animationDelay:`${.12+i*.07}s`}}/>
+              </div>
+            </div>;
+          })}
+        </div>
+        {tod.length>=2&&(()=>{ const sorted=[...tod].filter(d=>d.games>=5).sort((a,b)=>b.winPct-a.winPct); if(sorted.length<2||sorted[0].winPct-sorted[sorted.length-1].winPct<8)return null;
+          return <div style={{fontSize:12,color:t.accent,marginTop:12,fontWeight:600}}>💡 You score {sorted[0].winPct-sorted[sorted.length-1].winPct}% better in the {sorted[0].label.toLowerCase()} than the {sorted[sorted.length-1].label.toLowerCase()} — queue accordingly.</div>;})()}
+      </Card>}
+      {dow.length>0&&<Card t={t} style={{flex:1,minWidth:240}}>
+        <SecTitle t={t} sub="Win rate by weekday">Weekly Rhythm</SecTitle>
+        <ResponsiveContainer width="100%" height={170}>
+          <BarChart data={dow} barCategoryGap="22%">
+            <XAxis dataKey="day" tick={{fill:t.textDim,fontSize:11}} axisLine={false} tickLine={false}/>
+            <YAxis domain={[0,100]} tick={{fill:t.textDim,fontSize:10}} axisLine={false} tickLine={false} width={30}/>
+            <Tooltip content={tip}/>
+            <Bar dataKey="winPct" name="Win%" radius={[4,4,0,0]} isAnimationActive animationDuration={800}>
+              {dow.map((e,i)=><Cell key={i} fill={e.winPct>=55?t.win:e.winPct>=45?"#ffc800":t.loss} opacity={Math.max(.45,Math.min(1,e.games/Math.max(...dow.map(x=>x.games))))}/>)}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+        <div style={{fontSize:10,color:t.textDim,marginTop:4}}>Bar opacity = how much you play that day</div>
+      </Card>}
+    </div></Reveal>}
+
+    {/* Row 7 — Tilt meter + rivals */}
+    <Reveal><div className="two-col-900" style={{display:"flex",gap:14,flexWrap:"wrap"}}>
+      {tilt&&<Card t={t} style={{flex:1,minWidth:240}}>
+        <SecTitle t={t} sub="Same-session games: how the next game goes after a result">Tilt Meter</SecTitle>
+        <div style={{display:"flex",gap:18,justifyContent:"center",flexWrap:"wrap",marginBottom:14}}>
+          <div style={{textAlign:"center"}}>
+            <RingGauge value={tilt.afterWinPct} size={84} stroke={8} color={t.win} t={t} label="after a win"/>
+            <div style={{fontSize:10,color:t.textDim,marginTop:6}}>{tilt.afterWinGames} games</div>
+          </div>
+          <div style={{textAlign:"center"}}>
+            <RingGauge value={tilt.afterLossPct} size={84} stroke={8} color={tilt.tilt>=12?t.loss:"#ffc800"} t={t} label="after a loss" delay={.15}/>
+            <div style={{fontSize:10,color:t.textDim,marginTop:6}}>{tilt.afterLossGames} games</div>
+          </div>
+        </div>
+        <div style={{fontSize:13,color:t.textMid,lineHeight:1.6,textAlign:"center"}}>
+          {tilt.tilt>=15?<><span style={{color:t.loss,fontWeight:800}}>Tilt detected.</span> You score {tilt.tilt}% worse right after losing. One loss? Stand up, breathe, then queue.</>:
+           tilt.tilt>=6?<>Mild tilt: a {tilt.tilt}% dip after losses. A 2-minute break between games would likely pay rating.</>:
+           tilt.tilt<=-6?<><span style={{color:t.win,fontWeight:800}}>Revenge gene.</span> You actually play {Math.abs(tilt.tilt)}% better after a loss. Losing wakes you up.</>:
+           <><span style={{color:t.win,fontWeight:700}}>Ice in your veins</span> — results barely change after a loss. That's rare discipline.</>}
+        </div>
+      </Card>}
+      {rivals.length>0&&<Card t={t} style={{flex:1,minWidth:240}}>
+        <SecTitle t={t} sub="Most-faced opponents in this range">Rivals</SecTitle>
+        <div style={{display:"flex",flexDirection:"column",gap:7}}>
+          {rivals.map((r,i)=>(
+            <div key={r.opponent} className="rival-row" style={{display:"grid",gridTemplateColumns:"auto 1fr auto auto",gap:10,alignItems:"center",background:`${t.accent}06`,border:`1px solid ${t.cardBorder}`,borderRadius:10,padding:"9px 12px",animation:`slideUp .35s ${.05+i*.06}s cubic-bezier(.22,1,.36,1) both`}}>
+              <div style={{width:24,height:24,borderRadius:"50%",background:i===0?t.accent:`${t.accent}20`,color:i===0?t.bg:t.textDim,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:900}}>{i+1}</div>
+              <div style={{minWidth:0}}>
+                <a href={`https://www.chess.com/member/${r.opponent}`} target="_blank" rel="noopener noreferrer" style={{fontSize:13,color:t.text,fontWeight:700,textDecoration:"none",overflowWrap:"anywhere"}}>{r.opponent}</a>
+                <div style={{fontSize:10,color:t.textDim}}>{r.games} games{r.lastElo?` · ~${r.lastElo}`:""}</div>
+              </div>
+              <span style={{fontSize:12,color:t.textMid,fontWeight:600,whiteSpace:"nowrap"}}>{r.wins}-{r.losses}-{r.draws}</span>
+              <span className={`badge ${r.winPct>=55?"green":r.winPct>=45?"yellow":"red"}`}>{r.winPct}%</span>
+            </div>
+          ))}
+        </div>
+      </Card>}
+    </div></Reveal>
+
+    {/* Row 8 — Monthly trend */}
+    {monthly.length>=2&&<Reveal><Card t={t} hover={false}>
+      <SecTitle t={t} sub="Volume and win rate per month across the loaded range">Monthly Trajectory</SecTitle>
+      <ResponsiveContainer width="100%" height={200}>
+        <ComposedChart data={monthly} margin={{top:5,right:8,left:0,bottom:0}}>
+          <CartesianGrid stroke={`${t.accent}10`} strokeDasharray="3 3"/>
+          <XAxis dataKey="month" tick={{fill:t.textDim,fontSize:10}} axisLine={false} tickLine={false}/>
+          <YAxis yAxisId="pct" domain={[0,100]} tick={{fill:t.textDim,fontSize:10}} axisLine={false} tickLine={false} width={32}/>
+          <YAxis yAxisId="vol" orientation="right" tick={{fill:t.textDim,fontSize:10}} axisLine={false} tickLine={false} width={32}/>
+          <Tooltip content={tip}/>
+          <Bar yAxisId="vol" dataKey="games" name="Games" fill={`${t.accent}30`} radius={[4,4,0,0]} isAnimationActive animationDuration={700}/>
+          <Line yAxisId="pct" type="monotone" dataKey="winPct" name="Win%" stroke={t.accent} strokeWidth={2.5} dot={{r:3,fill:t.accent}} activeDot={{r:5}} isAnimationActive animationDuration={1000}/>
+        </ComposedChart>
+      </ResponsiveContainer>
+    </Card></Reveal>}
 
   </div>;
 }
@@ -2018,12 +2897,12 @@ export default function App() {
     <div style={{position:"relative",zIndex:1,maxWidth:1120,margin:"0 auto",padding:"0 16px 80px"}}>
 
       {/* ── Hero section ── */}
-      <div style={{textAlign:"center",padding:"70px 0 46px",animation:"fadeInUp .6s ease both"}}>
+      <div className="hero-pad" style={{textAlign:"center",padding:"70px 0 46px",animation:"fadeInUp .6s ease both"}}>
         <div style={{display:"flex",justifyContent:"flex-end",marginBottom:16}}>
           <ThemePicker current={themeKey} onChange={setThemeKey}/>
         </div>
-        <div style={{fontSize:76,marginBottom:12,animation:"heroChess 4s ease-in-out infinite",display:"inline-block",filter:`drop-shadow(0 0 34px ${t.glowC})`}}>♟</div>
-        <h1 style={{fontFamily:t.headingFont,fontSize:"clamp(64px,11vw,112px)",fontWeight:900,color:t.accent,letterSpacing:"-.055em",lineHeight:1.02,animation:"glow 3s ease-in-out infinite, scaleIn .6s cubic-bezier(.22,1,.36,1) both",paddingBottom:4}}>ChessDNA</h1>
+        <div className="hero-emoji" style={{fontSize:76,marginBottom:12,animation:"heroChess 4s ease-in-out infinite",display:"inline-block",filter:`drop-shadow(0 0 34px ${t.glowC})`}}>♟</div>
+        <h1 style={{fontFamily:t.headingFont,fontSize:"clamp(52px,11vw,112px)",fontWeight:900,color:t.accent,letterSpacing:"-.055em",lineHeight:1.02,animation:"glow 3s ease-in-out infinite, scaleIn .6s cubic-bezier(.22,1,.36,1) both",paddingBottom:4}}>ChessDNA</h1>
         <p style={{fontSize:20,color:t.textMid,marginTop:16,fontFamily:t.font,animation:"fadeInDown .7s .2s cubic-bezier(.22,1,.36,1) both"}}>A measured identity from real Chess.com games</p>
 
         {/* Search */}
@@ -2084,7 +2963,7 @@ export default function App() {
       </div>}
 
       {/* ── Tabs ── */}
-      {(p1||l1)&&<div style={{background:t.card,border:`1px solid ${t.cardBorder}`,borderRadius:10,padding:6,display:"flex",gap:2,flexWrap:"wrap",marginBottom:14,animation:"fadeInUp .35s ease both"}}>
+      {(p1||l1)&&<div className="tab-strip" style={{background:t.card,border:`1px solid ${t.cardBorder}`,borderRadius:10,padding:6,marginBottom:14,animation:"fadeInUp .35s ease both"}}>
         {TABS.map(([icon,name],i)=>(
           <button key={name} className={`tab-btn ${tab===i?"active":""}`} onClick={()=>handleTabChange(i)} style={tab===i?{animation:"popIn .2s cubic-bezier(.22,1,.36,1) both"}:{}}>{icon} {name}</button>
         ))}

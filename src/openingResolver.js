@@ -116,7 +116,8 @@ export function cleanOpeningNameFromUrl(url) {
     if (match?.[1]) {
       const decoded = decodeURIComponent(match[1]).replace(/[-_]+/g, " ");
       const name = decoded.replace(/\s*(?:\.{3})?\d+\..*$/, "").replace(/\s+/g, " ").trim();
-      if (name) return name;
+      // Chess.com sometimes emits ".../openings/Undefined" for unclassified games
+      if (name && name.toLowerCase() !== "undefined") return name;
     }
   }
   return null;
