@@ -114,6 +114,9 @@ function injectTheme(t) {
     @keyframes heroChess{0%{transform:translateY(0) rotate(0deg)}33%{transform:translateY(-8px) rotate(-3deg)}66%{transform:translateY(-4px) rotate(2deg)}100%{transform:translateY(0) rotate(0deg)}}
     @keyframes tabSlideIn{from{opacity:0;transform:translateX(8px)}to{opacity:1;transform:translateX(0)}}
     @keyframes wdlBar{from{width:0}to{width:100%}}
+    @keyframes auroraDrift{0%,100%{transform:translate3d(0,0,0) scale(1)}50%{transform:translate3d(18px,-14px,0) scale(1.08)}}
+    @keyframes strandPulse{0%,100%{transform:translateY(0) scaleY(1);filter:saturate(1)}50%{transform:translateY(-6px) scaleY(1.08);filter:saturate(1.35)}}
+    @keyframes softBlink{0%,100%{opacity:.36}50%{opacity:.82}}
 
     /* ── Stagger classes ── */
     .stagger-1{animation:fadeInUp .45s .04s cubic-bezier(.22,1,.36,1) both}
@@ -127,8 +130,8 @@ function injectTheme(t) {
     .skel{background:linear-gradient(90deg,${t.skA} 25%,${t.skB} 50%,${t.skA} 75%);background-size:200% 100%;animation:shimmerMove 1.6s ease infinite;border-radius:8px}
 
     /* ── Cards ── */
-    .card-hover{transition:transform .25s cubic-bezier(.22,1,.36,1),box-shadow .25s ease,border-color .25s ease}
-    .card-hover:hover{transform:translateY(-3px) scale(1.004);box-shadow:0 12px 48px rgba(0,0,0,.6),0 0 0 1px ${t.accent}18!important}
+    .card-hover{transition:transform .38s cubic-bezier(.16,1,.3,1),box-shadow .38s ease,border-color .38s ease,background .38s ease;will-change:transform}
+    .card-hover:hover{transform:translateY(-5px) scale(1.008);box-shadow:0 18px 58px rgba(0,0,0,.62),0 0 0 1px ${t.accent}22!important}
 
     /* ── Tabs ── */
     .tab-btn{background:none;border:1px solid transparent;cursor:pointer;font-family:${t.font};font-size:13px;font-weight:500;padding:8px 15px;border-radius:6px;color:${t.textDim};white-space:nowrap;transition:color .18s cubic-bezier(.4,0,.2,1),background .18s cubic-bezier(.4,0,.2,1),border-color .18s cubic-bezier(.4,0,.2,1),transform .15s ease}
@@ -537,35 +540,85 @@ function computeInsights(games) {
   return [...all].sort((a,b)=>b.score-a.score).slice(0,3);
 }
 
-function computePersonality(games, stats) {
+const clamp = (n,min=0,max=100) => Math.max(min, Math.min(max, n));
+const percent = (part,total) => total ? Math.round(part / total * 100) : 0;
+const avg = nums => nums.length ? nums.reduce((a,b)=>a+b,0) / nums.length : 0;
+function hashString(str) {
+  let h = 2166136261;
+  for (let i=0;i<str.length;i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+function computePersonality(games, stats, profile={}) {
   if (!games?.length) return null;
   const total=games.length, wins=games.filter(g=>g.result==="win").length, losses=games.filter(g=>g.result==="loss").length, draws=games.filter(g=>g.result==="draw").length;
-  const winPct=wins/total, drawPct=draws/total;
+  const winPct=percent(wins,total), drawPct=percent(draws,total), lossPct=percent(losses,total);
+  const decisivePct=percent(wins+losses,total);
   const tcCounts={}; games.forEach(g=>{tcCounts[g.timeControl]=(tcCounts[g.timeControl]||0)+1;});
-  const favTC=Object.entries(tcCounts).sort((a,b)=>b[1]-a[1])[0]?.[0]||"blitz";
+  const timeMix=["bullet","blitz","rapid","daily","other"].map(tc=>({tc,count:tcCounts[tc]||0,pct:percent(tcCounts[tc]||0,total)})).filter(d=>d.count);
+  const favTC=timeMix.sort((a,b)=>b.count-a.count)[0]?.tc||"blitz";
   const uniqueOpenings=uniqueNamedOpenings(games);
   const openings=aggOpenings(games);
-  const aggression=winPct>.55?"high":winPct>.45?"mid":"low";
-  const drawTend=drawPct>.18?"high":drawPct>.08?"mid":"low";
-  const breadth=uniqueOpenings>30?"explorer":uniqueOpenings>15?"balanced":"specialist";
-  const speed=favTC==="bullet"?"speed":favTC==="blitz"?"sharp":"deep";
-  let title,icon,titleColor,desc,archetype;
-  if(speed==="speed"&&aggression==="high"){title="The Bullet Assassin";icon="⚡";titleColor="#ffdd00";archetype="The Attacker";desc="You thrive in chaos — sub-3-minute games, sheer speed, relentless instinct.";}
-  else if(speed==="speed"){title="The Clock Shark";icon="🕐";titleColor="#ff9900";archetype="The Attacker";desc="You live for bullet, play it cool — waiting for the blunder, then striking.";}
-  else if(breadth==="specialist"&&aggression==="high"){title="The Opening Theorist";icon="📖";titleColor="#39ffa0";archetype="The Gambit King";desc="You know your lines cold. One or two openings, played to lethal perfection.";}
-  else if(breadth==="explorer"&&speed==="deep"){title="The Renaissance Scholar";icon="🎨";titleColor="#a78bfa";archetype="The Positional Grinder";desc="No opening is a stranger. You explore theory and treat every position as a puzzle.";}
-  else if(drawTend==="high"){title="The Fortress Builder";icon="🏰";titleColor="#60a5fa";archetype="The Positional Grinder";desc="Solid, unbreakable, methodical. You hold positions others would resign.";}
-  else if(aggression==="high"){title="The Tactical Storm";icon="🌩️";titleColor="#f87171";archetype="The Attacker";desc="Sacrifices, combinations, chaos — all welcome. Pressure is your language.";}
-  else if(speed==="deep"&&aggression==="low"){title="The Endgame Virtuoso";icon="♟";titleColor="#34d399";archetype="The Endgame Wizard";desc="When others trade into the endgame to draw, you convert. Technical mastery.";}
-  else if(speed==="sharp"&&breadth==="balanced"){title="The Blitz Craftsman";icon="⚔️";titleColor="#fb923c";archetype="The Attacker";desc="Blitz is your art — fast but precise, varied repertoire, always dangerous.";}
-  else if(aggression==="low"&&drawTend==="high"){title="The Positional Maestro";icon="🎼";titleColor="#c084fc";archetype="The Positional Grinder";desc="Tiny advantages compound into wins your opponents never see coming.";}
-  else if(breadth==="explorer"){title="The Chess Wanderer";icon="🗺️";titleColor="#67e8f9";archetype="The Positional Grinder";desc="Variety is your spice. You roam openings, picking up something new every session.";}
-  else if(total>200&&winPct>.5){title="The Grinder";icon="⚙️";titleColor="#a3e635";archetype="The Endgame Wizard";desc="Volume meets quality. Hundreds of games, winning record — that's consistency.";}
-  else{title="The Eternal Student";icon="📚";titleColor="#94a3b8";archetype="The Positional Grinder";desc="Every game is a lesson. You're building the foundation of a stronger player.";}
+  const bestOpening=openings.filter(o=>o.games>=3).sort((a,b)=>b.winPct-a.winPct || b.games-a.games)[0];
+  const colors=colorStats(games);
+  const whitePct=percent(colors.white.wins,colors.white.total);
+  const blackPct=percent(colors.black.wins,colors.black.total);
+  const colorGap=Math.abs(whitePct-blackPct);
   const elos=games.filter(g=>g.oppElo).map(g=>g.oppElo);
-  const avgOpp=elos.length?Math.round(elos.reduce((a,b)=>a+b,0)/elos.length):null;
+  const avgOpp=elos.length?Math.round(avg(elos)):null;
   const bestWinGame=games.filter(g=>g.result==="win"&&g.oppElo).sort((a,b)=>b.oppElo-a.oppElo)[0];
-  return { title, icon, titleColor, archetype, desc, winPct:Math.round(winPct*100), drawPct:Math.round(drawPct*100), lossPct:Math.round((losses/total)*100), favTC, uniqueOpenings, avgOpp, bestWin:bestWinGame?.oppElo||null, streak:computeStreak(games), total, wins, losses, draws, breadth, speed, aggression, bestOpening:openings.filter(o=>o.games>=3).sort((a,b)=>b.winPct-a.winPct)[0] };
+  const upsetWins=avgOpp?games.filter(g=>g.result==="win"&&g.oppElo&&g.oppElo>=avgOpp+150).length:0;
+  const recent=games.slice(0,Math.min(20,total));
+  const recentWinPct=percent(recent.filter(g=>g.result==="win").length,recent.length);
+  const byDate={};
+  games.forEach(g=>{if(g.date&&g.date!=="?"){if(!byDate[g.date])byDate[g.date]={w:0,t:0};byDate[g.date].t++;if(g.result==="win")byDate[g.date].w++;}});
+  const dayWps=Object.values(byDate).filter(d=>d.t>=3).map(d=>percent(d.w,d.t));
+  const variance=dayWps.length>=3?Math.sqrt(avg(dayWps.map(v=>(v-avg(dayWps))**2))):null;
+  const consistencyScore=variance===null?clamp(70-Math.abs(recentWinPct-winPct)*1.6):clamp(100-variance*2.1);
+  const speedScore=clamp((tcCounts.bullet||0)/total*100 + (tcCounts.blitz||0)/total*68 + (tcCounts.rapid||0)/total*38 + (tcCounts.daily||0)/total*20);
+  const breadthScore=clamp(uniqueOpenings>=45?96:uniqueOpenings>=30?82:uniqueOpenings>=18?64:uniqueOpenings>=8?44:24);
+  const pressureScore=clamp(winPct*.82 + decisivePct*.28 + percent(upsetWins,total)*1.6 + (recentWinPct-winPct)*.35);
+  const resilienceScore=clamp(drawPct*1.7 + (bestWinGame&&avgOpp?clamp((bestWinGame.oppElo-avgOpp)/3):0) + (computeStreak(games).type==="loss"?0:18));
+  const balanceScore=clamp(100-colorGap*3);
+  const ratingScore=clamp(primaryRating(stats)/25);
+  const axes=[
+    {subject:"Pressure",value:Math.round(pressureScore)},
+    {subject:"Tempo",value:Math.round(speedScore)},
+    {subject:"Breadth",value:Math.round(breadthScore)},
+    {subject:"Consistency",value:Math.round(consistencyScore)},
+    {subject:"Color Balance",value:Math.round(balanceScore)},
+    {subject:"Rating Signal",value:Math.round(ratingScore)},
+  ];
+  const dimensions=[
+    {key:"pressure",label:"Pressure",value:Math.round(pressureScore),detail:`${winPct}% wins · ${decisivePct}% decisive`},
+    {key:"tempo",label:"Tempo",value:Math.round(speedScore),detail:`${favTC} is ${timeMix[0]?.pct||0}% of loaded games`},
+    {key:"breadth",label:"Opening Breadth",value:Math.round(breadthScore),detail:`${uniqueOpenings} named openings`},
+    {key:"consistency",label:"Consistency",value:Math.round(consistencyScore),detail:variance===null?`${recentWinPct}% in last ${recent.length}`:`${Math.round(variance)}% session variance`},
+    {key:"balance",label:"Color Balance",value:Math.round(balanceScore),detail:`White ${whitePct}% · Black ${blackPct}%`},
+    {key:"rating",label:"Rating Signal",value:Math.round(ratingScore),detail:primaryRating(stats)?`${primaryRating(stats)} top current rating`:"No current rating"},
+  ].sort((a,b)=>b.value-a.value);
+  const signatureSeed = `${profile.username||""}|${total}|${wins}|${draws}|${losses}|${favTC}|${uniqueOpenings}|${avgOpp||0}|${bestOpening?.opening||""}`;
+  const sigHash = hashString(signatureSeed);
+  const colorsPalette=["#ffdd00","#fb923c","#39ffa0","#67e8f9","#a78bfa","#f87171","#34d399","#60a5fa"];
+  const titleColor=colorsPalette[sigHash%colorsPalette.length];
+  const tempoWord={bullet:"Lightning",blitz:"Tactical",rapid:"Strategic",daily:"Correspondence",other:"Adaptive"}[favTC]||"Adaptive";
+  const breadthWord=breadthScore>=80?"Cartographer":breadthScore>=60?"Navigator":breadthScore>=42?"Specialist":"Minimalist";
+  const pressureWord=pressureScore>=72?"Storm":pressureScore>=58?"Striker":pressureScore>=44?"Fighter":"Builder";
+  const title = `${tempoWord} ${breadthWord}`;
+  const archetype = `${pressureWord} · ${dimensions[0].label}`;
+  const icon = favTC==="bullet"?"⚡":favTC==="blitz"?"⚔️":favTC==="daily"?"♜":breadthScore>=75?"🗺️":pressureScore>=70?"🌩️":"🧬";
+  const speed=favTC==="bullet"?"speed":favTC==="blitz"?"sharp":"deep";
+  const aggression=pressureScore>=62?"high":pressureScore>=44?"mid":"low";
+  const breadth=breadthScore>=68?"explorer":breadthScore>=42?"balanced":"specialist";
+  const dnaCode = `${favTC.slice(0,2).toUpperCase()}-${winPct}-${uniqueOpenings}-${(sigHash%4096).toString(16).toUpperCase().padStart(3,"0")}`;
+  const strandBase=[winPct,drawPct,lossPct,speedScore,breadthScore,pressureScore,consistencyScore,balanceScore,ratingScore,whitePct,blackPct,percent(upsetWins,total)];
+  const dnaSegments=strandBase.map((v,i)=>({value:Math.round(clamp(v)),tone:colorsPalette[(sigHash+i)%colorsPalette.length]}));
+  const traitChips=dimensions.slice(0,4).map(d=>`${d.label} ${d.value}`);
+  const desc=`Inferred from ${total} loaded archive games: ${favTC} leads the time mix, ${uniqueOpenings} named openings shape the repertoire, and the top DNA signal is ${dimensions[0].label.toLowerCase()}.`;
+  return { title, icon, titleColor, archetype, desc, winPct, drawPct, lossPct, favTC, uniqueOpenings, avgOpp, bestWin:bestWinGame?.oppElo||null, streak:computeStreak(games), total, wins, losses, draws, breadth, speed, aggression, bestOpening, axes, dimensions, dnaCode, dnaSegments, traitChips, timeMix, recentWinPct, whitePct, blackPct, colorGap, upsetWins };
 }
 
 // ── UI Primitives ─────────────────────────────────────────────────────────────
@@ -691,6 +744,17 @@ function WDLBar({wins,draws,losses,t}) {
 }
 
 // ── Trading Card Badge ────────────────────────────────────────────────────────
+function DnaStrand({segments,t,c,large=false}) {
+  if (!segments?.length) return null;
+  return <div style={{display:"grid",gridTemplateColumns:`repeat(${segments.length},1fr)`,gap:large?8:5,alignItems:"end",height:large?110:70,padding:large?"14px 4px":"8px 2px"}}>
+    {segments.map((seg,i)=>(
+      <div key={i} style={{height:`${Math.max(18,seg.value)}%`,minHeight:large?24:16,borderRadius:999,background:`linear-gradient(180deg,${seg.tone},${c}55)`,boxShadow:`0 0 ${large?22:14}px ${seg.tone}45`,animation:`strandPulse ${1.8+i*.09}s ease-in-out infinite`,animationDelay:`${i*.05}s`,position:"relative",overflow:"hidden"}}>
+        <div style={{position:"absolute",inset:0,background:`linear-gradient(180deg,rgba(255,255,255,.38),transparent 38%,${t.bg}22)`,opacity:.6}}/>
+      </div>
+    ))}
+  </div>;
+}
+
 function TradingCard({p,profile,t}) {
   const [copied,setCopied]=useState(false);
   const [hovered,setHovered]=useState(false);
@@ -700,70 +764,87 @@ function TradingCard({p,profile,t}) {
     navigator.clipboard.writeText(url).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2000);});
   };
   const c = p.titleColor;
-  const tags = [
-    p.speed==="speed"?"⚡ Speed Demon":p.speed==="deep"?"🧠 Deep Thinker":"⚔️ Sharp Player",
-    p.aggression==="high"?"🔥 Aggressive":p.aggression==="mid"?"⚖️ Balanced":"🛡️ Defensive",
-    p.breadth==="explorer"?"🌍 Explorer":p.breadth==="specialist"?"📌 Specialist":"📐 Versatile",
-  ];
+  const tags = p.traitChips || [];
   return (
-    <div style={{maxWidth:400,margin:"0 auto",animation:"revealCard .6s ease both"}}>
+    <div style={{maxWidth:760,margin:"0 auto",animation:"revealCard .6s ease both"}}>
       <div
         onMouseEnter={()=>setHovered(true)}
         onMouseLeave={()=>setHovered(false)}
         style={{
           position:"relative",overflow:"hidden",borderRadius:22,
-          background:`linear-gradient(160deg,${c}28 0%,${t.bg}cc 40%,${t.bg}f0 100%)`,
+          background:`radial-gradient(circle at 18% 12%,${c}34,transparent 34%),linear-gradient(150deg,${c}28 0%,${t.bg}d8 42%,${t.bg}f4 100%)`,
           border:`1.5px solid ${c}55`,
-          boxShadow:`0 0 0 1px ${c}18 inset,0 32px 80px rgba(0,0,0,.65),0 0 80px ${c}18`,
-          transform:hovered?"translateY(-3px) scale(1.008)":"translateY(0) scale(1)",
-          transition:"transform .3s cubic-bezier(.4,0,.2,1),box-shadow .3s ease",
+          boxShadow:hovered?`0 0 0 1px ${c}2a inset,0 42px 100px rgba(0,0,0,.72),0 0 120px ${c}28`:`0 0 0 1px ${c}18 inset,0 32px 80px rgba(0,0,0,.65),0 0 80px ${c}18`,
+          transform:hovered?"translateY(-6px) scale(1.012)":"translateY(0) scale(1)",
+          transition:"transform .45s cubic-bezier(.16,1,.3,1),box-shadow .45s ease",
         }}>
 
         {/* Top shine streak */}
         <div style={{position:"absolute",top:0,left:0,right:0,height:1,background:`linear-gradient(90deg,transparent,${c}60,transparent)`,pointerEvents:"none"}}/>
 
         {/* Radial glow blobs */}
-        <div style={{position:"absolute",top:-60,right:-40,width:200,height:200,borderRadius:"50%",background:`radial-gradient(circle,${c}20,transparent 65%)`,pointerEvents:"none"}}/>
-        <div style={{position:"absolute",bottom:-40,left:-30,width:150,height:150,borderRadius:"50%",background:`radial-gradient(circle,${c}10,transparent 65%)`,pointerEvents:"none"}}/>
+        <div style={{position:"absolute",top:-90,right:-70,width:280,height:280,borderRadius:"50%",background:`radial-gradient(circle,${c}24,transparent 65%)`,pointerEvents:"none",animation:"auroraDrift 9s ease-in-out infinite"}}/>
+        <div style={{position:"absolute",bottom:-70,left:-60,width:230,height:230,borderRadius:"50%",background:`radial-gradient(circle,${c}14,transparent 65%)`,pointerEvents:"none",animation:"auroraDrift 11s ease-in-out infinite reverse"}}/>
 
         {/* Diagonal shimmer lines */}
-        <div style={{position:"absolute",inset:0,backgroundImage:`repeating-linear-gradient(120deg,${c}05 0px,${c}05 1px,transparent 1px,transparent 28px)`,pointerEvents:"none"}}/>
+        <div style={{position:"absolute",inset:0,backgroundImage:`repeating-linear-gradient(120deg,${c}06 0px,${c}06 1px,transparent 1px,transparent 28px)`,pointerEvents:"none"}}/>
+        <div style={{position:"absolute",inset:"-30%",background:`linear-gradient(115deg,transparent 35%,rgba(255,255,255,.08) 48%,transparent 61%)`,transform:hovered?"translateX(38%)":"translateX(-38%)",transition:"transform .9s cubic-bezier(.16,1,.3,1)",pointerEvents:"none"}}/>
 
-        <div style={{position:"relative",padding:"32px 28px 24px"}}>
+        <div style={{position:"relative",padding:"38px 34px 28px"}}>
 
           {/* Header row */}
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:24}}>
             <div>
-              <div style={{fontSize:9,fontWeight:800,letterSpacing:".22em",textTransform:"uppercase",color:c,opacity:.65,fontFamily:t.font,marginBottom:2}}>Chess DNA</div>
-              <div style={{fontSize:9,fontWeight:600,letterSpacing:".14em",textTransform:"uppercase",color:t.textDim,fontFamily:t.font}}>Player Card</div>
+              <div style={{fontSize:12,fontWeight:800,letterSpacing:".26em",textTransform:"uppercase",color:c,opacity:.85,fontFamily:t.font,marginBottom:4}}>ChessDNA</div>
+              <div style={{fontSize:10,fontWeight:600,letterSpacing:".16em",textTransform:"uppercase",color:t.textDim,fontFamily:t.font}}>Measured player profile</div>
             </div>
-            <div style={{fontSize:9,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:t.textDim,fontFamily:t.font,textAlign:"right"}}>
-              <div style={{color:c,opacity:.7}}>♟ {profile.username||"—"}</div>
-            </div>
-          </div>
-
-          {/* Icon + Title */}
-          <div style={{textAlign:"center",marginBottom:22}}>
-            <div style={{fontSize:58,lineHeight:1,marginBottom:12,filter:`drop-shadow(0 0 18px ${c}60)`,animation:"float 3s ease-in-out infinite",display:"inline-block"}}>{p.icon}</div>
-            <div style={{fontFamily:t.headingFont,fontSize:30,fontWeight:900,color:c,lineHeight:1.05,letterSpacing:"-.02em",marginBottom:6,animation:"glow 3s ease-in-out infinite"}}>{p.title}</div>
-            <div style={{display:"inline-flex",alignItems:"center",gap:6,background:`${c}15`,border:`1px solid ${c}35`,borderRadius:20,padding:"4px 14px"}}>
-              <div style={{width:5,height:5,borderRadius:"50%",background:c}}/>
-              <span style={{fontSize:11,color:c,fontWeight:700,letterSpacing:".06em",fontFamily:t.font}}>{p.archetype}</span>
+            <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:t.textDim,fontFamily:t.font,textAlign:"right"}}>
+              <div style={{color:c,opacity:.85}}>♟ {profile.username||"—"}</div>
+              <div style={{marginTop:4}}>DNA {p.dnaCode}</div>
             </div>
           </div>
 
-          {/* Description */}
-          <div style={{fontSize:13,color:t.textMid,lineHeight:1.6,textAlign:"center",marginBottom:22,padding:"0 4px",fontFamily:t.font,fontStyle:"italic"}}>{p.desc}</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:26,alignItems:"center"}}>
+            {/* Icon + Title */}
+            <div style={{textAlign:"left"}}>
+              <div style={{fontSize:88,lineHeight:1,marginBottom:14,filter:`drop-shadow(0 0 26px ${c}70)`,animation:"float 3s ease-in-out infinite",display:"inline-block"}}>{p.icon}</div>
+              <div style={{fontFamily:t.headingFont,fontSize:"clamp(42px,7vw,68px)",fontWeight:900,color:c,lineHeight:.92,letterSpacing:"-.045em",marginBottom:12,animation:"glow 3s ease-in-out infinite"}}>{p.title}</div>
+              <div style={{display:"inline-flex",alignItems:"center",gap:8,background:`${c}16`,border:`1px solid ${c}40`,borderRadius:999,padding:"7px 16px"}}>
+                <div style={{width:6,height:6,borderRadius:"50%",background:c,boxShadow:`0 0 12px ${c}`}}/>
+                <span style={{fontSize:12,color:c,fontWeight:800,letterSpacing:".08em",fontFamily:t.font,textTransform:"uppercase"}}>{p.archetype}</span>
+              </div>
+              <div style={{fontSize:14,color:t.textMid,lineHeight:1.65,marginTop:18,fontFamily:t.font}}>{p.desc}</div>
+            </div>
+
+            <div style={{background:`${t.bg}66`,border:`1px solid ${c}22`,borderRadius:20,padding:"18px 18px 16px",boxShadow:`inset 0 1px 0 ${c}12`}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,marginBottom:8}}>
+                <div style={{fontSize:11,color:t.textDim,textTransform:"uppercase",letterSpacing:".14em",fontWeight:700}}>DNA Strand</div>
+                <div style={{fontFamily:t.headingFont,fontSize:18,color:c,fontWeight:800}}>{p.dnaCode}</div>
+              </div>
+              <DnaStrand segments={p.dnaSegments} t={t} c={c} large={true}/>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:6}}>
+                {p.dimensions.slice(0,4).map(d=>(
+                  <div key={d.key} style={{background:`${c}0c`,border:`1px solid ${c}20`,borderRadius:12,padding:"9px 10px"}}>
+                    <div style={{display:"flex",justifyContent:"space-between",gap:8,alignItems:"baseline"}}>
+                      <span style={{fontSize:10,color:t.textDim,textTransform:"uppercase",letterSpacing:".08em",fontWeight:700}}>{d.label}</span>
+                      <span style={{fontFamily:t.headingFont,fontSize:20,color:c,fontWeight:800}}>{d.value}</span>
+                    </div>
+                    <div style={{fontSize:11,color:t.textDim,marginTop:2}}>{d.detail}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
 
           {/* Divider */}
-          <div style={{height:1,background:`linear-gradient(90deg,transparent,${c}30,transparent)`,marginBottom:20}}/>
+          <div style={{height:1,background:`linear-gradient(90deg,transparent,${c}30,transparent)`,margin:"26px 0 20px"}}/>
 
           {/* Stats row */}
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:20}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:10,marginBottom:20}}>
             {[["Wins",p.wins,p.winPct,t.win],["Draws",p.draws,p.drawPct,t.draw],["Losses",p.losses,p.lossPct,t.loss]].map(([label,val,pct,col])=>(
               <div key={label} style={{background:`${col}0e`,border:`1px solid ${col}25`,borderRadius:12,padding:"12px 8px",textAlign:"center"}}>
                 <div style={{fontSize:9,color:col,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",fontFamily:t.font,marginBottom:6,opacity:.8}}>{label}</div>
-                <div style={{fontSize:26,fontWeight:800,color:col,fontFamily:t.headingFont,lineHeight:1}}>{val}</div>
+                <div style={{fontSize:32,fontWeight:800,color:col,fontFamily:t.headingFont,lineHeight:1}}>{val}</div>
                 <div style={{fontSize:11,color:col,opacity:.6,marginTop:3,fontFamily:t.font}}>{pct}%</div>
               </div>
             ))}
@@ -777,12 +858,14 @@ function TradingCard({p,profile,t}) {
           </div>
 
           {/* Extra stats */}
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:20}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:8,marginBottom:20}}>
             {[
               ["Fav. Format",p.favTC],
               ["Avg Opponent",p.avgOpp||"—"],
               ["Best Win Elo",p.bestWin||"—"],
               ["Openings",p.uniqueOpenings],
+              ["Recent Win%",`${p.recentWinPct}%`],
+              ["Color Gap",`${p.colorGap}%`],
             ].map(([label,val])=>(
               <div key={label} style={{background:`${c}08`,borderRadius:10,padding:"10px 12px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                 <span style={{fontSize:11,color:t.textDim,fontFamily:t.font}}>{label}</span>
@@ -797,6 +880,8 @@ function TradingCard({p,profile,t}) {
               <span key={tag} style={{background:`${c}12`,border:`1px solid ${c}28`,borderRadius:20,padding:"5px 13px",fontSize:11,color:c,fontWeight:600,fontFamily:t.font,letterSpacing:".02em"}}>{tag}</span>
             ))}
           </div>
+
+          <div style={{fontSize:11,color:t.textDim,textAlign:"center",lineHeight:1.5,marginBottom:16}}>Every number here is calculated from loaded Chess.com archive games except official ratings, which come from Chess.com /stats.</div>
 
           {/* Divider */}
           <div style={{height:1,background:`linear-gradient(90deg,transparent,${c}20,transparent)`,marginBottom:18}}/>
@@ -824,7 +909,7 @@ function PlayerHeroCard({data,loading,t}) {
   if (loading) return <Card t={t} style={{display:"flex",gap:20,alignItems:"center"}}><Sk w={88} h={88} style={{borderRadius:"50%",flexShrink:0}}/><div style={{flex:1,display:"flex",flexDirection:"column",gap:10}}><Sk w="50%" h={24}/><Sk w="70%" h={15}/><Sk w="60%" h={12}/></div></Card>;
   if (!data) return null;
   const {profile,stats,games}=data;
-  const p=computePersonality(games,stats);
+  const p=computePersonality(games,stats,profile);
   const ratings=["rapid","blitz","bullet","daily"].map(tc=>({tc,...getRating(stats,tc)})).filter(r=>r.last);
   const joined=profile.joined?new Date(profile.joined*1000).getFullYear():null;
   const total=games.length, wins=games.filter(g=>g.result==="win").length, losses=games.filter(g=>g.result==="loss").length, draws=games.filter(g=>g.result==="draw").length;
@@ -878,10 +963,32 @@ function PlayerHeroCard({data,loading,t}) {
 
       {/* WDL */}
       {total>0&&<div style={{minWidth:160,flex:1}}>
-        <div style={{fontSize:11,color:t.textDim,textTransform:"uppercase",letterSpacing:".07em",marginBottom:8,fontFamily:t.font}}>Recent Performance</div>
+        <div style={{fontSize:11,color:t.textDim,textTransform:"uppercase",letterSpacing:".07em",marginBottom:8,fontFamily:t.font}}>Selected Range W/D/L</div>
         <WDLBar wins={wins} draws={draws} losses={losses} t={t}/>
         <div style={{fontSize:12,color:t.textDim,marginTop:6}}>{total} games · win rates from selected range · ratings from Chess.com</div>
       </div>}
+    </div>
+  </Card>;
+}
+
+function DataTruthStrip({data,months,t}) {
+  if (!data) return null;
+  const ratings=getAllRatings(data.stats).length;
+  const items=[
+    ["Profile",data.profile.username,"Chess.com /player"],
+    ["Official ratings",ratings?`${ratings} formats`:"None listed","Chess.com /stats"],
+    ["Archive games",data.games.length.toLocaleString(),`${data.monthsLoaded} archive${data.monthsLoaded===1?"":"s"} · ${rangeLabel(months)}`],
+    ["Derived stats","W/D/L · openings · DNA","Calculated from loaded archives"],
+  ];
+  return <Card t={t} hover={false} style={{padding:"14px 16px",marginBottom:20,animation:"fadeInUp .35s .08s cubic-bezier(.22,1,.36,1) both"}}>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:10}}>
+      {items.map(([label,value,source],i)=>(
+        <div key={label} style={{background:`${t.accent}08`,border:`1px solid ${t.cardBorder}`,borderRadius:12,padding:"10px 12px",animation:`fadeInUp .35s ${.05+i*.04}s cubic-bezier(.22,1,.36,1) both`}}>
+          <div style={{fontSize:10,color:t.textDim,textTransform:"uppercase",letterSpacing:".1em",fontWeight:700,marginBottom:4}}>{label}</div>
+          <div style={{fontFamily:t.headingFont,fontSize:18,color:t.text,fontWeight:800,lineHeight:1.05}}>{value}</div>
+          <div style={{fontSize:11,color:t.textDim,marginTop:4}}>{source}</div>
+        </div>
+      ))}
     </div>
   </Card>;
 }
@@ -1234,15 +1341,32 @@ function CompareTab({p1,p2,l1,l2,p2In,setP2In,loadP2,e2,months,t,onChangeP2}) {
 function DnaTab({games,stats,loading,t,profile}) {
   const tip=(props)=><ChartTip {...props} t={t}/>;
   if (loading) return <Sk h={300}/>;
-  const p=computePersonality(games,stats);
+  const p=computePersonality(games,stats,profile);
   if (!p) return <div style={{color:t.textDim,textAlign:"center",padding:40,fontSize:14}}>Load a player to reveal their Chess DNA.</div>;
   return <div style={{display:"flex",flexDirection:"column",gap:20}}>
+    <Card t={t} glow={true} hover={false} style={{position:"relative",overflow:"hidden",padding:"30px 28px",animation:"fadeInUp .45s cubic-bezier(.22,1,.36,1) both"}}>
+      <div style={{position:"absolute",inset:-120,background:`radial-gradient(circle at 22% 20%,${p.titleColor}24,transparent 32%),radial-gradient(circle at 78% 18%,${t.accent}16,transparent 30%)`,animation:"auroraDrift 12s ease-in-out infinite",pointerEvents:"none"}}/>
+      <div style={{position:"relative",display:"flex",justifyContent:"space-between",gap:22,alignItems:"center",flexWrap:"wrap"}}>
+        <div style={{flex:"1 1 360px"}}>
+          <div style={{fontSize:12,color:p.titleColor,textTransform:"uppercase",letterSpacing:".24em",fontWeight:800,marginBottom:8}}>ChessDNA focus mode</div>
+          <div style={{fontFamily:t.headingFont,fontSize:"clamp(48px,8vw,86px)",fontWeight:900,lineHeight:.9,letterSpacing:"-.055em",color:t.text}}>Your measurable chess identity</div>
+          <div style={{fontSize:14,color:t.textMid,lineHeight:1.65,maxWidth:620,marginTop:16}}>Built from loaded Chess.com archives for this selected range. Ratings stay separate as official Chess.com /stats values.</div>
+        </div>
+        <div style={{flex:"0 1 300px",width:"100%",background:`${t.bg}80`,border:`1px solid ${p.titleColor}25`,borderRadius:22,padding:18}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+            <span style={{fontSize:11,color:t.textDim,textTransform:"uppercase",letterSpacing:".12em",fontWeight:700}}>Signature</span>
+            <span style={{fontFamily:t.headingFont,fontSize:24,color:p.titleColor,fontWeight:900}}>{p.dnaCode}</span>
+          </div>
+          <DnaStrand segments={p.dnaSegments} t={t} c={p.titleColor} large={false}/>
+        </div>
+      </div>
+    </Card>
     <TradingCard p={p} profile={profile||{username:""}} t={t}/>
-    <Card t={t}><SecTitle t={t}>Playstyle DNA Radar</SecTitle>
-      <ResponsiveContainer width="100%" height={230}>
-        <RadarChart data={[{subject:"Aggression",value:p.aggression==="high"?90:p.aggression==="mid"?55:25},{subject:"Speed",value:p.speed==="speed"?90:p.speed==="sharp"?60:30},{subject:"Breadth",value:p.breadth==="explorer"?90:p.breadth==="balanced"?55:25},{subject:"Win Rate",value:p.winPct},{subject:"Consistency",value:Math.min(100,Math.round(p.total/4))},{subject:"Draw Avoid",value:100-p.drawPct*2}]} cx="50%" cy="50%">
+    <Card t={t}><SecTitle t={t} sub="Scores are normalized from loaded games and official ratings where noted">Playstyle DNA Radar</SecTitle>
+      <ResponsiveContainer width="100%" height={300}>
+        <RadarChart data={p.axes} cx="50%" cy="50%">
           <PolarGrid stroke={`${p.titleColor}20`}/><PolarAngleAxis dataKey="subject" tick={{fill:t.textMid,fontSize:12}}/><PolarRadiusAxis tick={false} axisLine={false} domain={[0,100]}/>
-          <Radar dataKey="value" stroke={p.titleColor} fill={p.titleColor} fillOpacity={.2}/><Tooltip content={tip}/>
+          <Radar dataKey="value" stroke={p.titleColor} fill={p.titleColor} fillOpacity={.24} animationDuration={900}/><Tooltip content={tip}/>
         </RadarChart>
       </ResponsiveContainer>
     </Card>
@@ -1308,7 +1432,7 @@ function OverviewTab({data,loading,t}) {
 
     {/* Row 1 — 6 key stats */}
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(100px,1fr))",gap:10}}>
-      <StatCard i={1} label="Total Games" value={total} color={t.accent}/>
+      <StatCard i={1} label="Loaded Games" value={total} color={t.accent}/>
       <StatCard i={2} label="Wins" value={wins} color={t.win} sub={winPct+"%"}/>
       <StatCard i={3} label="Losses" value={losses} color={t.loss} sub={lossPct+"%"}/>
       <StatCard i={4} label="Draws" value={draws} color={t.draw} sub={drawPct+"%"}/>
@@ -1319,7 +1443,7 @@ function OverviewTab({data,loading,t}) {
     {/* Row 2 — WDL bar + recent form + best win */}
     <div style={{display:"flex",gap:14,flexWrap:"wrap"}}>
       <Card t={t} style={{flex:2,minWidth:220}}>
-        <SecTitle t={t} sub="All games">Win / Draw / Loss</SecTitle>
+        <SecTitle t={t} sub="All loaded archive games in selected range">Win / Draw / Loss</SecTitle>
         <div style={{display:"flex",height:14,borderRadius:8,overflow:"hidden",gap:2,marginBottom:10}}>
           <div style={{width:`${winPct}%`,background:t.win,transition:"width .8s cubic-bezier(.4,0,.2,1)"}}/>
           <div style={{width:`${drawPct}%`,background:t.draw,transition:"width .8s cubic-bezier(.4,0,.2,1)"}}/>
@@ -1578,29 +1702,25 @@ export default function App() {
     else setHash(p1.profile.username);
   };
 
-  const p=p1?computePersonality(p1.games,p1.stats):null;
-  const insights=p1?computeInsights(p1.games):null;
-  const tip=(props)=><ChartTip {...props} t={t}/>;
-
   return <div style={{minHeight:"100vh",position:"relative"}}>
     {/* Background */}
     <div style={{position:"fixed",inset:0,zIndex:0,background:t.bg,pointerEvents:"none"}}/>
     <ThemeBg t={t}/>
     <LoadingBar active={l1||l2} t={t}/>
 
-    <div style={{position:"relative",zIndex:1,maxWidth:960,margin:"0 auto",padding:"0 16px 80px"}}>
+    <div style={{position:"relative",zIndex:1,maxWidth:1120,margin:"0 auto",padding:"0 16px 80px"}}>
 
       {/* ── Hero section ── */}
-      <div style={{textAlign:"center",padding:"60px 0 40px",animation:"fadeInUp .6s ease both"}}>
+      <div style={{textAlign:"center",padding:"70px 0 46px",animation:"fadeInUp .6s ease both"}}>
         <div style={{display:"flex",justifyContent:"flex-end",marginBottom:16}}>
           <ThemePicker current={themeKey} onChange={setThemeKey}/>
         </div>
-        <div style={{fontSize:56,marginBottom:12,animation:"heroChess 4s ease-in-out infinite",display:"inline-block",filter:`drop-shadow(0 0 24px ${t.glowC})`}}>♟</div>
-        <h1 style={{fontFamily:t.headingFont,fontSize:48,fontWeight:900,color:t.accent,letterSpacing:"-.03em",lineHeight:1,animation:"glow 3s ease-in-out infinite, scaleIn .6s cubic-bezier(.22,1,.36,1) both"}}>Chess DNA</h1>
-        <p style={{fontSize:18,color:t.textMid,marginTop:10,fontFamily:t.font,animation:"fadeInDown .7s .2s cubic-bezier(.22,1,.36,1) both"}}>Discover your chess identity</p>
+        <div style={{fontSize:76,marginBottom:12,animation:"heroChess 4s ease-in-out infinite",display:"inline-block",filter:`drop-shadow(0 0 34px ${t.glowC})`}}>♟</div>
+        <h1 style={{fontFamily:t.headingFont,fontSize:"clamp(64px,11vw,112px)",fontWeight:900,color:t.accent,letterSpacing:"-.07em",lineHeight:.82,animation:"glow 3s ease-in-out infinite, scaleIn .6s cubic-bezier(.22,1,.36,1) both"}}>ChessDNA</h1>
+        <p style={{fontSize:20,color:t.textMid,marginTop:16,fontFamily:t.font,animation:"fadeInDown .7s .2s cubic-bezier(.22,1,.36,1) both"}}>A measured identity from real Chess.com games</p>
 
         {/* Search */}
-        <div style={{display:"flex",gap:10,maxWidth:560,margin:"28px auto 0",alignItems:"center",flexWrap:"wrap"}}>
+        <div style={{display:"flex",gap:10,maxWidth:680,margin:"32px auto 0",alignItems:"center",flexWrap:"wrap"}}>
           <div style={{flex:1,minWidth:200,position:"relative"}}>
             <span style={{position:"absolute",left:14,top:"50%",transform:"translateY(-50%)",color:t.textDim,fontSize:16,pointerEvents:"none"}}>🔍</span>
             <input placeholder="Enter Chess.com username…" value={p1In} onChange={e=>setP1In(e.target.value)} onKeyDown={e=>e.key==="Enter"&&load1()} style={{paddingLeft:42,fontSize:16}}/>
@@ -1624,6 +1744,7 @@ export default function App() {
 
       {/* ── Player Hero Card ── */}
       {(p1||l1)&&<div style={{marginBottom:20}}><PlayerHeroCard data={p1} loading={l1} t={t}/></div>}
+      {p1&&!l1&&<DataTruthStrip data={p1} months={months} t={t}/>}
 
       {/* ── Stats Dashboard — 3 columns ── */}
       {p1&&!l1&&<div className="three-col" style={{display:"flex",gap:16,marginBottom:20}}>
@@ -1635,10 +1756,10 @@ export default function App() {
 
         {/* Column 2: Performance Chart */}
         <Card t={t} className="stagger-2" style={{flex:1,minWidth:220}}>
-          <SecTitle t={t} sub="Daily win rate from loaded games">Performance</SecTitle>
+          <SecTitle t={t} sub="Daily win rate from loaded archives">Performance</SecTitle>
           <PerformanceChart games={p1.games} loading={l1} t={t}/>
           <div style={{marginTop:12}}>
-            <div style={{fontSize:11,color:t.textDim,textTransform:"uppercase",letterSpacing:".07em",marginBottom:6,fontFamily:t.font}}>Current Ratings</div>
+            <div style={{fontSize:11,color:t.textDim,textTransform:"uppercase",letterSpacing:".07em",marginBottom:6,fontFamily:t.font}}>Official Current Ratings</div>
             <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
               {["rapid","blitz","bullet"].map(tc=>{const r=getRating(p1.stats,tc);return r.last?<div key={tc} style={{background:`${t.accent}0e`,border:`1px solid ${t.accent}20`,borderRadius:7,padding:"5px 10px",textAlign:"center"}}>
                 <div style={{fontSize:9,color:t.textDim,textTransform:"uppercase"}}>{tc}</div>
