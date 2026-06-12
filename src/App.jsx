@@ -335,6 +335,18 @@ async function loadPlayer(user, months=3) {
 // ── Analytics helpers ─────────────────────────────────────────────────────────
 function getRating(stats, tc) { const s = stats?.[`chess_${tc}`]; return { last:s?.last?.rating??null, best:s?.best?.rating??null }; }
 
+function getAllRatings(stats) {
+  return ["rapid","blitz","bullet","daily"].map(tc=>({tc,...getRating(stats,tc)})).filter(r=>r.last);
+}
+
+function primaryRating(stats) {
+  const ratings = getAllRatings(stats);
+  return ratings.sort((a,b)=>b.last-a.last)[0]?.last || 0;
+}
+
+const RANGE_LABELS = {3:"3 months",6:"6 months",12:"1 year",0:"all time"};
+function rangeLabel(months) { return RANGE_LABELS[months] ?? `${months} months`; }
+
 function aggOpenings(games, tc="all") {
   const f = tc==="all" ? games : games.filter(g=>g.timeControl===tc);
   const map = {};
@@ -868,7 +880,7 @@ function PlayerHeroCard({data,loading,t}) {
       {total>0&&<div style={{minWidth:160,flex:1}}>
         <div style={{fontSize:11,color:t.textDim,textTransform:"uppercase",letterSpacing:".07em",marginBottom:8,fontFamily:t.font}}>Recent Performance</div>
         <WDLBar wins={wins} draws={draws} losses={losses} t={t}/>
-        <div style={{fontSize:12,color:t.textDim,marginTop:6}}>{total} games analyzed</div>
+        <div style={{fontSize:12,color:t.textDim,marginTop:6}}>{total} games · win rates from selected range · ratings from Chess.com</div>
       </div>}
     </div>
   </Card>;
@@ -881,7 +893,7 @@ function OpeningDNA({games,loading,t,tc="all"}) {
   const top5=aggOpenings(games,tc).filter(o=>o.games>=2).sort((a,b)=>b.games-a.games).slice(0,5);
   return <div style={{display:"flex",flexDirection:"column",gap:8}}>
     {top5.map((o,i)=>(
-      <div key={i} style={{background:`${t.accent}06`,border:`1px solid ${t.cardBorder}`,borderRadius:10,padding:"10px 12px",display:"flex",alignItems:"center",gap:10}}>
+      <div key={i} style={{background:`${t.accent}06`,border:`1px solid ${t.cardBorder}`,borderRadius:10,padding:"10px 12px",display:"flex",alignItems:"center",gap:10,animation:`fadeInUp .4s ${.05+i*.06}s cubic-bezier(.22,1,.36,1) both`}}>
         <div style={{width:22,height:22,borderRadius:"50%",background:i===0?t.accent:`${t.accent}20`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:i===0?t.bg:t.textDim,flexShrink:0,fontFamily:t.font}}>{i+1}</div>
         <div style={{flex:1,minWidth:0}}>
           <a href={openingLink(o.opening,o.openingUrl)} target="_blank" rel="noopener noreferrer" style={{fontSize:12,color:t.text,fontWeight:500,textDecoration:"none",display:"block",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",transition:"color .15s"}} onMouseEnter={e=>e.target.style.color=t.accent} onMouseLeave={e=>e.target.style.color=t.text}>{o.opening.length>28?o.opening.slice(0,26)+"…":o.opening}</a>
@@ -895,45 +907,37 @@ function OpeningDNA({games,loading,t,tc="all"}) {
 }
 
 // ── Performance Chart ─────────────────────────────────────────────────────────
-function PerformanceChart({games,stats,loading,t}) {
+function PerformanceChart({games,loading,t}) {
   const tip=(props)=><ChartTip {...props} t={t}/>;
   if (loading) return <Sk h={180}/>;
 
-  // Build rating trend from real data if possible, else placeholder
-  const blitzR=getRating(stats||{},"blitz").last||1200;
-  const rapidR=getRating(stats||{},"rapid").last||1200;
-  const baseR=blitzR||rapidR;
-
-  let chartData;
+  let chartData = [];
   if (games?.length) {
-    // Group wins/losses by date and simulate rating movement
     const byDate={};
-    [...games].reverse().forEach(g=>{ if(g.date&&g.date!=="?") { if(!byDate[g.date])byDate[g.date]=[]; byDate[g.date].push(g); } });
-    const dates=Object.keys(byDate).sort().slice(-15);
-    let rating=baseR;
-    chartData=dates.map(date=>{
+    [...games].reverse().forEach(g=>{
+      if (g.date && g.date!=="?") {
+        if (!byDate[g.date]) byDate[g.date]=[];
+        byDate[g.date].push(g);
+      }
+    });
+    chartData = Object.keys(byDate).sort().slice(-15).map(date=>{
       const gs=byDate[date];
-      const w=gs.filter(g=>g.result==="win").length, l=gs.filter(g=>g.result==="loss").length;
-      rating=Math.max(100,rating+(w-l)*8);
-      return {date:date.slice(5),rating:Math.round(rating)};
+      const wins=gs.filter(g=>g.result==="win").length;
+      return {date:date.slice(5), winPct:Math.round(wins/gs.length*100), games:gs.length};
     });
   }
-  if (!chartData?.length) {
-    // Placeholder data
-    const now=new Date();
-    chartData=Array.from({length:14},(_,i)=>{
-      const d=new Date(now); d.setDate(d.getDate()-(13-i));
-      return {date:`${d.getMonth()+1}/${d.getDate()}`,rating:Math.round(baseR+Math.sin(i*.7)*30+Math.random()*20-10)};
-    });
+
+  if (!chartData.length) {
+    return <div style={{color:t.textDim,fontSize:13,padding:"40px 0",textAlign:"center"}}>Not enough dated games for a trend.</div>;
   }
 
   return <ResponsiveContainer width="100%" height={170}>
     <LineChart data={chartData} margin={{top:5,right:5,left:0,bottom:0}}>
       <CartesianGrid stroke={`${t.accent}10`} strokeDasharray="3 3"/>
       <XAxis dataKey="date" tick={{fill:t.textDim,fontSize:10}} axisLine={false} tickLine={false}/>
-      <YAxis tick={{fill:t.textDim,fontSize:10}} axisLine={false} tickLine={false} domain={["auto","auto"]} width={40}/>
+      <YAxis tick={{fill:t.textDim,fontSize:10}} axisLine={false} tickLine={false} domain={[0,100]} width={36}/>
       <Tooltip content={tip}/>
-      <Line type="monotone" dataKey="rating" stroke={t.accent} strokeWidth={2} dot={false} name="Rating"/>
+      <Line type="monotone" dataKey="winPct" stroke={t.accent} strokeWidth={2} dot={{r:3,fill:t.accent}} activeDot={{r:5}} name="Win%"/>
     </LineChart>
   </ResponsiveContainer>;
 }
@@ -1094,74 +1098,134 @@ function EloTab({games,stats,loading,t}) {
 }
 
 // ── Compare Tab ───────────────────────────────────────────────────────────────
-function CompareTab({p1,p2,l1,l2,p2In,setP2In,loadP2,t}) {
+function CompareTab({p1,p2,l1,l2,p2In,setP2In,loadP2,e2,months,t,onChangeP2}) {
   const tip=(props)=><ChartTip {...props} t={t}/>;
-  if (!p2&&!l2) return <div style={{display:"flex",flexDirection:"column",gap:16}}>
+  const u1=p1?.profile?.username||"Player 1", u2=p2?.profile?.username||"Player 2";
+
+  if (!p2 && !l2) return <div style={{display:"flex",flexDirection:"column",gap:16,animation:"fadeInUp .45s cubic-bezier(.22,1,.36,1) both"}}>
     <div style={{textAlign:"center",padding:"24px 0 12px",color:t.textDim}}>
-      <div style={{fontSize:48,marginBottom:10}}>⚔️</div>
+      <div style={{fontSize:48,marginBottom:10,animation:"float 3s ease-in-out infinite",display:"inline-block"}}>⚔️</div>
       <div style={{fontFamily:t.headingFont,fontSize:20,color:t.textMid,marginBottom:6}}>Head-to-Head</div>
-      <div style={{fontSize:13}}>Load a second player to compare</div>
+      <div style={{fontSize:13}}>Compare stats for the same {rangeLabel(months)} window</div>
     </div>
-    <Card t={t}><div style={{display:"flex",gap:10}}>
-      <input placeholder="Opponent username…" value={p2In} onChange={e=>setP2In(e.target.value)} onKeyDown={e=>e.key==="Enter"&&loadP2()}/>
-      <button className="primary" onClick={loadP2} disabled={!p2In.trim()}>Compare</button>
-    </div></Card>
+    <Card t={t}><div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+      <input placeholder="Opponent username…" value={p2In} onChange={e=>setP2In(e.target.value)} onKeyDown={e=>e.key==="Enter"&&loadP2()} style={{flex:1,minWidth:180}}/>
+      <button className="primary" onClick={loadP2} disabled={!p2In.trim()||l2}>{l2?<span style={{display:"inline-flex",alignItems:"center",gap:8}}><span style={{width:14,height:14,border:`2px solid ${t.btnColor}`,borderTopColor:"transparent",borderRadius:"50%",display:"inline-block",animation:"spin .8s linear infinite"}}/>Loading…</span>:"Compare"}</button>
+    </div>
+    {e2&&<div style={{marginTop:12,fontSize:13,color:t.loss}}>⚠ {e2}</div>}
+    </Card>
   </div>;
-  if (l1||l2) return <Sk h={300}/>;
-  if (!p1||!p2) return null;
+
+  if (l2 || (l1 && !p1)) return <div style={{display:"flex",flexDirection:"column",gap:12,animation:"fadeIn .2s ease both"}}><Sk h={120}/><Sk h={260}/></div>;
+  if (!p1 || !p2) return null;
+
   const norm=(v,mx)=>Math.round((v/Math.max(mx,1))*100);
-  const p1r=getRating(p1.stats,"blitz").last||0, p2r=getRating(p2.stats,"blitz").last||0;
+  const p1r=primaryRating(p1.stats), p2r=primaryRating(p2.stats);
   const p1w=p1.games.length?Math.round(p1.games.filter(g=>g.result==="win").length/p1.games.length*100):0;
   const p2w=p2.games.length?Math.round(p2.games.filter(g=>g.result==="win").length/p2.games.length*100):0;
   const p1pz=p1.stats?.tactics?.highest?.rating||0, p2pz=p2.stats?.tactics?.highest?.rating||0;
-  const e1=p1.games.filter(g=>g.oppElo).map(g=>g.oppElo), e2=p2.games.filter(g=>g.oppElo).map(g=>g.oppElo);
-  const ao1=e1.length?Math.round(e1.reduce((a,b)=>a+b,0)/e1.length):0, ao2=e2.length?Math.round(e2.reduce((a,b)=>a+b,0)/e2.length):0;
+  const elos1=p1.games.filter(g=>g.oppElo).map(g=>g.oppElo), elos2=p2.games.filter(g=>g.oppElo).map(g=>g.oppElo);
+  const ao1=elos1.length?Math.round(elos1.reduce((a,b)=>a+b,0)/elos1.length):0, ao2=elos2.length?Math.round(elos2.reduce((a,b)=>a+b,0)/elos2.length):0;
   const d1=uniqueNamedOpenings(p1.games), d2=uniqueNamedOpenings(p2.games);
-  const radar=[{subject:"Win%",[p1.profile.username]:p1w,[p2.profile.username]:p2w},{subject:"Rating",[p1.profile.username]:norm(p1r,Math.max(p1r,p2r)),[p2.profile.username]:norm(p2r,Math.max(p1r,p2r))},{subject:"Puzzle",[p1.profile.username]:norm(p1pz,Math.max(p1pz,p2pz)),[p2.profile.username]:norm(p2pz,Math.max(p1pz,p2pz))},{subject:"Avg Opp",[p1.profile.username]:norm(ao1,Math.max(ao1,ao2)),[p2.profile.username]:norm(ao2,Math.max(ao1,ao2))},{subject:"Diversity",[p1.profile.username]:norm(d1,Math.max(d1,d2)),[p2.profile.username]:norm(d2,Math.max(d1,d2))}];
-  const p1open=aggOpenings(p1.games).sort((a,b)=>b.games-a.games).slice(0,5);
-  const p2open=aggOpenings(p2.games);
-  const shared=p1open.map(o=>({opening:o.opening.length>18?o.opening.slice(0,16)+"…":o.opening,[p1.profile.username]:o.winPct,[p2.profile.username]:p2open.find(x=>x.opening===o.opening)?.winPct??0}));
-  const MiniCard=({p,accent})=>(
-    <Card t={t} style={{flex:1,minWidth:180}}>
+  const radar=[
+    {subject:"Win%",[u1]:p1w,[u2]:p2w},
+    {subject:"Rating",[u1]:norm(p1r,Math.max(p1r,p2r)),[u2]:norm(p2r,Math.max(p1r,p2r))},
+    {subject:"Puzzle",[u1]:norm(p1pz,Math.max(p1pz,p2pz)),[u2]:norm(p2pz,Math.max(p1pz,p2pz))},
+    {subject:"Avg Opp",[u1]:norm(ao1,Math.max(ao1,ao2)),[u2]:norm(ao2,Math.max(ao1,ao2))},
+    {subject:"Diversity",[u1]:norm(d1,Math.max(d1,d2)),[u2]:norm(d2,Math.max(d1,d2))},
+  ];
+  const p1openMap=Object.fromEntries(aggOpenings(p1.games).map(o=>[o.opening,o]));
+  const p2openMap=Object.fromEntries(aggOpenings(p2.games).map(o=>[o.opening,o]));
+  const shared=Object.keys({...p1openMap,...p2openMap})
+    .filter(name=>p1openMap[name]&&p2openMap[name]&&p1openMap[name].games>=2&&p2openMap[name].games>=2)
+    .map(name=>({opening:name.length>18?name.slice(0,16)+"…":name,[u1]:p1openMap[name].winPct,[u2]:p2openMap[name].winPct,total:p1openMap[name].games+p2openMap[name].games}))
+    .sort((a,b)=>b.total-a.total)
+    .slice(0,8);
+
+  const statRows=[
+    ["Games analyzed",p1.games.length,p2.games.length,false],
+    ["Win rate",`${p1w}%`,`${p2w}%`,true],
+    ["Draw rate",`${p1.games.length?Math.round(p1.games.filter(g=>g.result==="draw").length/p1.games.length*100):0}%`,`${p2.games.length?Math.round(p2.games.filter(g=>g.result==="draw").length/p2.games.length*100):0}%`,false],
+    ["Avg opponent",ao1||"—",ao2||"—",true],
+    ["Openings played",d1,d2,true],
+    ["Puzzle peak",p1pz||"—",p2pz||"—",true],
+    ...["rapid","blitz","bullet","daily"].flatMap(tc=>{
+      const r1=getRating(p1.stats,tc), r2=getRating(p2.stats,tc);
+      if (!r1.last && !r2.last) return [];
+      return [[`${tc} rating`, r1.last||"—", r2.last||"—", true]];
+    }),
+  ];
+
+  const MiniCard=({p,accent,anim})=>(
+    <Card t={t} style={{flex:1,minWidth:180,animation:`${anim} .55s cubic-bezier(.22,1,.36,1) both`}}>
       <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
-        <div style={{width:44,height:44,borderRadius:"50%",border:`2px solid ${accent}50`,overflow:"hidden",background:t.bg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>
+        <div style={{width:44,height:44,borderRadius:"50%",border:`2px solid ${accent}50`,overflow:"hidden",background:t.bg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0,boxShadow:`0 0 18px ${accent}25`}}>
           {p.profile.avatar?<img src={p.profile.avatar} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}} onError={e=>{e.target.style.display="none";}}/>:"♟"}
         </div>
-        <div><div style={{fontFamily:t.headingFont,fontSize:16,fontWeight:700,color:accent}}>{p.profile.username}</div><div style={{fontSize:11,color:t.textDim}}>{p.games.length} games</div></div>
+        <div><div style={{fontFamily:t.headingFont,fontSize:16,fontWeight:700,color:accent}}>{p.profile.username}</div><div style={{fontSize:11,color:t.textDim}}>{p.games.length} games · {rangeLabel(months)}</div></div>
       </div>
-      {["rapid","blitz","bullet"].map(tc=>{const r=getRating(p.stats,tc);return r.last?<div key={tc} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:`1px solid ${t.cardBorder}40`,fontSize:13}}><span style={{color:t.textDim,textTransform:"capitalize"}}>{tc}</span><span style={{color:t.text,fontWeight:600}}>{r.last}</span></div>:null;})}
+      {getAllRatings(p.stats).map(r=>(
+        <div key={r.tc} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:`1px solid ${t.cardBorder}40`,fontSize:13}}>
+          <span style={{color:t.textDim,textTransform:"capitalize"}}>{r.tc}</span>
+          <span style={{color:t.text,fontWeight:600}}>{r.last}{r.best&&r.best>r.last?<span style={{color:t.textDim,fontSize:10,marginLeft:4}}>↑{r.best}</span>:null}</span>
+        </div>
+      ))}
       <div style={{display:"flex",justifyContent:"space-between",padding:"6px 0",fontSize:13}}><span style={{color:t.textDim}}>Win rate</span><span style={{color:accent,fontWeight:700}}>{p.games.length?Math.round(p.games.filter(g=>g.result==="win").length/p.games.length*100):0}%</span></div>
     </Card>
   );
-  return <div style={{display:"flex",flexDirection:"column",gap:16}}>
-    {/* VS section */}
-    <div style={{display:"flex",gap:12,alignItems:"stretch",flexWrap:"wrap"}}>
-      <MiniCard p={p1} accent={P1_COLOR}/>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"center",padding:"0 4px"}}>
-        <div style={{fontFamily:t.headingFont,fontSize:28,fontWeight:900,color:t.textDim,textShadow:`0 0 20px ${t.glowC}`}}>VS</div>
-      </div>
-      <MiniCard p={p2} accent={P2_COLOR}/>
+
+  return <div style={{display:"flex",flexDirection:"column",gap:16,animation:"fadeInUp .4s cubic-bezier(.22,1,.36,1) both"}}>
+    <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap",justifyContent:"space-between"}}>
+      <div style={{fontSize:12,color:t.textDim}}>Ratings from Chess.com · Win rates from loaded games ({rangeLabel(months)})</div>
+      <button className="secondary" onClick={onChangeP2}>Change opponent</button>
     </div>
-    <Card t={t}><SecTitle t={t}>Radar Comparison</SecTitle>
+
+    <div style={{display:"flex",gap:12,alignItems:"stretch",flexWrap:"wrap"}}>
+      <MiniCard p={p1} accent={P1_COLOR} anim="revealCardLeft"/>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"center",padding:"0 4px",minWidth:48}}>
+        <div style={{fontFamily:t.headingFont,fontSize:28,fontWeight:900,color:t.textDim,textShadow:`0 0 20px ${t.glowC}`,animation:"glowPulse 2.4s ease-in-out infinite",borderRadius:12,padding:"8px 12px"}}>VS</div>
+      </div>
+      <MiniCard p={p2} accent={P2_COLOR} anim="slideInRight"/>
+    </div>
+
+    <Card t={t} className="stagger-2"><SecTitle t={t} sub="Side-by-side from Chess.com and loaded archives">Stat Comparison</SecTitle>
+      <div style={{overflowX:"auto"}}>
+        <table>
+          <thead><tr><th>Metric</th><th style={{color:P1_COLOR}}>{u1}</th><th style={{color:P2_COLOR}}>{u2}</th></tr></thead>
+          <tbody>{statRows.map(([label,v1,v2,higherBetter],i)=>(
+            <tr key={label} style={{animation:`fadeInUp .35s ${.04+i*.03}s cubic-bezier(.22,1,.36,1) both`}}>
+              <td style={{color:t.textMid}}>{label}</td>
+              <td style={{color:typeof v1==="number"&&typeof v2==="number"&&higherBetter&&v1>v2?P1_COLOR:t.text,fontWeight:600}}>{v1}</td>
+              <td style={{color:typeof v1==="number"&&typeof v2==="number"&&higherBetter&&v2>v1?P2_COLOR:t.text,fontWeight:600}}>{v2}</td>
+            </tr>
+          ))}</tbody>
+        </table>
+      </div>
+    </Card>
+
+    <Card t={t} className="stagger-3"><SecTitle t={t} sub="Normalized for shape — see table above for exact ratings">Radar Comparison</SecTitle>
       <ResponsiveContainer width="100%" height={250}>
         <RadarChart data={radar} cx="50%" cy="50%">
           <PolarGrid stroke={`${t.accent}15`}/><PolarAngleAxis dataKey="subject" tick={{fill:t.textMid,fontSize:12}}/><PolarRadiusAxis tick={false} axisLine={false} domain={[0,100]}/>
-          <Radar name={p1.profile.username} dataKey={p1.profile.username} stroke={P1_COLOR} fill={P1_COLOR} fillOpacity={.2}/>
-          <Radar name={p2.profile.username} dataKey={p2.profile.username} stroke={P2_COLOR} fill={P2_COLOR} fillOpacity={.16}/>
+          <Radar name={u1} dataKey={u1} stroke={P1_COLOR} fill={P1_COLOR} fillOpacity={.2} animationDuration={800}/>
+          <Radar name={u2} dataKey={u2} stroke={P2_COLOR} fill={P2_COLOR} fillOpacity={.16} animationDuration={900}/>
           <Legend wrapperStyle={{color:t.textMid,fontSize:12,fontFamily:t.font}}/><Tooltip content={tip}/>
         </RadarChart>
       </ResponsiveContainer>
     </Card>
-    <Card t={t}><SecTitle t={t}>Shared Opening Win%</SecTitle>
-      <ResponsiveContainer width="100%" height={200}>
+
+    <Card t={t} className="stagger-4">
+      <SecTitle t={t} sub={shared.length?"Openings both players have played (2+ games each)":"No shared openings with enough games"}>Shared Opening Win%</SecTitle>
+      {shared.length ? <ResponsiveContainer width="100%" height={Math.max(180,shared.length*34)}>
         <BarChart data={shared} layout="vertical" margin={{left:125}}>
           <XAxis type="number" domain={[0,100]} tick={{fill:t.textDim,fontSize:10}} axisLine={false} tickLine={false}/>
           <YAxis type="category" dataKey="opening" tick={{fill:t.textMid,fontSize:11}} width={120} axisLine={false} tickLine={false}/>
           <Tooltip content={tip}/>
-          <Bar dataKey={p1.profile.username} fill={P1_COLOR} radius={[0,4,4,0]}/><Bar dataKey={p2.profile.username} fill={P2_COLOR} radius={[0,4,4,0]}/>
+          <Bar dataKey={u1} fill={P1_COLOR} radius={[0,4,4,0]} animationDuration={700}/>
+          <Bar dataKey={u2} fill={P2_COLOR} radius={[0,4,4,0]} animationDuration={800}/>
           <Legend wrapperStyle={{color:t.textMid,fontSize:12}}/>
         </BarChart>
-      </ResponsiveContainer>
+      </ResponsiveContainer> : <div style={{color:t.textDim,fontSize:13,padding:"12px 0"}}>Try a wider range or a different opponent.</div>}
     </Card>
   </div>;
 }
@@ -1398,8 +1462,10 @@ function parseHash() {
   const parts = hash.split("/").filter(Boolean);
   return { user: parts[0]||null, sub: parts[1]||null, other: parts[2]||null };
 }
-function setHash(user, sub) {
-  const path = sub ? `/${user}/${sub}` : user ? `/${user}` : "";
+function setHash(user, sub, other) {
+  let path = user ? `/${user}` : "";
+  if (sub) path += `/${sub}`;
+  if (other) path += `/${other}`;
   window.location.hash = path;
 }
 
@@ -1416,6 +1482,7 @@ export default function App() {
   const [l1,setL1]=useState(false);
   const [l2,setL2]=useState(false);
   const [e1,setE1]=useState(null);
+  const [e2,setE2]=useState(null);
   const [months,setMonths]=useState(getSavedRange);
   const monthsRef=useRef(months);
   const p1LoadId=useRef(0);
@@ -1423,16 +1490,22 @@ export default function App() {
 
   // ── On mount: read URL and auto-load player ──
   useEffect(()=>{
-    const {user,sub} = parseHash();
+    const {user,sub,other} = parseHash();
     if (user) {
       setP1In(user);
       doLoad1(user);
       if (sub==="card") setTab(5);
+      if (sub==="compare" && other) { setTab(4); setP2In(other); load2(other); }
     }
-    // Listen for hash changes (back/forward)
     const onHash = () => {
-      const {user:u, sub:s} = parseHash();
-      if (u) { setP1In(u); doLoad1(u); if(s==="card") setTab(5); }
+      const {user:u, sub:s, other:o} = parseHash();
+      if (u) {
+        setP1In(u);
+        doLoad1(u);
+        if (s==="card") setTab(5);
+        else if (s==="compare" && o) { setTab(4); setP2In(o); load2(o); }
+        else setTab(prev=>(prev===4||prev===5)?0:prev);
+      }
     };
     window.addEventListener("hashchange", onHash);
     return ()=>window.removeEventListener("hashchange", onHash);
@@ -1472,20 +1545,37 @@ export default function App() {
     if(!u)return;
     const m = mo !== undefined ? mo : monthsRef.current;
     const loadId = ++p2LoadId.current;
-    setL2(true);setP2(null);
+    setL2(true); setP2(null); setE2(null);
     try{
       const data = await loadPlayer(u, m);
-      if (loadId === p2LoadId.current) setP2(data);
+      if (loadId === p2LoadId.current) {
+        setP2(data);
+        setP2In(data.profile.username);
+      }
     }
-    catch{
-      // Compare failures are non-blocking; the primary player stays visible.
+    catch(e){
+      if (loadId === p2LoadId.current) setE2(e.message||"Failed to load player");
     }finally{if (loadId === p2LoadId.current) setL2(false);}
   };
 
-  // Update URL when tab changes to card tab
+  const runCompare = () => {
+    const u = p2In.trim().toLowerCase();
+    if (!u || !p1) return;
+    setHash(p1.profile.username, "compare", u);
+    load2(u);
+  };
+
+  const clearCompare = () => {
+    setP2(null); setP2In(""); setE2(null);
+    if (p1) setHash(p1.profile.username);
+  };
+
   const handleTabChange = (i) => {
     setTab(i);
-    if (p1) setHash(p1.profile.username);
+    if (!p1) return;
+    if (i===5) setHash(p1.profile.username, "card");
+    else if (i===4 && p2) setHash(p1.profile.username, "compare", p2.profile.username);
+    else setHash(p1.profile.username);
   };
 
   const p=p1?computePersonality(p1.games,p1.stats):null;
@@ -1496,7 +1586,7 @@ export default function App() {
     {/* Background */}
     <div style={{position:"fixed",inset:0,zIndex:0,background:t.bg,pointerEvents:"none"}}/>
     <ThemeBg t={t}/>
-    <LoadingBar active={l1} t={t}/>
+    <LoadingBar active={l1||l2} t={t}/>
 
     <div style={{position:"relative",zIndex:1,maxWidth:960,margin:"0 auto",padding:"0 16px 80px"}}>
 
@@ -1545,8 +1635,8 @@ export default function App() {
 
         {/* Column 2: Performance Chart */}
         <Card t={t} className="stagger-2" style={{flex:1,minWidth:220}}>
-          <SecTitle t={t} sub="Rating trend (last 30 days)">Performance</SecTitle>
-          <PerformanceChart games={p1.games} stats={p1.stats} loading={l1} t={t}/>
+          <SecTitle t={t} sub="Daily win rate from loaded games">Performance</SecTitle>
+          <PerformanceChart games={p1.games} loading={l1} t={t}/>
           <div style={{marginTop:12}}>
             <div style={{fontSize:11,color:t.textDim,textTransform:"uppercase",letterSpacing:".07em",marginBottom:6,fontFamily:t.font}}>Current Ratings</div>
             <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
@@ -1578,7 +1668,7 @@ export default function App() {
         {tab===1&&<OpeningsTab games={p1?.games} loading={l1} t={t}/>}
         {tab===2&&<ColorTab games={p1?.games} loading={l1} t={t}/>}
         {tab===3&&<EloTab games={p1?.games} stats={p1?.stats} loading={l1} t={t}/>}
-        {tab===4&&<CompareTab p1={p1} p2={p2} l1={l1} l2={l2} p2In={p2In} setP2In={setP2In} loadP2={load2} t={t}/>}
+        {tab===4&&<CompareTab p1={p1} p2={p2} l1={l1} l2={l2} p2In={p2In} setP2In={setP2In} loadP2={runCompare} e2={e2} months={months} t={t} onChangeP2={clearCompare}/>}
         {tab===5&&<DnaTab games={p1?.games} stats={p1?.stats} loading={l1} t={t} profile={p1?.profile}/>}
       </PageTransition>}
 
