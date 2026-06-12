@@ -88,7 +88,7 @@ document.head.appendChild(styleEl);
 function injectTheme(t) {
   styleEl.textContent = `
     *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
-    body { background:${t.bg}; color:${t.text}; font-family:${t.font}; scroll-behavior:smooth; }
+    body { background:${t.bg}; color:${t.text}; font-family:${t.font}; scroll-behavior:smooth; line-height:1.35; }
     ::-webkit-scrollbar{width:5px} ::-webkit-scrollbar-track{background:transparent} ::-webkit-scrollbar-thumb{background:${t.scrollThumb};border-radius:3px}
     /* ── Keyframes ── */
     @keyframes fadeInUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
@@ -135,7 +135,7 @@ function injectTheme(t) {
     .card-hover:hover{transform:translateY(-5px) scale(1.008);box-shadow:0 18px 58px rgba(0,0,0,.62),0 0 0 1px ${t.accent}22!important}
 
     /* ── Tabs ── */
-    .tab-btn{background:none;border:1px solid transparent;cursor:pointer;font-family:${t.font};font-size:13px;font-weight:500;padding:8px 15px;border-radius:6px;color:${t.textDim};white-space:nowrap;transition:color .18s cubic-bezier(.4,0,.2,1),background .18s cubic-bezier(.4,0,.2,1),border-color .18s cubic-bezier(.4,0,.2,1),transform .15s ease}
+    .tab-btn{background:none;border:1px solid transparent;cursor:pointer;font-family:${t.font};font-size:13px;font-weight:500;padding:8px 15px;border-radius:6px;color:${t.textDim};white-space:normal;line-height:1.15;transition:color .18s cubic-bezier(.4,0,.2,1),background .18s cubic-bezier(.4,0,.2,1),border-color .18s cubic-bezier(.4,0,.2,1),transform .15s ease}
     .tab-btn:hover{color:${t.accent};background:${t.accent}10;transform:translateY(-1px)}
     .tab-btn.active{color:${t.accent};background:${t.accent}16;border-color:${t.accent}40;font-weight:600}
     .tab-btn:active{transform:scale(.97)}
@@ -147,7 +147,7 @@ function injectTheme(t) {
     input:focus::placeholder{opacity:.5}
 
     /* ── Buttons ── */
-    button.primary{background:${t.btnGrad};border:none;border-radius:10px;color:${t.btnColor};cursor:pointer;font-family:${t.font};font-size:15px;font-weight:700;padding:13px 28px;white-space:nowrap;transition:transform .2s cubic-bezier(.22,1,.36,1),box-shadow .2s ease,opacity .15s ease;position:relative;overflow:hidden}
+    button.primary{background:${t.btnGrad};border:none;border-radius:10px;color:${t.btnColor};cursor:pointer;font-family:${t.font};font-size:15px;font-weight:700;padding:13px 28px;white-space:normal;line-height:1.15;transition:transform .2s cubic-bezier(.22,1,.36,1),box-shadow .2s ease,opacity .15s ease;position:relative;overflow:hidden}
     button.primary::after{content:"";position:absolute;inset:0;background:rgba(255,255,255,.12);opacity:0;transition:opacity .15s}
     button.primary:hover{transform:translateY(-2px) scale(1.02);box-shadow:0 6px 28px ${t.glowC}}
     button.primary:hover::after{opacity:1}
@@ -166,7 +166,7 @@ function injectTheme(t) {
     table{width:100%;border-collapse:collapse;font-size:13px}
     th{color:${t.accent};font-weight:600;font-size:11px;letter-spacing:.07em;text-transform:uppercase;padding:10px;border-bottom:1px solid ${t.cardBorder};text-align:left;cursor:pointer;user-select:none;transition:color .15s}
     th:hover{color:${t.hl}}
-    td{padding:8px 10px;border-bottom:1px solid ${t.cardBorder}35;color:${t.textMid};vertical-align:middle;transition:background .15s}
+    td{padding:8px 10px;border-bottom:1px solid ${t.cardBorder}35;color:${t.textMid};vertical-align:middle;transition:background .15s;overflow-wrap:anywhere}
     tr{transition:background .15s}
     tr:hover td{background:${t.skA}}
 
@@ -622,6 +622,78 @@ function computePersonality(games, stats, profile={}) {
   return { title, icon, titleColor, archetype, desc, winPct, drawPct, lossPct, favTC, uniqueOpenings, avgOpp, bestWin:bestWinGame?.oppElo||null, streak:computeStreak(games), total, wins, losses, draws, breadth, speed, aggression, bestOpening, axes, dimensions, dnaCode, dnaSegments, traitChips, timeMix, recentWinPct, whitePct, blackPct, colorGap, upsetWins };
 }
 
+function worstByWinPct(items, minGames=4) {
+  return [...items].filter(x=>x.games>=minGames).sort((a,b)=>a.winPct-b.winPct || b.games-a.games)[0] || null;
+}
+
+function weaknessLevel(winPct) {
+  if (winPct < 35) return "Attack immediately";
+  if (winPct < 45) return "Pressure often";
+  if (winPct < 52) return "Test this";
+  return "Secondary target";
+}
+
+function computeWinPlan(player, opponent, months) {
+  if (!opponent?.games?.length) return null;
+  const games=opponent.games;
+  const total=games.length;
+  const oppName=opponent.profile?.username||"Opponent";
+  const wins=games.filter(g=>g.result==="win").length;
+  const losses=games.filter(g=>g.result==="loss").length;
+  const draws=games.filter(g=>g.result==="draw").length;
+  const winPct=percent(wins,total);
+  const lossPct=percent(losses,total);
+  const drawPct=percent(draws,total);
+  const oppDna=computePersonality(games,opponent.stats,opponent.profile);
+  const colors=colorStats(games);
+  const colorRows=[
+    {color:"White",icon:"♙",...colors.white,winPct:percent(colors.white.wins,colors.white.total),lossPct:percent(colors.white.losses,colors.white.total)},
+    {color:"Black",icon:"♟",...colors.black,winPct:percent(colors.black.wins,colors.black.total),lossPct:percent(colors.black.losses,colors.black.total)},
+  ].filter(c=>c.total);
+  const weakColor=[...colorRows].sort((a,b)=>a.winPct-b.winPct || b.total-a.total)[0];
+  const tcRows=Object.entries(games.reduce((m,g)=>{const k=g.timeControl||"other";if(!m[k])m[k]={tc:k,games:0,wins:0,losses:0,draws:0};m[k].games++;if(g.result==="win")m[k].wins++;else if(g.result==="loss")m[k].losses++;else m[k].draws++;return m;},{}))
+    .map(([,d])=>({...d,winPct:percent(d.wins,d.games),lossPct:percent(d.losses,d.games)}))
+    .filter(d=>d.tc!=="other")
+    .sort((a,b)=>a.winPct-b.winPct || b.games-a.games);
+  const weakTC=tcRows.find(d=>d.games>=6) || tcRows[0] || null;
+  const openings=aggOpenings(games);
+  const targetOpenings=[...openings].filter(o=>o.games>=4).sort((a,b)=>b.lossPct-a.lossPct || b.games-a.games).slice(0,5);
+  const overusedOpenings=[...openings].filter(o=>o.games>=5).sort((a,b)=>b.games-a.games).slice(0,4);
+  const eloWeak=worstByWinPct(eloBrackets(games),5);
+  const recent=games.slice(0,Math.min(20,total));
+  const recentWinPct=percent(recent.filter(g=>g.result==="win").length,recent.length);
+  const streak=computeStreak(games);
+  const dayMap={};
+  games.forEach(g=>{if(g.date&&g.date!=="?"){if(!dayMap[g.date])dayMap[g.date]={t:0,w:0,l:0};dayMap[g.date].t++;if(g.result==="win")dayMap[g.date].w++;if(g.result==="loss")dayMap[g.date].l++;}});
+  const volatileDays=Object.values(dayMap).filter(d=>d.t>=4).map(d=>percent(d.w,d.t));
+  const volatility=volatileDays.length>=3?Math.round(Math.sqrt(avg(volatileDays.map(v=>(v-avg(volatileDays))**2)))):null;
+  const playerOpenings=player?.games?.length?aggOpenings(player.games).filter(o=>o.games>=3).sort((a,b)=>b.winPct-a.winPct || b.games-a.games).slice(0,4):[];
+  const playerColors=player?.games?.length?colorStats(player.games):null;
+  const playerColorEdge=playerColors?[{color:"White",winPct:percent(playerColors.white.wins,playerColors.white.total)},{color:"Black",winPct:percent(playerColors.black.wins,playerColors.black.total)}].sort((a,b)=>b.winPct-a.winPct)[0]:null;
+  const riskFlags=[
+    weakColor && {id:"color",icon:weakColor.icon,label:`Make them play ${weakColor.color}`,value:`${weakColor.winPct}% win · ${weakColor.lossPct}% loss`,detail:`Their weakest color in loaded archives is ${weakColor.color}. Prioritize lines that steer them into uncomfortable structures from that side.`,score:100-weakColor.winPct},
+    weakTC && {id:"clock",icon:"⏱",label:`Choose ${weakTC.tc} pace`,value:`${weakTC.winPct}% win over ${weakTC.games} games`,detail:`Their lowest-scoring time control is ${weakTC.tc}. Keep clock pressure high and avoid letting them settle into slower decisions.`,score:90-weakTC.winPct},
+    targetOpenings[0] && {id:"opening",icon:"♟",label:"Target losing openings",value:`${targetOpenings[0].lossPct}% loss in ${targetOpenings[0].opening}`,detail:`The strongest archive weakness is ${targetOpenings[0].opening}: ${targetOpenings[0].losses} losses from ${targetOpenings[0].games} games.`,score:targetOpenings[0].lossPct+targetOpenings[0].games},
+    eloWeak && {id:"elo",icon:"📉",label:`Stress ${eloWeak.label} band`,value:`${eloWeak.winPct}% win in ${eloWeak.games} games`,detail:`They score lowest against opponents in the ${eloWeak.label} band. Match that practical pressure: solid positions, no free tactics, and repeated small problems.`,score:85-eloWeak.winPct},
+    recent.length>=8 && recentWinPct+8<winPct && {id:"form",icon:"❄️",label:"Recent form dip",value:`${recentWinPct}% last ${recent.length} vs ${winPct}% overall`,detail:"Their recent results are below their loaded-range baseline. Start with forcing but sound choices and make them rebuild confidence.",score:70},
+    streak.count>=3 && streak.type==="loss" && {id:"streak",icon:"🧊",label:"Active losing streak",value:`${streak.count} losses in a row`,detail:"Do not bail them out with speculative sacrifices. Make the position feel survivable but unpleasant.",score:75+streak.count},
+    volatility!==null && volatility>=28 && {id:"tilt",icon:"🎢",label:"Volatile sessions",value:`${volatility}% session swing`,detail:"Their day-to-day results swing hard. Keep the game practical and increase decisions under time pressure.",score:volatility},
+  ].filter(Boolean).sort((a,b)=>b.score-a.score).slice(0,5);
+  const planSteps=[
+    {phase:"Opening",icon:"1",title:targetOpenings[0]?`Prepare ${targetOpenings[0].opening}`:"Deny comfort early",text:targetOpenings[0]?`Use move orders that reach or resemble ${targetOpenings[0].opening}; they lose ${targetOpenings[0].lossPct}% there in this range.`:"Avoid their pet lines until more archive data reveals a clear opening leak."},
+    {phase:"Middlegame",icon:"2",title:weakColor?`Keep them defending as ${weakColor.color}`:"Create repeated choices",text:weakColor?`Trade into structures where ${weakColor.color} must solve problems instead of attack. Their ${weakColor.color} score is ${weakColor.winPct}%.`:"Make them choose between king safety, pawn structure, and time; the goal is repeated practical strain."},
+    {phase:"Clock",icon:"3",title:weakTC?`Use ${weakTC.tc} pressure`:"Keep the pace uncomfortable",text:weakTC?`${weakTC.tc} is their softest format in loaded games. Keep useful threats on the board and avoid long forcing lines that simplify too early.`:"Use clock pressure as a weapon: maintain tension and ask them to find several only moves."},
+    {phase:"Conversion",icon:"4",title:"Win boring if needed",text:`They still score ${winPct}% overall, so do not rely on one trap. Convert by removing counterplay, forcing clean decisions, and making every recapture slightly worse.`},
+  ];
+  const matchupNotes=[
+    playerColorEdge && `Your better color is ${playerColorEdge.color} (${playerColorEdge.winPct}% in loaded games). If pairing allows it, lean into that side.`,
+    playerOpenings[0] && `Your strongest reusable weapon is ${playerOpenings[0].opening} (${playerOpenings[0].winPct}% over ${playerOpenings[0].games} games).`,
+    oppDna && `${oppName}'s ChessDNA reads ${oppDna.title}; expect ${oppDna.favTC} habits and ${oppDna.uniqueOpenings} named openings in the sample.`,
+  ].filter(Boolean);
+  const summary=`${oppName} scores ${winPct}% across ${total} loaded games, but the clearest attack points are ${weakColor?weakColor.color+" color":"color selection"}, ${weakTC?weakTC.tc+" time control":"clock pressure"}, and ${targetOpenings[0]?targetOpenings[0].opening:"their most repeated openings"}.`;
+  return {oppName,total,wins,losses,draws,winPct,lossPct,drawPct,weakColor,weakTC,targetOpenings,overusedOpenings,eloWeak,recentWinPct,streak,volatility,riskFlags,planSteps,matchupNotes,summary,monthsLabel:rangeLabel(months)};
+}
+
 // ── UI Primitives ─────────────────────────────────────────────────────────────
 const Sk = ({w="100%",h=18,style={}}) => <div className="skel" style={{width:w,height:h,...style}}/>;
 
@@ -631,7 +703,7 @@ function Card({children,style={},t,glow=false,hover=true,className=""}) {
 
 function SecTitle({children,sub,t}) {
   return <div style={{marginBottom:16}}>
-    <h2 style={{fontFamily:t.headingFont,fontSize:20,fontWeight:700,color:t.accent,letterSpacing:"-.01em"}}>{children}</h2>
+    <h2 style={{fontFamily:t.headingFont,fontSize:20,fontWeight:700,color:t.accent,letterSpacing:"-.01em",lineHeight:1.2,overflowWrap:"anywhere"}}>{children}</h2>
     {sub && <p style={{fontSize:12,color:t.textDim,marginTop:3}}>{sub}</p>}
   </div>;
 }
@@ -791,7 +863,7 @@ function TradingCard({p,profile,t}) {
         <div style={{position:"absolute",inset:0,backgroundImage:`repeating-linear-gradient(120deg,${c}06 0px,${c}06 1px,transparent 1px,transparent 28px)`,pointerEvents:"none"}}/>
         <div style={{position:"absolute",inset:"-30%",background:`linear-gradient(115deg,transparent 35%,rgba(255,255,255,.08) 48%,transparent 61%)`,transform:hovered?"translateX(38%)":"translateX(-38%)",transition:"transform .9s cubic-bezier(.16,1,.3,1)",pointerEvents:"none"}}/>
 
-        <div style={{position:"relative",padding:"38px 34px 28px"}}>
+        <div style={{position:"relative",padding:"42px 36px 32px"}}>
 
           {/* Header row */}
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:24}}>
@@ -809,7 +881,7 @@ function TradingCard({p,profile,t}) {
             {/* Icon + Title */}
             <div style={{textAlign:"left"}}>
               <div style={{fontSize:88,lineHeight:1,marginBottom:14,filter:`drop-shadow(0 0 26px ${c}70)`,animation:"float 3s ease-in-out infinite",display:"inline-block"}}>{p.icon}</div>
-              <div style={{fontFamily:t.headingFont,fontSize:"clamp(42px,7vw,68px)",fontWeight:900,color:c,lineHeight:.92,letterSpacing:"-.045em",marginBottom:12,animation:"glow 3s ease-in-out infinite"}}>{p.title}</div>
+              <div style={{fontFamily:t.headingFont,fontSize:"clamp(40px,6.5vw,64px)",fontWeight:900,color:c,lineHeight:1.04,letterSpacing:"-.035em",marginBottom:12,animation:"glow 3s ease-in-out infinite",overflowWrap:"anywhere",paddingBottom:4}}>{p.title}</div>
               <div style={{display:"inline-flex",alignItems:"center",gap:8,background:`${c}16`,border:`1px solid ${c}40`,borderRadius:999,padding:"7px 16px"}}>
                 <div style={{width:6,height:6,borderRadius:"50%",background:c,boxShadow:`0 0 12px ${c}`}}/>
                 <span style={{fontSize:12,color:c,fontWeight:800,letterSpacing:".08em",fontFamily:t.font,textTransform:"uppercase"}}>{p.archetype}</span>
@@ -830,7 +902,7 @@ function TradingCard({p,profile,t}) {
                       <span style={{fontSize:10,color:t.textDim,textTransform:"uppercase",letterSpacing:".08em",fontWeight:700}}>{d.label}</span>
                       <span style={{fontFamily:t.headingFont,fontSize:20,color:c,fontWeight:800}}>{d.value}</span>
                     </div>
-                    <div style={{fontSize:11,color:t.textDim,marginTop:2}}>{d.detail}</div>
+                    <div style={{fontSize:11,color:t.textDim,marginTop:2,lineHeight:1.4,overflowWrap:"anywhere"}}>{d.detail}</div>
                   </div>
                 ))}
               </div>
@@ -1338,6 +1410,134 @@ function CompareTab({p1,p2,l1,l2,p2In,setP2In,loadP2,e2,months,t,onChangeP2}) {
   </div>;
 }
 
+// ── Win Plan Tab ───────────────────────────────────────────────────────────────
+function WinPlanTab({p1,p2,l1,l2,p2In,setP2In,loadP2,e2,months,t,onChangeP2}) {
+  if (!p2 && !l2) return <div style={{display:"flex",flexDirection:"column",gap:16,animation:"fadeInUp .45s cubic-bezier(.22,1,.36,1) both"}}>
+    <Card t={t} glow={true} hover={false} style={{textAlign:"center",padding:"34px 26px",position:"relative",overflow:"hidden"}}>
+      <div style={{position:"absolute",inset:-120,background:`radial-gradient(circle at 35% 0%,${t.accent}22,transparent 38%)`,animation:"auroraDrift 10s ease-in-out infinite",pointerEvents:"none"}}/>
+      <div style={{position:"relative"}}>
+        <div style={{fontSize:54,marginBottom:10,animation:"float 3s ease-in-out infinite",display:"inline-block"}}>🎯</div>
+        <div style={{fontFamily:t.headingFont,fontSize:"clamp(32px,6vw,58px)",lineHeight:1.05,fontWeight:900,color:t.accent,letterSpacing:"-.035em",overflowWrap:"anywhere"}}>Calculate how to beat an opponent</div>
+        <div style={{fontSize:14,color:t.textMid,maxWidth:680,margin:"12px auto 0",lineHeight:1.65}}>Loads their Chess.com archive games, finds result patterns, and turns their likely weaknesses into a practical game plan.</div>
+      </div>
+    </Card>
+    <Card t={t}><div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+      <input placeholder="Opponent username…" value={p2In} onChange={e=>setP2In(e.target.value)} onKeyDown={e=>e.key==="Enter"&&loadP2()} style={{flex:1,minWidth:180}}/>
+      <button className="primary" onClick={loadP2} disabled={!p2In.trim()||l2}>{l2?<span style={{display:"inline-flex",alignItems:"center",gap:8}}><span style={{width:14,height:14,border:`2px solid ${t.btnColor}`,borderTopColor:"transparent",borderRadius:"50%",display:"inline-block",animation:"spin .8s linear infinite"}}/>Analyzing…</span>:"Build Win Plan"}</button>
+    </div>
+    {e2&&<div style={{marginTop:12,fontSize:13,color:t.loss}}>⚠ {e2}</div>}
+    </Card>
+  </div>;
+
+  if (l2 || (l1 && !p1)) return <div style={{display:"flex",flexDirection:"column",gap:12,animation:"fadeIn .2s ease both"}}><Sk h={170}/><Sk h={260}/><Sk h={220}/></div>;
+  if (!p2) return null;
+  const plan=computeWinPlan(p1,p2,months);
+  if (!plan) return <div style={{color:t.textDim}}>Not enough opponent games loaded.</div>;
+
+  const Pill=({label,value,color=t.accent})=><div style={{background:`${color}10`,border:`1px solid ${color}28`,borderRadius:14,padding:"12px 14px",minWidth:120,flex:"1 1 120px"}}>
+    <div style={{fontSize:10,color:t.textDim,textTransform:"uppercase",letterSpacing:".1em",fontWeight:700,marginBottom:5}}>{label}</div>
+    <div style={{fontFamily:t.headingFont,fontSize:24,lineHeight:1.1,color,overflowWrap:"anywhere",fontWeight:900}}>{value}</div>
+  </div>;
+
+  return <div style={{display:"flex",flexDirection:"column",gap:18,animation:"fadeInUp .45s cubic-bezier(.22,1,.36,1) both"}}>
+    <Card t={t} glow={true} hover={false} style={{padding:"30px 28px",position:"relative",overflow:"hidden"}}>
+      <div style={{position:"absolute",inset:-120,background:`radial-gradient(circle at 18% 12%,${t.loss}20,transparent 34%),radial-gradient(circle at 85% 10%,${t.accent}18,transparent 36%)`,animation:"auroraDrift 12s ease-in-out infinite",pointerEvents:"none"}}/>
+      <div style={{position:"relative",display:"flex",justifyContent:"space-between",gap:18,alignItems:"flex-start",flexWrap:"wrap"}}>
+        <div style={{flex:"1 1 420px",minWidth:0}}>
+          <div style={{fontSize:12,color:t.loss,textTransform:"uppercase",letterSpacing:".22em",fontWeight:900,marginBottom:8}}>Win plan</div>
+          <div style={{fontFamily:t.headingFont,fontSize:"clamp(38px,7vw,74px)",lineHeight:1.02,fontWeight:900,color:t.text,letterSpacing:"-.045em",overflowWrap:"anywhere"}}>How to beat {plan.oppName}</div>
+          <div style={{fontSize:14,color:t.textMid,lineHeight:1.65,maxWidth:760,marginTop:14}}>{plan.summary}</div>
+          <div style={{fontSize:11,color:t.textDim,lineHeight:1.5,marginTop:10}}>This is archive-pattern analysis, not engine evaluation. "Common mistakes" means repeated result leaks from their loaded Chess.com games.</div>
+        </div>
+        <button className="secondary" onClick={onChangeP2}>Change opponent</button>
+      </div>
+      <div style={{position:"relative",display:"flex",gap:10,flexWrap:"wrap",marginTop:22}}>
+        <Pill label="Loaded games" value={plan.total} color={t.accent}/>
+        <Pill label="Opponent W/D/L" value={`${plan.winPct}/${plan.drawPct}/${plan.lossPct}%`} color={t.text}/>
+        <Pill label="Recent win%" value={`${plan.recentWinPct}%`} color={plan.recentWinPct<plan.winPct?t.loss:t.win}/>
+        <Pill label="Range" value={plan.monthsLabel} color={t.hl}/>
+      </div>
+    </Card>
+
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(210px,1fr))",gap:12}}>
+      {plan.riskFlags.map((f,i)=>(
+        <Card key={f.id} t={t} className={`stagger-${Math.min(i+1,6)}`} style={{padding:18}}>
+          <div style={{display:"flex",gap:12,alignItems:"flex-start"}}>
+            <div style={{width:34,height:34,borderRadius:12,background:`${t.loss}16`,border:`1px solid ${t.loss}35`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>{f.icon}</div>
+            <div style={{minWidth:0}}>
+              <div style={{fontSize:10,color:t.textDim,textTransform:"uppercase",letterSpacing:".09em",fontWeight:800,marginBottom:4}}>Target #{i+1}</div>
+              <div style={{fontFamily:t.headingFont,fontSize:21,lineHeight:1.12,color:t.text,fontWeight:900,overflowWrap:"anywhere"}}>{f.label}</div>
+              <div style={{fontSize:13,color:t.loss,fontWeight:800,marginTop:5,overflowWrap:"anywhere"}}>{f.value}</div>
+              <div style={{fontSize:12,color:t.textMid,lineHeight:1.55,marginTop:8}}>{f.detail}</div>
+            </div>
+          </div>
+        </Card>
+      ))}
+    </div>
+
+    <Card t={t}>
+      <SecTitle t={t} sub="A practical sequence for the game">Step-by-step game plan</SecTitle>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(210px,1fr))",gap:12}}>
+        {plan.planSteps.map(step=>(
+          <div key={step.phase} style={{background:`${t.accent}08`,border:`1px solid ${t.cardBorder}`,borderRadius:14,padding:16}}>
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+              <div style={{width:28,height:28,borderRadius:"50%",background:t.accent,color:t.bg,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontFamily:t.font}}>{step.icon}</div>
+              <div style={{fontSize:11,color:t.textDim,textTransform:"uppercase",letterSpacing:".1em",fontWeight:800}}>{step.phase}</div>
+            </div>
+            <div style={{fontFamily:t.headingFont,fontSize:22,lineHeight:1.15,color:t.accent,fontWeight:900,overflowWrap:"anywhere"}}>{step.title}</div>
+            <div style={{fontSize:13,color:t.textMid,lineHeight:1.6,marginTop:8}}>{step.text}</div>
+          </div>
+        ))}
+      </div>
+    </Card>
+
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:14}}>
+      <Card t={t}>
+        <SecTitle t={t} sub="Highest loss rates with enough games">Opening traps to prepare</SecTitle>
+        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          {plan.targetOpenings.length?plan.targetOpenings.map((o,i)=>(
+            <div key={o.opening} style={{background:`${t.loss}0d`,border:`1px solid ${t.loss}24`,borderRadius:12,padding:"11px 12px",display:"grid",gridTemplateColumns:"auto 1fr auto",gap:10,alignItems:"center"}}>
+              <div style={{width:24,height:24,borderRadius:"50%",background:i===0?t.loss:`${t.loss}20`,color:i===0?t.bg:t.loss,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:900}}>{i+1}</div>
+              <div style={{minWidth:0}}>
+                <a href={openingLink(o.opening,o.openingUrl)} target="_blank" rel="noopener noreferrer" style={{fontSize:13,color:t.text,fontWeight:700,textDecoration:"none",lineHeight:1.3,overflowWrap:"anywhere"}}>{o.opening}</a>
+                <div style={{fontSize:11,color:t.textDim,marginTop:2}}>{o.games} games · {o.wins}/{o.draws}/{o.losses} W/D/L</div>
+              </div>
+              <div style={{color:t.loss,fontWeight:900,fontFamily:t.headingFont,fontSize:20}}>{o.lossPct}%</div>
+            </div>
+          )):<div style={{color:t.textDim,fontSize:13}}>No repeated losing opening pattern found in this range.</div>}
+        </div>
+      </Card>
+
+      <Card t={t}>
+        <SecTitle t={t} sub="What they choose most often">Comfort zones to disrupt</SecTitle>
+        <div style={{display:"flex",flexDirection:"column",gap:9}}>
+          {plan.overusedOpenings.map(o=>(
+            <div key={o.opening} style={{display:"grid",gridTemplateColumns:"1fr auto",gap:10,alignItems:"center",padding:"10px 0",borderBottom:`1px solid ${t.cardBorder}40`}}>
+              <div style={{minWidth:0}}>
+                <div style={{color:t.text,fontWeight:700,fontSize:13,lineHeight:1.3,overflowWrap:"anywhere"}}>{o.opening}</div>
+                <div style={{fontSize:11,color:t.textDim}}>{o.games} games · {o.winPct}% win</div>
+              </div>
+              <span className={`badge ${o.winPct>=55?"green":o.winPct>=45?"yellow":"red"}`}>{weaknessLevel(o.winPct)}</span>
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
+
+    {plan.matchupNotes.length?<Card t={t}>
+      <SecTitle t={t} sub="Combines your loaded profile with their weaknesses">Your matchup notes</SecTitle>
+      <div style={{display:"flex",flexDirection:"column",gap:10}}>
+        {plan.matchupNotes.map(note=>(
+          <div key={note} style={{display:"flex",gap:10,alignItems:"flex-start",background:`${t.win}0b`,border:`1px solid ${t.win}22`,borderRadius:12,padding:"12px 14px"}}>
+            <span style={{color:t.win,fontWeight:900}}>✓</span>
+            <span style={{fontSize:13,color:t.textMid,lineHeight:1.55}}>{note}</span>
+          </div>
+        ))}
+      </div>
+    </Card>:null}
+  </div>;
+}
+
 // ── DNA Tab ───────────────────────────────────────────────────────────────────
 function DnaTab({games,stats,loading,t,profile}) {
   const tip=(props)=><ChartTip {...props} t={t}/>;
@@ -1350,7 +1550,7 @@ function DnaTab({games,stats,loading,t,profile}) {
       <div style={{position:"relative",display:"flex",justifyContent:"space-between",gap:22,alignItems:"center",flexWrap:"wrap"}}>
         <div style={{flex:"1 1 360px"}}>
           <div style={{fontSize:12,color:p.titleColor,textTransform:"uppercase",letterSpacing:".24em",fontWeight:800,marginBottom:8}}>ChessDNA focus mode</div>
-          <div style={{fontFamily:t.headingFont,fontSize:"clamp(48px,8vw,86px)",fontWeight:900,lineHeight:.9,letterSpacing:"-.055em",color:t.text}}>Your measurable chess identity</div>
+          <div style={{fontFamily:t.headingFont,fontSize:"clamp(44px,7.5vw,78px)",fontWeight:900,lineHeight:1.03,letterSpacing:"-.04em",color:t.text,overflowWrap:"anywhere",paddingBottom:4}}>Your measurable chess identity</div>
           <div style={{fontSize:14,color:t.textMid,lineHeight:1.65,maxWidth:620,marginTop:16}}>Built from loaded Chess.com archives for this selected range. Ratings stay separate as official Chess.com /stats values.</div>
         </div>
         <div style={{flex:"0 1 300px",width:"100%",background:`${t.bg}80`,border:`1px solid ${p.titleColor}25`,borderRadius:22,padding:18}}>
@@ -1571,7 +1771,7 @@ function OverviewTab({data,loading,t}) {
 }
 
 // ── Main App ──────────────────────────────────────────────────────────────────
-const TABS=[["📊","Overview"],["♟","Openings"],["🎨","Color Stats"],["📈","Elo Breakdown"],["⚔️","Compare"],["🧬","Chess DNA"]];
+const TABS=[["📊","Overview"],["♟","Openings"],["🎨","Color Stats"],["📈","Elo Breakdown"],["⚔️","Compare"],["🎯","Win Plan"],["🧬","Chess DNA"]];
 const RANGE_OPTIONS = [3,6,12,0];
 function getSavedRange() {
   const raw = localStorage.getItem("chessdna-range");
@@ -1582,7 +1782,7 @@ function getSavedRange() {
 
 // ── URL routing helpers ───────────────────────────────────────────────────────
 function parseHash() {
-  // Supports: /#/username  /#/username/card  /#/username/compare/opponent
+  // Supports: /#/username  /#/username/card  /#/username/compare/opponent  /#/username/plan/opponent
   const hash = window.location.hash.replace(/^#\/?/, "");
   const parts = hash.split("/").filter(Boolean);
   return { user: parts[0]||null, sub: parts[1]||null, other: parts[2]||null };
@@ -1619,17 +1819,19 @@ export default function App() {
     if (user) {
       setP1In(user);
       doLoad1(user);
-      if (sub==="card") setTab(5);
+      if (sub==="card") setTab(6);
       if (sub==="compare" && other) { setTab(4); setP2In(other); load2(other); }
+      if (sub==="plan") { setTab(5); if (other) { setP2In(other); load2(other); } }
     }
     const onHash = () => {
       const {user:u, sub:s, other:o} = parseHash();
       if (u) {
         setP1In(u);
         doLoad1(u);
-        if (s==="card") setTab(5);
+        if (s==="card") setTab(6);
         else if (s==="compare" && o) { setTab(4); setP2In(o); load2(o); }
-        else setTab(prev=>(prev===4||prev===5)?0:prev);
+        else if (s==="plan") { setTab(5); if (o) { setP2In(o); load2(o); } }
+        else setTab(prev=>(prev===4||prev===5||prev===6)?0:prev);
       }
     };
     window.addEventListener("hashchange", onHash);
@@ -1690,6 +1892,13 @@ export default function App() {
     load2(u);
   };
 
+  const runWinPlan = () => {
+    const u = p2In.trim().toLowerCase();
+    if (!u || !p1) return;
+    setHash(p1.profile.username, "plan", u);
+    load2(u);
+  };
+
   const clearCompare = () => {
     setP2(null); setP2In(""); setE2(null);
     if (p1) setHash(p1.profile.username);
@@ -1698,7 +1907,9 @@ export default function App() {
   const handleTabChange = (i) => {
     setTab(i);
     if (!p1) return;
-    if (i===5) setHash(p1.profile.username, "card");
+    if (i===6) setHash(p1.profile.username, "card");
+    else if (i===5 && p2) setHash(p1.profile.username, "plan", p2.profile.username);
+    else if (i===5) setHash(p1.profile.username, "plan");
     else if (i===4 && p2) setHash(p1.profile.username, "compare", p2.profile.username);
     else setHash(p1.profile.username);
   };
@@ -1717,7 +1928,7 @@ export default function App() {
           <ThemePicker current={themeKey} onChange={setThemeKey}/>
         </div>
         <div style={{fontSize:76,marginBottom:12,animation:"heroChess 4s ease-in-out infinite",display:"inline-block",filter:`drop-shadow(0 0 34px ${t.glowC})`}}>♟</div>
-        <h1 style={{fontFamily:t.headingFont,fontSize:"clamp(64px,11vw,112px)",fontWeight:900,color:t.accent,letterSpacing:"-.07em",lineHeight:.82,animation:"glow 3s ease-in-out infinite, scaleIn .6s cubic-bezier(.22,1,.36,1) both"}}>ChessDNA</h1>
+        <h1 style={{fontFamily:t.headingFont,fontSize:"clamp(64px,11vw,112px)",fontWeight:900,color:t.accent,letterSpacing:"-.055em",lineHeight:1.02,animation:"glow 3s ease-in-out infinite, scaleIn .6s cubic-bezier(.22,1,.36,1) both",paddingBottom:4}}>ChessDNA</h1>
         <p style={{fontSize:20,color:t.textMid,marginTop:16,fontFamily:t.font,animation:"fadeInDown .7s .2s cubic-bezier(.22,1,.36,1) both"}}>A measured identity from real Chess.com games</p>
 
         {/* Search */}
@@ -1791,14 +2002,15 @@ export default function App() {
         {tab===2&&<ColorTab games={p1?.games} loading={l1} t={t}/>}
         {tab===3&&<EloTab games={p1?.games} loading={l1} t={t}/>}
         {tab===4&&<CompareTab p1={p1} p2={p2} l1={l1} l2={l2} p2In={p2In} setP2In={setP2In} loadP2={runCompare} e2={e2} months={months} t={t} onChangeP2={clearCompare}/>}
-        {tab===5&&<DnaTab games={p1?.games} stats={p1?.stats} loading={l1} t={t} profile={p1?.profile}/>}
+        {tab===5&&<WinPlanTab p1={p1} p2={p2} l1={l1} l2={l2} p2In={p2In} setP2In={setP2In} loadP2={runWinPlan} e2={e2} months={months} t={t} onChangeP2={clearCompare}/>}
+        {tab===6&&<DnaTab games={p1?.games} stats={p1?.stats} loading={l1} t={t} profile={p1?.profile}/>}
       </PageTransition>}
 
       {/* ── Empty state ── */}
       {!p1&&!l1&&!e1&&<div style={{textAlign:"center",padding:"40px 0 60px",animation:"fadeInUp .5s .2s ease both"}}>
         <div style={{fontSize:64,opacity:.15,marginBottom:20}}>♜</div>
         <div style={{fontFamily:t.headingFont,fontSize:20,color:t.textMid}}>Enter a username to reveal your Chess DNA</div>
-        <div style={{fontSize:13,color:t.textDim,marginTop:8}}>Openings · Color stats · Elo breakdown · Personality · Compare · Trading card</div>
+        <div style={{fontSize:13,color:t.textDim,marginTop:8}}>Openings · Color stats · Elo breakdown · Win plan · Personality · Compare · Trading card</div>
       </div>}
 
       <div style={{textAlign:"center",marginTop:48,fontSize:11,color:t.textDim}}>Chess DNA · Data from Chess.com Public API · No data stored</div>
