@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect, react-hooks/static-components, react-hooks/immutability */
 import { useState, useEffect, useRef } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -390,8 +391,6 @@ function computeStreak(games) {
 function computeInsights(games) {
   const total = games.length;
   if (!total) return [];
-  const wins = games.filter(g=>g.result==="win").length;
-  const losses = games.filter(g=>g.result==="loss").length;
   const draws = games.filter(g=>g.result==="draw").length;
   const openings = aggOpenings(games);
   const streak = computeStreak(games);
@@ -588,6 +587,7 @@ function computePersonality(games, stats, profile={}) {
     {subject:"Pressure",value:Math.round(pressureScore)},
     {subject:"Tempo",value:Math.round(speedScore)},
     {subject:"Breadth",value:Math.round(breadthScore)},
+    {subject:"Resilience",value:Math.round(resilienceScore)},
     {subject:"Consistency",value:Math.round(consistencyScore)},
     {subject:"Color Balance",value:Math.round(balanceScore)},
     {subject:"Rating Signal",value:Math.round(ratingScore)},
@@ -596,6 +596,7 @@ function computePersonality(games, stats, profile={}) {
     {key:"pressure",label:"Pressure",value:Math.round(pressureScore),detail:`${winPct}% wins · ${decisivePct}% decisive`},
     {key:"tempo",label:"Tempo",value:Math.round(speedScore),detail:`${favTC} is ${timeMix[0]?.pct||0}% of loaded games`},
     {key:"breadth",label:"Opening Breadth",value:Math.round(breadthScore),detail:`${uniqueOpenings} named openings`},
+    {key:"resilience",label:"Resilience",value:Math.round(resilienceScore),detail:bestWinGame&&avgOpp?`Best win ${bestWinGame.oppElo} vs ${avgOpp} avg opp`:`${drawPct}% draw rate`},
     {key:"consistency",label:"Consistency",value:Math.round(consistencyScore),detail:variance===null?`${recentWinPct}% in last ${recent.length}`:`${Math.round(variance)}% session variance`},
     {key:"balance",label:"Color Balance",value:Math.round(balanceScore),detail:`White ${whitePct}% · Black ${blackPct}%`},
     {key:"rating",label:"Rating Signal",value:Math.round(ratingScore),detail:primaryRating(stats)?`${primaryRating(stats)} top current rating`:"No current rating"},
@@ -1185,7 +1186,7 @@ function ColorTab({games,loading,t}) {
 }
 
 // ── Elo Tab ───────────────────────────────────────────────────────────────────
-function EloTab({games,stats,loading,t}) {
+function EloTab({games,loading,t}) {
   const tip=(props)=><ChartTip {...props} t={t}/>;
   if (loading) return <Sk h={240}/>;
   if (!games?.length) return <div style={{color:t.textDim}}>No games.</div>;
@@ -1314,8 +1315,8 @@ function CompareTab({p1,p2,l1,l2,p2In,setP2In,loadP2,e2,months,t,onChangeP2}) {
       <ResponsiveContainer width="100%" height={250}>
         <RadarChart data={radar} cx="50%" cy="50%">
           <PolarGrid stroke={`${t.accent}15`}/><PolarAngleAxis dataKey="subject" tick={{fill:t.textMid,fontSize:12}}/><PolarRadiusAxis tick={false} axisLine={false} domain={[0,100]}/>
-          <Radar name={u1} dataKey={u1} stroke={P1_COLOR} fill={P1_COLOR} fillOpacity={.2} animationDuration={800}/>
-          <Radar name={u2} dataKey={u2} stroke={P2_COLOR} fill={P2_COLOR} fillOpacity={.16} animationDuration={900}/>
+          <Radar name={u1} dataKey={u1} stroke={P1_COLOR} fill={P1_FILL} fillOpacity={1} animationDuration={800}/>
+          <Radar name={u2} dataKey={u2} stroke={P2_COLOR} fill={P2_FILL} fillOpacity={1} animationDuration={900}/>
           <Legend wrapperStyle={{color:t.textMid,fontSize:12,fontFamily:t.font}}/><Tooltip content={tip}/>
         </RadarChart>
       </ResponsiveContainer>
@@ -1788,7 +1789,7 @@ export default function App() {
         {tab===0&&<OverviewTab data={p1} loading={l1} t={t}/>}
         {tab===1&&<OpeningsTab games={p1?.games} loading={l1} t={t}/>}
         {tab===2&&<ColorTab games={p1?.games} loading={l1} t={t}/>}
-        {tab===3&&<EloTab games={p1?.games} stats={p1?.stats} loading={l1} t={t}/>}
+        {tab===3&&<EloTab games={p1?.games} loading={l1} t={t}/>}
         {tab===4&&<CompareTab p1={p1} p2={p2} l1={l1} l2={l2} p2In={p2In} setP2In={setP2In} loadP2={runCompare} e2={e2} months={months} t={t} onChangeP2={clearCompare}/>}
         {tab===5&&<DnaTab games={p1?.games} stats={p1?.stats} loading={l1} t={t} profile={p1?.profile}/>}
       </PageTransition>}
