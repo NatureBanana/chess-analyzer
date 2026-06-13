@@ -1427,7 +1427,7 @@ function computeWinPlan(player, opponent, months) {
     playerColorEdge && `Your ${playerColorEdge.color} scores ${playerColorEdge.winPct}% (${playerColorEdge.games} games) — prefer that side when possible.`,
     playerOpenings[0] && `Your best weapon: ${playerOpenings[0].opening} (${playerOpenings[0].winPct}% over ${playerOpenings[0].games} games).`,
     overusedOpenings[0] && overusedOpenings[0].share >= 10 && `They play ${overusedOpenings[0].opening} in ${overusedOpenings[0].share}% of games — high-value prep target.`,
-    oppDna && `ChessDNA: ${oppDna.title} — expect ${oppDna.favTC} (${oppDna.timeMix[0]?.pct || 0}% of games) and ${oppDna.uniqueOpenings} distinct openings.`,
+    oppDna && `Chess Analyzer: ${oppDna.title} — expect ${oppDna.favTC} (${oppDna.timeMix[0]?.pct || 0}% of games) and ${oppDna.uniqueOpenings} distinct openings.`,
   ].filter(Boolean);
 
   const primaryAngle = topExploit ? topExploit.category.toLowerCase() : "their repeated patterns";
@@ -2567,7 +2567,7 @@ function DnaTab({games,stats,loading,t,profile}) {
       <div style={{position:"relative",display:"flex",gap:24,alignItems:"flex-start",flexWrap:"wrap"}}>
         <div style={{fontSize:72,lineHeight:1,filter:`drop-shadow(0 0 24px ${c}70)`,animation:"float 3s ease-in-out infinite"}}><Ico size={72}>{p.icon}</Ico></div>
         <div style={{flex:1,minWidth:200}}>
-          <div style={{fontSize:11,color:c,textTransform:"uppercase",letterSpacing:".1em",fontWeight:800,marginBottom:6,overflowWrap:"anywhere"}}>ChessDNA · {p.dnaCode}</div>
+          <div style={{fontSize:11,color:c,textTransform:"uppercase",letterSpacing:".1em",fontWeight:800,marginBottom:6,overflowWrap:"anywhere"}}>Chess Analyzer · {p.dnaCode}</div>
           <div style={{fontFamily:t.headingFont,fontSize:"clamp(28px,5.5vw,52px)",fontWeight:900,color:c,lineHeight:1.1,letterSpacing:"-.03em",overflowWrap:"anywhere"}}>{p.title}</div>
           <div style={{display:"inline-flex",alignItems:"center",gap:8,background:`${c}14`,border:`1px solid ${c}35`,borderRadius:999,padding:"5px 14px",marginTop:10}}>
             <span style={{width:6,height:6,borderRadius:"50%",background:c,boxShadow:`0 0 10px ${c}`}}/>
@@ -2950,7 +2950,7 @@ export default function App() {
         ))}
         <div style={{position:"relative"}}>
         <div className="hero-emoji" style={{fontSize:76,marginBottom:12,animation:"heroChess 4s ease-in-out infinite",display:"inline-block",filter:`drop-shadow(0 0 34px ${t.glowC})`}}><ChessIco size={76}>♟</ChessIco></div>
-        <h1 style={{fontFamily:t.headingFont,fontSize:"clamp(52px,11vw,112px)",fontWeight:900,color:t.accent,letterSpacing:"-.055em",lineHeight:1.02,animation:"glow 3s ease-in-out infinite, scaleIn .6s cubic-bezier(.22,1,.36,1) both",paddingBottom:4}}>ChessDNA</h1>
+        <h1 style={{fontFamily:t.headingFont,fontSize:"clamp(52px,11vw,112px)",fontWeight:900,color:t.accent,letterSpacing:"-.055em",lineHeight:1.02,animation:"glow 3s ease-in-out infinite, scaleIn .6s cubic-bezier(.22,1,.36,1) both",paddingBottom:4}}>Chess Analyzer</h1>
         <p style={{fontSize:20,color:t.textMid,marginTop:16,fontFamily:t.font,animation:"fadeInDown .7s .2s cubic-bezier(.22,1,.36,1) both"}}>A measured identity from real Chess.com games</p>
 
         {/* Search */}
@@ -3013,7 +3013,7 @@ export default function App() {
         <div style={{fontSize:13,color:t.textDim,marginTop:8,maxWidth:420,margin:"8px auto 0"}}>Win rates, openings, color splits, opponent breakdowns, matchup plans, and a playstyle profile — all from public Chess.com data.</div>
       </div>}
 
-      <div style={{textAlign:"center",marginTop:48,fontSize:11,color:t.textDim,opacity:.8,animation:"fadeIn 1s .8s ease both"}}>Chess DNA · Data from Chess.com Public API · No data stored</div>
+      <div style={{textAlign:"center",marginTop:48,fontSize:11,color:t.textDim,opacity:.8,animation:"fadeIn 1s .8s ease both"}}>Chess Analyzer · Data from Chess.com Public API · No data stored</div>
     </div>
   </div>;
 }

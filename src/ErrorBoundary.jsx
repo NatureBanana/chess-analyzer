@@ -23,7 +23,7 @@ export default class ErrorBoundary extends Component {
   }
 
   componentDidCatch(error, info) {
-    console.error("ChessDNA render error:", error, info.componentStack);
+    console.error("Chess Analyzer render error:", error, info.componentStack);
   }
 
   reset = () => {

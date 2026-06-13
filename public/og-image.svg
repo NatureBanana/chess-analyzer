@@ -15,8 +15,13 @@
   <text x="1020" y="180" fill="#58a6ff" opacity="0.1" font-size="96">^</text>
   <text x="1040" y="520" fill="#58a6ff" opacity="0.1" font-size="110">]</text>
   <text x="80" y="540" fill="#58a6ff" opacity="0.12" font-size="88">_</text>
-  <text x="600" y="290" text-anchor="middle" fill="url(#title)" font-family="Georgia, 'Times New Roman', serif" font-size="112" font-weight="700" letter-spacing="-3">ChessDNA</text>
-  <text x="600" y="360" text-anchor="middle" fill="#8b949e" font-family="system-ui, -apple-system, sans-serif" font-size="34" font-weight="400">A measured identity from real Chess.com games</text>
-  <text x="600" y="430" text-anchor="middle" fill="#4a5568" font-family="system-ui, -apple-system, sans-serif" font-size="24">Openings · matchups · shareable DNA profiles</text>
-  <rect x="420" y="500" width="360" height="4" rx="2" fill="#58a6ff" opacity="0.45"/>
+  <!-- Knight piece -->
+  <g transform="translate(600 175) scale(2.2)" fill="#58a6ff">
+    <path d="M-8 14h16v2H-8v-2zm-1-1.5c-.8 0-1.5-.7-1.5-1.5 0-.5.2-.9.6-1.2-.5-.4-.8-1-.8-1.7 0-1.2 1-2.2 2.2-2.2.4 0 .8.1 1.1.3.3-.9 1.1-1.6 2.1-1.6 1.2 0 2.2 1 2.2 2.2 0 .6-.2 1.1-.6 1.5.5.3.8.9.8 1.5 0 1-.8 1.8-1.8 1.8h-4.2z" opacity=".2"/>
+    <path d="M-6 13.5h12c.6 0 1-.4 1-1s-.4-1-1-1h-.8c.3-.4.5-.9.5-1.5 0-1.1-.9-2-2-2-.3 0-.6.1-.9.2C-.2 6.5-1 5.5-1 4.2c0-1 .6-1.8 1.5-2.2-.3-.5-.5-1.1-.5-1.7 0-1.7 1.3-3 3-3 .8 0 1.5.3 2 .8.5-.5 1.2-.8 2-.8 1.7 0 3 1.3 3 3 0 .6-.2 1.2-.5 1.7.9.4 1.5 1.2 1.5 2.2 0 .6-.2 1.1-.5 1.5h.5c.6 0 1 .4 1 1s-.4 1-1 1H-6z"/>
+  </g>
+  <text x="600" y="310" text-anchor="middle" fill="url(#title)" font-family="Georgia, 'Times New Roman', serif" font-size="96" font-weight="700" letter-spacing="-2">Chess Analyzer</text>
+  <text x="600" y="380" text-anchor="middle" fill="#8b949e" font-family="system-ui, -apple-system, sans-serif" font-size="34" font-weight="400">Deep stats from real Chess.com games</text>
+  <text x="600" y="450" text-anchor="middle" fill="#4a5568" font-family="system-ui, -apple-system, sans-serif" font-size="24">Openings · matchups · playstyle DNA profiles</text>
+  <rect x="360" y="520" width="480" height="4" rx="2" fill="#58a6ff" opacity="0.45"/>
 </svg>
