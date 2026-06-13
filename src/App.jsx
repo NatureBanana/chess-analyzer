@@ -29,7 +29,7 @@ function ThemeBg({t}) {
   const a = t.accent;
   const patterns = {
     // Slate: simple subtle dot grid — very minimal, barely visible
-    grid: <svg style={{position:"fixed",inset:0,width:"100%",height:"100%",zIndex:0,pointerEvents:"none",opacity:.18}} xmlns="http://www.w3.org/2000/svg">
+    grid: <svg style={{position:"fixed",inset:0,width:"100%",height:"100%",zIndex:0,pointerEvents:"none",opacity:.18,animation:"breathe 12s ease-in-out infinite"}} xmlns="http://www.w3.org/2000/svg">
       <defs><pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
         <circle cx="16" cy="16" r=".7" fill={a}/>
       </pattern></defs>
@@ -47,7 +47,7 @@ function ThemeBg({t}) {
       {[...Array(80)].map((_,i)=>{
         const x=(i*137.5)%100, y=(i*97.3+23)%100;
         const r=i%5===0?.9:i%3===0?.6:.35;
-        return <circle key={i} cx={`${x}%`} cy={`${y}%`} r={r} fill={a} opacity={.2+(.6*(i%7)/7)}/>
+        return <circle key={i} cx={`${x}%`} cy={`${y}%`} r={r} fill={a} opacity={.2+(.6*(i%7)/7)} style={{animation:`twinkle ${2.5+(i%5)*.8}s ease-in-out infinite`,animationDelay:`${(i%11)*.3}s`}}/>
       })}
     </svg>,
     // Gold: diagonal diamond grid
@@ -135,6 +135,21 @@ function injectTheme(t) {
     @keyframes orbit{from{transform:rotate(0deg) translateX(11px) rotate(0deg)}to{transform:rotate(360deg) translateX(11px) rotate(-360deg)}}
     @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
     @keyframes tickerSlide{from{opacity:0;transform:translateY(100%)}to{opacity:1;transform:translateY(0)}}
+    @keyframes twinkle{0%,100%{opacity:.15;transform:scale(1)}50%{opacity:.85;transform:scale(1.35)}}
+    @keyframes driftOrb{0%,100%{transform:translate3d(0,0,0) scale(1)}33%{transform:translate3d(28px,-22px,0) scale(1.12)}66%{transform:translate3d(-18px,14px,0) scale(.94)}}
+    @keyframes pieceFloat{0%,100%{transform:translateY(0) rotate(0deg);opacity:.12}50%{transform:translateY(-18px) rotate(8deg);opacity:.28}}
+    @keyframes slideUnderline{from{transform:scaleX(0);opacity:0}to{transform:scaleX(1);opacity:1}}
+    @keyframes underlineGrow{from{width:0;opacity:0}to{width:48px;opacity:1}}
+    @keyframes pulseRing{0%,100%{transform:scale(1);opacity:.55}50%{transform:scale(1.08);opacity:.15}}
+    @keyframes shineSweep{0%{transform:translateX(-120%) skewX(-12deg)}100%{transform:translateX(220%) skewX(-12deg)}}
+    @keyframes elasticIn{0%{opacity:0;transform:scale(.82)}60%{transform:scale(1.04)}100%{opacity:1;transform:scale(1)}}
+    @keyframes blurIn{from{opacity:0;filter:blur(8px);transform:translateY(12px)}to{opacity:1;filter:blur(0);transform:translateY(0)}}
+    @keyframes progressShimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+    @keyframes iconBounce{0%,100%{transform:translateY(0)}40%{transform:translateY(-4px)}60%{transform:translateY(-2px)}}
+    @keyframes searchPulse{0%,100%{box-shadow:0 0 0 0 ${t.glowC}}50%{box-shadow:0 0 0 4px ${t.glowC},0 4px 20px rgba(0,0,0,.25)}}
+    @keyframes emptyFloat{0%,100%{transform:translateY(0) rotate(-6deg)}50%{transform:translateY(-12px) rotate(6deg)}}
+    @keyframes tipPop{0%{opacity:0;transform:scale(.92) translateY(4px)}100%{opacity:1;transform:scale(1) translateY(0)}}
+    @keyframes staggerFade{from{opacity:0;transform:translateY(16px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
 
     /* ── Stagger classes ── */
     .stagger-1{animation:fadeInUp .45s .04s cubic-bezier(.22,1,.36,1) both}
@@ -143,6 +158,12 @@ function injectTheme(t) {
     .stagger-4{animation:fadeInUp .45s .22s cubic-bezier(.22,1,.36,1) both}
     .stagger-5{animation:fadeInUp .45s .28s cubic-bezier(.22,1,.36,1) both}
     .stagger-6{animation:fadeInUp .45s .34s cubic-bezier(.22,1,.36,1) both}
+    .stagger-7{animation:fadeInUp .45s .40s cubic-bezier(.22,1,.36,1) both}
+    .stagger-8{animation:fadeInUp .45s .46s cubic-bezier(.22,1,.36,1) both}
+    .stagger-9{animation:fadeInUp .45s .52s cubic-bezier(.22,1,.36,1) both}
+    .stagger-10{animation:fadeInUp .45s .58s cubic-bezier(.22,1,.36,1) both}
+    .stagger-11{animation:fadeInUp .45s .64s cubic-bezier(.22,1,.36,1) both}
+    .stagger-12{animation:fadeInUp .45s .70s cubic-bezier(.22,1,.36,1) both}
     .tab-content{animation:tabSlideIn .35s cubic-bezier(.22,1,.36,1) both}
     .bar-grow{animation:barGrow .7s cubic-bezier(.22,1,.36,1) both;transform-origin:left}
     .ring-pop{animation:ringPop .45s cubic-bezier(.22,1,.36,1) both}
@@ -159,14 +180,31 @@ function injectTheme(t) {
     .skel{background:linear-gradient(90deg,${t.skA} 25%,${t.skB} 50%,${t.skA} 75%);background-size:200% 100%;animation:shimmerMove 1.6s ease infinite;border-radius:8px}
 
     /* ── Cards ── */
-    .card-hover{transition:transform .38s cubic-bezier(.16,1,.3,1),box-shadow .38s ease,border-color .38s ease,background .38s ease;will-change:transform}
-    .card-hover:hover{transform:translateY(-5px) scale(1.008);box-shadow:0 18px 58px rgba(0,0,0,.62),0 0 0 1px ${t.accent}22!important}
+    .card-hover{transition:transform .38s cubic-bezier(.16,1,.3,1),box-shadow .38s ease,border-color .38s ease,background .38s ease;will-change:transform;position:relative;overflow:hidden}
+    .card-hover::before{content:"";position:absolute;inset:0;background:linear-gradient(105deg,transparent 40%,${t.accent}08 50%,transparent 60%);transform:translateX(-120%) skewX(-12deg);transition:none;pointer-events:none;z-index:0}
+    .card-hover:hover::before{animation:shineSweep .75s cubic-bezier(.4,0,.2,1) both}
+    .card-hover:hover{transform:translateY(-5px) scale(1.008);box-shadow:0 18px 58px rgba(0,0,0,.62),0 0 0 1px ${t.accent}22,0 0 40px ${t.glowC}!important}
+    .card-hover > *{position:relative;z-index:1}
 
     /* ── Tabs ── */
-    .tab-btn{background:none;border:1px solid transparent;cursor:pointer;font-family:${t.font};font-size:13px;font-weight:500;padding:8px 15px;border-radius:6px;color:${t.textDim};white-space:normal;line-height:1.15;transition:color .18s cubic-bezier(.4,0,.2,1),background .18s cubic-bezier(.4,0,.2,1),border-color .18s cubic-bezier(.4,0,.2,1),transform .15s ease}
+    .tab-btn{background:none;border:1px solid transparent;cursor:pointer;font-family:${t.font};font-size:13px;font-weight:500;padding:8px 15px;border-radius:6px;color:${t.textDim};white-space:normal;line-height:1.15;transition:color .18s cubic-bezier(.4,0,.2,1),background .18s cubic-bezier(.4,0,.2,1),border-color .18s cubic-bezier(.4,0,.2,1),transform .15s ease;position:relative}
     .tab-btn:hover{color:${t.accent};background:${t.accent}10;transform:translateY(-1px)}
     .tab-btn.active{color:${t.accent};background:${t.accent}16;border-color:${t.accent}40;font-weight:600}
+    .tab-btn.active::after{content:"";position:absolute;bottom:3px;left:12%;right:12%;height:2px;background:linear-gradient(90deg,transparent,${t.accent},transparent);border-radius:2px;animation:slideUnderline .35s cubic-bezier(.22,1,.36,1) both}
     .tab-btn:active{transform:scale(.97)}
+    .range-pill{transition:all .22s cubic-bezier(.22,1,.36,1);cursor:pointer;font-family:${t.font}}
+    .range-pill:hover{transform:translateY(-2px) scale(1.05);box-shadow:0 4px 14px rgba(0,0,0,.25)}
+    .range-pill.active{animation:elasticIn .3s cubic-bezier(.22,1,.36,1) both}
+    .search-wrap:focus-within input{animation:searchPulse 2s ease-in-out infinite}
+    .search-wrap:focus-within .search-icon{animation:iconBounce .6s cubic-bezier(.22,1,.36,1) both;color:${t.accent}!important}
+    .chart-tip-pop{animation:tipPop .22s cubic-bezier(.22,1,.36,1) both}
+    .error-shake{animation:shake .45s cubic-bezier(.22,1,.36,1) both}
+    .empty-piece{display:inline-block;animation:emptyFloat 4s ease-in-out infinite}
+    .insight-expand{transition:transform .25s cubic-bezier(.22,1,.36,1),box-shadow .25s ease,border-color .25s ease,background .25s ease}
+    .insight-expand:hover{transform:translateX(4px) translateY(-1px);box-shadow:0 8px 24px rgba(0,0,0,.35)}
+    tr.row-in{animation:staggerFade .35s cubic-bezier(.22,1,.36,1) both}
+    .rating-pill{transition:transform .2s cubic-bezier(.22,1,.36,1),box-shadow .2s ease,border-color .2s ease}
+    .rating-pill:hover{transform:translateY(-3px) scale(1.04);box-shadow:0 6px 18px rgba(0,0,0,.3);border-color:${t.accent}45!important}
 
     /* ── Inputs ── */
     input{background:${t.inputBg};border:1px solid ${t.cardBorder};border-radius:10px;color:${t.text};font-family:${t.font};font-size:15px;padding:13px 16px;outline:none;width:100%;transition:border-color .2s cubic-bezier(.4,0,.2,1),box-shadow .2s cubic-bezier(.4,0,.2,1),transform .2s cubic-bezier(.22,1,.36,1)}
@@ -175,9 +213,11 @@ function injectTheme(t) {
     input:focus::placeholder{opacity:.5}
 
     /* ── Buttons ── */
-    button.primary{background:${t.btnGrad};border:none;border-radius:10px;color:${t.btnColor};cursor:pointer;font-family:${t.font};font-size:15px;font-weight:700;padding:13px 28px;white-space:normal;line-height:1.15;transition:transform .2s cubic-bezier(.22,1,.36,1),box-shadow .2s ease,opacity .15s ease;position:relative;overflow:hidden}
+    button.primary{background:${t.btnGrad};background-size:200% 100%;border:none;border-radius:10px;color:${t.btnColor};cursor:pointer;font-family:${t.font};font-size:15px;font-weight:700;padding:13px 28px;white-space:normal;line-height:1.15;transition:transform .2s cubic-bezier(.22,1,.36,1),box-shadow .2s ease,opacity .15s ease,background-position .4s ease;position:relative;overflow:hidden}
     button.primary::after{content:"";position:absolute;inset:0;background:rgba(255,255,255,.12);opacity:0;transition:opacity .15s}
-    button.primary:hover{transform:translateY(-2px) scale(1.02);box-shadow:0 6px 28px ${t.glowC}}
+    button.primary::before{content:"";position:absolute;inset:0;background:linear-gradient(105deg,transparent 35%,rgba(255,255,255,.22) 50%,transparent 65%);transform:translateX(-130%);transition:transform .55s cubic-bezier(.4,0,.2,1);pointer-events:none}
+    button.primary:hover{background-position:100% 0;transform:translateY(-2px) scale(1.02);box-shadow:0 6px 28px ${t.glowC},0 0 0 1px ${t.accent}30}
+    button.primary:hover::before{transform:translateX(130%)}
     button.primary:hover::after{opacity:1}
     button.primary:active{transform:translateY(0) scale(.98)}
     button.primary:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
@@ -1032,13 +1072,14 @@ function Card({children,style={},t,glow=false,hover=true,className=""}) {
 function SecTitle({children,sub,t}) {
   return <div style={{marginBottom:16}}>
     <h2 style={{fontFamily:t.headingFont,fontSize:20,fontWeight:700,color:t.accent,letterSpacing:"-.01em",lineHeight:1.2,overflowWrap:"anywhere"}}>{children}</h2>
-    {sub && <p style={{fontSize:12,color:t.textDim,marginTop:3}}>{sub}</p>}
+    <div style={{height:2,width:48,background:`linear-gradient(90deg,${t.accent},transparent)`,borderRadius:2,marginTop:8,animation:"underlineGrow .55s cubic-bezier(.22,1,.36,1) both"}}/>
+    {sub && <p style={{fontSize:12,color:t.textDim,marginTop:6}}>{sub}</p>}
   </div>;
 }
 
 function ChartTip({active,payload,label,t}) {
   if (!active||!payload?.length) return null;
-  return <div style={{background:t.bg+"f5",border:`1px solid ${t.cardBorder}`,borderRadius:8,padding:"10px 14px",fontSize:12,fontFamily:t.font}}>
+  return <div className="chart-tip-pop" style={{background:t.bg+"f5",border:`1px solid ${t.cardBorder}`,borderRadius:8,padding:"10px 14px",fontSize:12,fontFamily:t.font,boxShadow:`0 8px 24px rgba(0,0,0,.45),0 0 0 1px ${t.accent}15`}}>
     <div style={{color:t.accent,fontWeight:600,marginBottom:4}}>{label}</div>
     {payload.map((p,i)=><div key={i} style={{color:p.color||t.text}}>{p.name}: {p.value}{["winPct","Win%","Loss%","Draw%"].includes(p.name)?"%":""}</div>)}
   </div>;
@@ -1082,7 +1123,7 @@ function AnimatedNumber({value, duration=800, style={}}) {
 function CopyButton({onCopy,t,label="Copy"}) {
   const [copied,setCopied]=useState(false);
   return <button className="secondary" onClick={()=>{onCopy();setCopied(true);setTimeout(()=>setCopied(false),1800);}}
-    style={copied?{background:`${t.win}18`,borderColor:`${t.win}50`,color:t.win}:{}}>
+    style={copied?{background:`${t.win}18`,borderColor:`${t.win}50`,color:t.win,animation:"elasticIn .3s cubic-bezier(.22,1,.36,1) both",transform:"scale(1.02)"}:{}}>
     {copied?"✓ Copied":`📋 ${label}`}
   </button>;
 }
@@ -1099,7 +1140,13 @@ function Reveal({children, delay=0, style={}, className=""}) {
     obs.observe(el);
     return ()=>obs.disconnect();
   },[]);
-  return <div ref={ref} className={className} style={{opacity:show?1:0,transform:show?"none":"translateY(26px)",transition:`opacity .65s cubic-bezier(.22,1,.36,1) ${delay}s,transform .65s cubic-bezier(.22,1,.36,1) ${delay}s`,...style}}>{children}</div>;
+  return <div ref={ref} className={className} style={{
+    opacity:show?1:0,
+    transform:show?"translateY(0) scale(1)":"translateY(32px) scale(.97)",
+    filter:show?"blur(0)":"blur(4px)",
+    transition:`opacity .7s cubic-bezier(.22,1,.36,1) ${delay}s,transform .7s cubic-bezier(.22,1,.36,1) ${delay}s,filter .7s cubic-bezier(.22,1,.36,1) ${delay}s`,
+    ...style,
+  }}>{children}</div>;
 }
 
 // ── Circular gauge ────────────────────────────────────────────────────────────
@@ -1206,10 +1253,15 @@ function PageTransition({children, keyVal}) {
   const [visible, setVisible] = useState(false);
   useEffect(() => {
     setVisible(false);
-    const timer = setTimeout(() => setVisible(true), 30);
+    const timer = setTimeout(() => setVisible(true), 40);
     return () => clearTimeout(timer);
   }, [keyVal]);
-  return <div className="tab-content" style={{opacity: visible ? 1 : 0, transform: visible ? "translateY(0) scale(1)" : "translateY(16px) scale(.98)", transition:"opacity .35s cubic-bezier(.22,1,.36,1), transform .35s cubic-bezier(.22,1,.36,1)"}}>{children}</div>;
+  return <div style={{
+    opacity: visible ? 1 : 0,
+    transform: visible ? "translateY(0) scale(1)" : "translateY(20px) scale(.985)",
+    filter: visible ? "blur(0)" : "blur(6px)",
+    transition: "opacity .42s cubic-bezier(.22,1,.36,1), transform .42s cubic-bezier(.22,1,.36,1), filter .42s cubic-bezier(.22,1,.36,1)",
+  }}>{children}</div>;
 }
 
 // ── Loading bar ───────────────────────────────────────────────────────────────
@@ -1225,7 +1277,70 @@ function LoadingBar({active, t}) {
   }, [active]);
   if (!active && width === 0) return null;
   return <div style={{position:"fixed",top:0,left:0,right:0,zIndex:9999,height:3,background:`${t.glowC}30`,transition:"all .3s ease"}}>
-    <div style={{height:"100%",width:`${active ? width : 100}%`,background:`linear-gradient(90deg,${t.accent2},${t.accent},${t.hl})`,borderRadius:"0 3px 3px 0",transition:active?"width 0.8s cubic-bezier(.4,0,.2,1)":"width .3s ease",boxShadow:`0 0 10px ${t.glowC}`}}/>
+    <div style={{
+      height:"100%",width:`${active ? width : 100}%`,
+      background:`linear-gradient(90deg,${t.accent2},${t.accent},${t.hl},${t.accent})`,
+      backgroundSize:"200% 100%",
+      animation:active?"progressShimmer 1.8s linear infinite":"none",
+      borderRadius:"0 3px 3px 0",
+      transition:active?"width 0.8s cubic-bezier(.4,0,.2,1)":"width .3s ease",
+      boxShadow:`0 0 14px ${t.glowC},0 0 4px ${t.accent}`,
+    }}/>
+  </div>;
+}
+
+// ── Scroll progress ───────────────────────────────────────────────────────────
+function ScrollProgress({t}) {
+  const [pct,setPct]=useState(0);
+  useEffect(()=>{
+    const fn=()=>{
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      setPct(h>0?Math.min(100,(window.scrollY/h)*100):0);
+    };
+    window.addEventListener("scroll",fn,{passive:true});
+    fn();
+    return ()=>window.removeEventListener("scroll",fn);
+  },[]);
+  if (pct<1) return null;
+  return <div style={{position:"fixed",top:3,left:0,height:2,zIndex:9998,width:`${pct}%`,background:`linear-gradient(90deg,${t.accent2},${t.accent})`,transition:"width .12s linear",boxShadow:`0 0 10px ${t.glowC}`,borderRadius:"0 2px 2px 0",pointerEvents:"none"}}/>;
+}
+
+// ── Cursor spotlight ──────────────────────────────────────────────────────────
+function CursorGlow({t}) {
+  const ref=useRef(null);
+  useEffect(()=>{
+    const el=ref.current;
+    if (!el||window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    let raf=0;
+    const move=(e)=>{
+      cancelAnimationFrame(raf);
+      raf=requestAnimationFrame(()=>{ el.style.transform=`translate(${e.clientX}px,${e.clientY}px)`; });
+    };
+    window.addEventListener("mousemove",move,{passive:true});
+    return ()=>{ window.removeEventListener("mousemove",move); cancelAnimationFrame(raf); };
+  },[]);
+  return <div ref={ref} style={{
+    position:"fixed",top:0,left:0,width:520,height:520,marginLeft:-260,marginTop:-260,
+    background:`radial-gradient(circle,${t.glowC} 0%,transparent 62%)`,
+    pointerEvents:"none",zIndex:0,opacity:.5,willChange:"transform",
+  }}/>;
+}
+
+// ── Hero ambient layer ────────────────────────────────────────────────────────
+function HeroAmbience({t}) {
+  const pieces=["♔","♕","♖","♗","♘","♙","♜","♞"];
+  return <div style={{position:"absolute",inset:0,overflow:"hidden",pointerEvents:"none",zIndex:0}}>
+    <div style={{position:"absolute",top:"8%",left:"8%",width:340,height:340,borderRadius:"50%",background:`radial-gradient(circle,${t.accent}16,transparent 68%)`,animation:"driftOrb 16s ease-in-out infinite"}}/>
+    <div style={{position:"absolute",bottom:"0%",right:"5%",width:280,height:280,borderRadius:"50%",background:`radial-gradient(circle,${t.accent2}12,transparent 68%)`,animation:"driftOrb 20s ease-in-out infinite reverse"}}/>
+    <div style={{position:"absolute",top:"35%",right:"18%",width:180,height:180,borderRadius:"50%",background:`radial-gradient(circle,${t.hl}10,transparent 70%)`,animation:"driftOrb 13s ease-in-out infinite",animationDelay:"-4s"}}/>
+    {pieces.map((p,i)=>(
+      <span key={i} style={{
+        position:"absolute",left:`${6+i*11}%`,top:`${14+(i%4)*16}%`,
+        fontSize:16+(i%4)*5,opacity:.07+(i%3)*.05,color:t.accent,
+        animation:`pieceFloat ${4.5+i*.6}s ease-in-out infinite`,animationDelay:`${i*.55}s`,
+        filter:`drop-shadow(0 0 8px ${t.glowC})`,
+      }}>{p}</span>
+    ))}
   </div>;
 }
 
@@ -1234,15 +1349,15 @@ function ThemePicker({current,onChange}) {
   const [open,setOpen]=useState(false);
   const t=THEMES[current];
   return <div style={{position:"relative"}}>
-    <button onClick={()=>setOpen(o=>!o)} style={{background:"none",border:`1px solid ${t.cardBorder}`,borderRadius:8,color:t.text,cursor:"pointer",fontSize:13,fontFamily:t.font,padding:"6px 12px",display:"flex",alignItems:"center",gap:6}}>
-      {t.icon} {t.name} <span style={{opacity:.5,fontSize:10}}>▼</span>
+    <button onClick={()=>setOpen(o=>!o)} style={{background:"none",border:`1px solid ${t.cardBorder}`,borderRadius:8,color:t.text,cursor:"pointer",fontSize:13,fontFamily:t.font,padding:"6px 12px",display:"flex",alignItems:"center",gap:6,transition:"all .2s cubic-bezier(.22,1,.36,1)"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=`${t.accent}50`;e.currentTarget.style.transform="translateY(-1px)";e.currentTarget.style.boxShadow=`0 4px 16px rgba(0,0,0,.3)`;}} onMouseLeave={e=>{e.currentTarget.style.borderColor=t.cardBorder;e.currentTarget.style.transform="";e.currentTarget.style.boxShadow="";}}>
+      {t.icon} {t.name} <span style={{opacity:.5,fontSize:10,transition:"transform .2s",transform:open?"rotate(180deg)":"none",display:"inline-block"}}>▼</span>
     </button>
-    {open && <div style={{position:"absolute",top:"110%",right:0,background:t.card,border:`1px solid ${t.cardBorder}`,borderRadius:10,padding:8,zIndex:99,minWidth:160,boxShadow:"0 8px 32px rgba(0,0,0,.6)",animation:"scaleIn .18s cubic-bezier(.22,1,.36,1) both",transformOrigin:"top right"}}>
+    {open && <div style={{position:"absolute",top:"110%",right:0,background:t.card,border:`1px solid ${t.cardBorder}`,borderRadius:10,padding:8,zIndex:99,minWidth:160,boxShadow:"0 8px 32px rgba(0,0,0,.6)",animation:"elasticIn .22s cubic-bezier(.22,1,.36,1) both",transformOrigin:"top right"}}>
       <div style={{fontSize:10,color:t.textDim,textTransform:"uppercase",letterSpacing:".08em",padding:"4px 8px 8px",fontFamily:t.font}}>Theme</div>
-      {Object.entries(THEMES).map(([k,th])=>(
-        <div key={k} onClick={()=>{onChange(k);setOpen(false);}} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",borderRadius:7,cursor:"pointer",background:current===k?`${th.accent}18`:"none",color:current===k?th.accent:t.textMid,fontSize:13,fontFamily:t.font,transition:"all .15s"}}>
+      {Object.entries(THEMES).map(([k,th],i)=>(
+        <div key={k} onClick={()=>{onChange(k);setOpen(false);}} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",borderRadius:7,cursor:"pointer",background:current===k?`${th.accent}18`:"none",color:current===k?th.accent:t.textMid,fontSize:13,fontFamily:t.font,transition:"all .18s cubic-bezier(.22,1,.36,1)",animation:`fadeInUp .25s ${.03+i*.03}s cubic-bezier(.22,1,.36,1) both`}} onMouseEnter={e=>{if(current!==k){e.currentTarget.style.background=`${th.accent}10`;e.currentTarget.style.transform="translateX(3px)";}}} onMouseLeave={e=>{if(current!==k){e.currentTarget.style.background="none";e.currentTarget.style.transform="";}}}>
           {th.icon} <span style={{fontWeight:current===k?600:400}}>{th.name}</span>
-          <span style={{marginLeft:"auto",width:10,height:10,borderRadius:"50%",background:th.accent}}/>
+          <span style={{marginLeft:"auto",width:10,height:10,borderRadius:"50%",background:th.accent,boxShadow:current===k?`0 0 8px ${th.accent}`:"none",transition:"box-shadow .2s"}}/>
         </div>
       ))}
     </div>}
@@ -1417,7 +1532,8 @@ function PlayerHeroCard({data,loading,t}) {
     <div style={{display:"flex",gap:20,flexWrap:"wrap",alignItems:"flex-start"}}>
       {/* Avatar */}
       <div style={{position:"relative",flexShrink:0}}>
-        <div style={{width:88,height:88,borderRadius:"50%",border:`3px solid ${p?.titleColor||t.accent}60`,overflow:"hidden",background:t.bg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:40}}>
+        <div style={{position:"absolute",inset:-6,borderRadius:"50%",border:`2px solid ${p?.titleColor||t.accent}35`,animation:"pulseRing 2.8s ease-in-out infinite",pointerEvents:"none"}}/>
+        <div style={{width:88,height:88,borderRadius:"50%",border:`3px solid ${p?.titleColor||t.accent}60`,overflow:"hidden",background:t.bg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:40,boxShadow:`0 0 24px ${p?.titleColor||t.accent}25`,transition:"transform .3s cubic-bezier(.22,1,.36,1)"}} onMouseEnter={e=>e.currentTarget.style.transform="scale(1.05)"} onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}>
           {profile.avatar
             ? <img src={profile.avatar} alt="avatar" style={{width:"100%",height:"100%",objectFit:"cover"}} onError={e=>{e.target.style.display="none";e.target.parentElement.innerHTML="♟";}}/>
             : "♟"}
@@ -1447,9 +1563,9 @@ function PlayerHeroCard({data,loading,t}) {
         {/* Rating pills */}
         <div style={{display:"flex",flexWrap:"wrap",gap:7,marginTop:12}}>
           {ratings.map((r,ri)=>(
-            <div key={r.tc} style={{background:`${t.accent}0e`,border:`1px solid ${t.accent}20`,borderRadius:8,padding:"6px 12px",textAlign:"center",minWidth:64,animation:`scaleIn .3s ${.08+ri*.07}s cubic-bezier(.22,1,.36,1) both`}}>
+            <div key={r.tc} className="rating-pill" style={{background:`${t.accent}0e`,border:`1px solid ${t.accent}20`,borderRadius:8,padding:"6px 12px",textAlign:"center",minWidth:64,animation:`scaleIn .3s ${.08+ri*.07}s cubic-bezier(.22,1,.36,1) both`}}>
               <div style={{fontSize:9,color:t.textDim,textTransform:"uppercase",letterSpacing:".07em"}}>{r.tc}</div>
-              <div style={{fontSize:20,fontWeight:700,color:t.accent,fontFamily:t.headingFont}}>{r.last}</div>
+              <div style={{fontSize:20,fontWeight:700,color:t.accent,fontFamily:t.headingFont}}><AnimatedNumber value={r.last} duration={900}/></div>
               {r.best&&r.best>r.last&&<div style={{fontSize:9,color:t.textDim}}>↑{r.best}</div>}
             </div>
           ))}
@@ -1561,10 +1677,11 @@ function PerformanceChart({games,loading,t}) {
 function InsightCard({item,t}) {
   const [hovered,setHovered]=useState(false);
   return <div
+    className="insight-expand"
     onMouseEnter={()=>setHovered(true)}
     onMouseLeave={()=>setHovered(false)}
-    style={{background:hovered?`${item.color||t.accent}12`:`${t.accent}06`,border:`1px solid ${hovered?(item.color||t.accent)+"50":t.cardBorder}`,borderRadius:10,padding:"12px 14px",display:"flex",gap:12,alignItems:"flex-start",cursor:"default",transition:"all .2s",position:"relative"}}>
-    <span style={{fontSize:22,flexShrink:0}}>{item.icon}</span>
+    style={{background:hovered?`${item.color||t.accent}12`:`${t.accent}06`,border:`1px solid ${hovered?(item.color||t.accent)+"50":t.cardBorder}`,borderRadius:10,padding:"12px 14px",display:"flex",gap:12,alignItems:"flex-start",cursor:"default",position:"relative"}}>
+    <span style={{fontSize:22,flexShrink:0,transition:"transform .25s cubic-bezier(.22,1,.36,1)",transform:hovered?"scale(1.15) rotate(-4deg)":"none",display:"inline-block"}}>{item.icon}</span>
     <div style={{flex:1,minWidth:0}}>
       <div style={{fontSize:10,color:t.textDim,textTransform:"uppercase",letterSpacing:".07em",marginBottom:3,fontFamily:t.font}}>{item.label}</div>
       <div style={{fontSize:14,fontWeight:600,color:item.color||t.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.value}</div>
@@ -2439,9 +2556,9 @@ function OverviewTab({data,loading,t}) {
       <Card t={t} style={{flex:2,minWidth:220}}>
         <SecTitle t={t} sub="All loaded archive games in selected range">Win / Draw / Loss</SecTitle>
         <div style={{display:"flex",height:14,borderRadius:8,overflow:"hidden",gap:2,marginBottom:10}}>
-          <div style={{width:`${winPct}%`,background:t.win,transition:"width .8s cubic-bezier(.4,0,.2,1)"}}/>
-          <div style={{width:`${drawPct}%`,background:t.draw,transition:"width .8s cubic-bezier(.4,0,.2,1)"}}/>
-          <div style={{width:`${lossPct}%`,background:t.loss,transition:"width .8s cubic-bezier(.4,0,.2,1)"}}/>
+          <div className="bar-grow" style={{width:`${winPct}%`,background:t.win,transition:"width .8s cubic-bezier(.4,0,.2,1)"}}/>
+          <div className="bar-grow" style={{width:`${drawPct}%`,background:t.draw,transition:"width .8s cubic-bezier(.4,0,.2,1)",animationDelay:".08s"}}/>
+          <div className="bar-grow" style={{width:`${lossPct}%`,background:t.loss,transition:"width .8s cubic-bezier(.4,0,.2,1)",animationDelay:".16s"}}/>
         </div>
         <div style={{display:"flex",gap:20,fontSize:13}}>
           {[["W",winPct,t.win],["D",drawPct,t.draw],["L",lossPct,t.loss]].map(([l,v,c])=>(
@@ -2809,82 +2926,94 @@ export default function App() {
     {/* Background */}
     <div style={{position:"fixed",inset:0,zIndex:0,background:t.bg,pointerEvents:"none"}}/>
     <ThemeBg t={t}/>
+    <CursorGlow t={t}/>
     <LoadingBar active={l1||l2} t={t}/>
+    <ScrollProgress t={t}/>
 
     <div style={{position:"relative",zIndex:1,maxWidth:1120,margin:"0 auto",padding:"0 16px 80px"}}>
 
       {/* ── Hero section ── */}
-      <div className="hero-pad" style={{textAlign:"center",padding:"70px 0 46px",animation:"fadeInUp .6s ease both"}}>
-        <div style={{display:"flex",justifyContent:"flex-end",marginBottom:16}}>
+      <div className="hero-pad" style={{textAlign:"center",padding:"70px 0 46px",animation:"fadeInUp .6s ease both",position:"relative"}}>
+        <HeroAmbience t={t}/>
+        <div style={{position:"relative",zIndex:1}}>
+        <div style={{display:"flex",justifyContent:"flex-end",marginBottom:16,animation:"fadeInDown .5s .1s cubic-bezier(.22,1,.36,1) both"}}>
           <ThemePicker current={themeKey} onChange={setThemeKey}/>
         </div>
         <div className="hero-emoji" style={{fontSize:76,marginBottom:12,animation:"heroChess 4s ease-in-out infinite",display:"inline-block",filter:`drop-shadow(0 0 34px ${t.glowC})`}}>♟</div>
         <h1 style={{fontFamily:t.headingFont,fontSize:"clamp(52px,11vw,112px)",fontWeight:900,color:t.accent,letterSpacing:"-.055em",lineHeight:1.02,animation:"glow 3s ease-in-out infinite, scaleIn .6s cubic-bezier(.22,1,.36,1) both",paddingBottom:4}}>ChessDNA</h1>
         <p style={{fontSize:20,color:t.textMid,marginTop:16,fontFamily:t.font,animation:"fadeInDown .7s .2s cubic-bezier(.22,1,.36,1) both"}}>A measured identity from real Chess.com games</p>
+        <div style={{display:"flex",gap:8,justifyContent:"center",marginTop:14,flexWrap:"wrap",animation:"fadeInUp .6s .28s cubic-bezier(.22,1,.36,1) both"}}>
+          {["Openings","DNA Profile","Win Plan","Compare"].map((tag,i)=>(
+            <span key={tag} style={{fontSize:11,fontWeight:600,color:t.accent,background:`${t.accent}10`,border:`1px solid ${t.accent}25`,borderRadius:999,padding:"5px 12px",letterSpacing:".04em",animation:`elasticIn .4s ${.35+i*.06}s cubic-bezier(.22,1,.36,1) both`,transition:"transform .2s ease,box-shadow .2s ease",cursor:"default"}} onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px) scale(1.04)";e.currentTarget.style.boxShadow=`0 4px 14px ${t.glowC}`;}} onMouseLeave={e=>{e.currentTarget.style.transform="";e.currentTarget.style.boxShadow="";}}>{tag}</span>
+          ))}
+        </div>
 
         {/* Search */}
-        <div style={{display:"flex",gap:10,maxWidth:680,margin:"32px auto 0",alignItems:"center",flexWrap:"wrap"}}>
-          <div style={{flex:1,minWidth:200,position:"relative"}}>
-            <span style={{position:"absolute",left:14,top:"50%",transform:"translateY(-50%)",color:t.textDim,fontSize:16,pointerEvents:"none"}}>🔍</span>
+        <div style={{display:"flex",gap:10,maxWidth:680,margin:"28px auto 0",alignItems:"center",flexWrap:"wrap",animation:"fadeInUp .65s .32s cubic-bezier(.22,1,.36,1) both"}}>
+          <div className="search-wrap" style={{flex:1,minWidth:200,position:"relative"}}>
+            <span className="search-icon" style={{position:"absolute",left:14,top:"50%",transform:"translateY(-50%)",color:t.textDim,fontSize:16,pointerEvents:"none",transition:"color .2s ease"}}>🔍</span>
             <input placeholder="Enter Chess.com username…" value={p1In} onChange={e=>setP1In(e.target.value)} onKeyDown={e=>e.key==="Enter"&&load1()} style={{paddingLeft:42,fontSize:16}}/>
           </div>
           <button className="primary" onClick={load1} disabled={l1||!p1In.trim()}>
             {l1?<span style={{display:"inline-flex",alignItems:"center",gap:8}}><span style={{width:14,height:14,border:`2px solid ${t.btnColor}`,borderTopColor:"transparent",borderRadius:"50%",display:"inline-block",animation:"spin .8s linear infinite"}}/>Analyzing…</span>:"Analyze Player"}
           </button>
         </div>
-        <div style={{display:"flex",gap:6,justifyContent:"center",marginTop:12,alignItems:"center"}}>
+        <div style={{display:"flex",gap:6,justifyContent:"center",marginTop:12,alignItems:"center",animation:"fadeInUp .5s .4s cubic-bezier(.22,1,.36,1) both"}}>
           <span style={{fontSize:12,color:t.textDim}}>Range:</span>
           {[[3,"3mo"],[6,"6mo"],[12,"1yr"],[0,"All time"]].map(([m,label])=>(
-            <button key={m} onClick={()=>changeMonths(m)} style={{background:months===m?`${t.accent}20`:"none",border:`1px solid ${months===m?t.accent+"60":t.cardBorder}`,borderRadius:20,color:months===m?t.accent:t.textDim,cursor:"pointer",fontFamily:t.font,fontSize:12,fontWeight:months===m?600:400,padding:"4px 12px",transition:"all .2s"}}>
+            <button key={m} className={`range-pill ${months===m?"active":""}`} onClick={()=>changeMonths(m)} style={{background:months===m?`${t.accent}20`:"none",border:`1px solid ${months===m?t.accent+"60":t.cardBorder}`,borderRadius:20,color:months===m?t.accent:t.textDim,fontSize:12,fontWeight:months===m?600:400,padding:"4px 12px"}}>
               {label}
             </button>
           ))}
-          {p1&&<span style={{fontSize:11,color:t.textDim,marginLeft:4}}>· {p1.games.length} games loaded</span>}
+          {p1&&<span style={{fontSize:11,color:t.textDim,marginLeft:4,animation:"fadeIn .4s ease both"}}>· <AnimatedNumber value={p1.games.length} duration={700}/> games loaded</span>}
         </div>
-        {e1&&<div style={{marginTop:12,fontSize:13,color:t.loss}}>⚠ {e1}</div>}
-
+        {e1&&<div className="error-shake" style={{marginTop:12,fontSize:13,color:t.loss,padding:"8px 14px",background:`${t.loss}12`,border:`1px solid ${t.loss}30`,borderRadius:8,display:"inline-block"}}>⚠ {e1}</div>}
+        </div>
       </div>
 
       {/* ── Player Hero Card ── */}
-      {(p1||l1)&&<div style={{marginBottom:20}}><PlayerHeroCard data={p1} loading={l1} t={t}/></div>}
-      {p1&&!l1&&<DataTruthStrip data={p1} months={months} t={t}/>}
+      {(p1||l1)&&<Reveal><div style={{marginBottom:20}}><PlayerHeroCard data={p1} loading={l1} t={t}/></div></Reveal>}
+      {p1&&!l1&&<Reveal delay={0.05}><DataTruthStrip data={p1} months={months} t={t}/></Reveal>}
 
       {/* ── Stats Dashboard — 3 columns ── */}
       {p1&&!l1&&<div className="three-col" style={{display:"flex",gap:16,marginBottom:20}}>
-        {/* Column 1: Opening DNA */}
-        <Card t={t} className="stagger-1" style={{flex:1,minWidth:220}}>
+        <Reveal delay={0.02} style={{flex:1,minWidth:220}}>
+        <Card t={t} className="stagger-1" style={{height:"100%"}}>
           <SecTitle t={t} sub="Top openings by games played">Opening DNA</SecTitle>
           <OpeningDNA games={p1.games} loading={l1} t={t}/>
         </Card>
+        </Reveal>
 
-        {/* Column 2: Performance Chart */}
-        <Card t={t} className="stagger-2" style={{flex:1,minWidth:220}}>
+        <Reveal delay={0.08} style={{flex:1,minWidth:220}}>
+        <Card t={t} className="stagger-2" style={{height:"100%"}}>
           <SecTitle t={t} sub="Daily win rate from loaded archives">Performance</SecTitle>
           <PerformanceChart games={p1.games} loading={l1} t={t}/>
           <div style={{marginTop:12}}>
             <div style={{fontSize:11,color:t.textDim,textTransform:"uppercase",letterSpacing:".07em",marginBottom:6,fontFamily:t.font}}>Official Current Ratings</div>
             <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-              {["rapid","blitz","bullet"].map(tc=>{const r=getRating(p1.stats,tc);return r.last?<div key={tc} style={{background:`${t.accent}0e`,border:`1px solid ${t.accent}20`,borderRadius:7,padding:"5px 10px",textAlign:"center"}}>
+              {["rapid","blitz","bullet"].map((tc,i)=>{const r=getRating(p1.stats,tc);return r.last?<div key={tc} className="rating-pill" style={{background:`${t.accent}0e`,border:`1px solid ${t.accent}20`,borderRadius:7,padding:"5px 10px",textAlign:"center",animation:`scaleIn .35s ${.1+i*.06}s cubic-bezier(.22,1,.36,1) both`}}>
                 <div style={{fontSize:9,color:t.textDim,textTransform:"uppercase"}}>{tc}</div>
-                <div style={{fontSize:16,fontWeight:700,color:t.accent,fontFamily:t.headingFont}}>{r.last}</div>
+                <div style={{fontSize:16,fontWeight:700,color:t.accent,fontFamily:t.headingFont}}><AnimatedNumber value={r.last} duration={800}/></div>
               </div>:null;})}
             </div>
           </div>
         </Card>
+        </Reveal>
 
-        {/* Column 3: Insights */}
-        <Card t={t} className="stagger-3" style={{flex:1,minWidth:220}}>
+        <Reveal delay={0.14} style={{flex:1,minWidth:220}}>
+        <Card t={t} className="stagger-3" style={{height:"100%"}}>
           <SecTitle t={t} sub="Based on your recent games">Insights</SecTitle>
           <InsightsColumn games={p1.games} loading={l1} t={t}/>
         </Card>
+        </Reveal>
       </div>}
 
       {/* ── Tabs ── */}
-      {(p1||l1)&&<div className="tab-strip" style={{background:t.card,border:`1px solid ${t.cardBorder}`,borderRadius:10,padding:6,marginBottom:14,animation:"fadeInUp .35s ease both"}}>
+      {(p1||l1)&&<Reveal delay={0.03}><div className="tab-strip" style={{background:t.card,border:`1px solid ${t.cardBorder}`,borderRadius:10,padding:6,marginBottom:14,boxShadow:`0 4px 20px rgba(0,0,0,.25)`}}>
         {TABS.map(([icon,name],i)=>(
-          <button key={name} className={`tab-btn ${tab===i?"active":""}`} onClick={()=>handleTabChange(i)} style={tab===i?{animation:"popIn .2s cubic-bezier(.22,1,.36,1) both"}:{}}>{icon} {name}</button>
+          <button key={name} className={`tab-btn ${tab===i?"active":""}`} onClick={()=>handleTabChange(i)} style={tab===i?{animation:"elasticIn .25s cubic-bezier(.22,1,.36,1) both"}:{}}>{icon} {name}</button>
         ))}
-      </div>}
+      </div></Reveal>}
 
       {/* ── Tab Content ── */}
       {(p1||l1)&&<PageTransition keyVal={tab}>
@@ -2898,13 +3027,22 @@ export default function App() {
       </PageTransition>}
 
       {/* ── Empty state ── */}
-      {!p1&&!l1&&!e1&&<div style={{textAlign:"center",padding:"40px 0 60px",animation:"fadeInUp .5s .2s ease both"}}>
-        <div style={{fontSize:64,opacity:.15,marginBottom:20}}>♜</div>
-        <div style={{fontFamily:t.headingFont,fontSize:20,color:t.textMid}}>Enter a username to reveal your Chess DNA</div>
-        <div style={{fontSize:13,color:t.textDim,marginTop:8}}>Openings · Color stats · Elo breakdown · Win plan · Personality · Compare · Trading card</div>
+      {!p1&&!l1&&!e1&&<div style={{textAlign:"center",padding:"40px 0 60px",animation:"fadeInUp .5s .2s ease both",position:"relative"}}>
+        <div style={{display:"flex",justifyContent:"center",gap:20,marginBottom:24}}>
+          {["♜","♞","♝","♛","♚"].map((p,i)=>(
+            <span key={p} className="empty-piece" style={{fontSize:28+i*4,opacity:.12+(i*.04),color:t.accent,animationDelay:`${i*.35}s`,filter:`drop-shadow(0 0 12px ${t.glowC})`}}>{p}</span>
+          ))}
+        </div>
+        <div style={{fontFamily:t.headingFont,fontSize:22,color:t.textMid,animation:"blurIn .6s .3s cubic-bezier(.22,1,.36,1) both"}}>Enter a username to reveal your Chess DNA</div>
+        <div style={{fontSize:13,color:t.textDim,marginTop:10,animation:"fadeInUp .5s .45s cubic-bezier(.22,1,.36,1) both"}}>Openings · Color stats · Elo breakdown · Win plan · Personality · Compare · Trading card</div>
+        <div style={{display:"flex",gap:8,justifyContent:"center",marginTop:20,flexWrap:"wrap",animation:"fadeInUp .5s .55s cubic-bezier(.22,1,.36,1) both"}}>
+          {["♟ Analyze any player","📊 Deep stats","🧬 Personality DNA"].map((hint,i)=>(
+            <span key={hint} style={{fontSize:11,color:t.textDim,background:`${t.accent}08`,border:`1px solid ${t.cardBorder}`,borderRadius:8,padding:"6px 12px",animation:`elasticIn .35s ${.6+i*.08}s cubic-bezier(.22,1,.36,1) both`}}>{hint}</span>
+          ))}
+        </div>
       </div>}
 
-      <div style={{textAlign:"center",marginTop:48,fontSize:11,color:t.textDim}}>Chess DNA · Data from Chess.com Public API · No data stored</div>
+      <div style={{textAlign:"center",marginTop:48,fontSize:11,color:t.textDim,opacity:.8,animation:"fadeIn 1s .8s ease both"}}>Chess DNA · Data from Chess.com Public API · No data stored</div>
     </div>
   </div>;
 }
