@@ -1,11 +1,17 @@
 /* eslint-disable react-hooks/set-state-in-effect, react-hooks/static-components, react-hooks/immutability */
-import { useState, useEffect, useRef, useMemo } from "react";
-import { resolveOpeningInfo, openingCoverage, ecoFamily, normalizeMovesFromPgn, isGenericOpeningName, lookupOpeningFromMovePrefix } from "./openingResolver.js";
-import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, RadarChart, Radar, PolarGrid, PolarAngleAxis,
-  PolarRadiusAxis, Legend, LineChart, Line, CartesianGrid, ComposedChart,
-} from "recharts";
+import { useState, useEffect, useRef, useMemo, lazy, Suspense } from "react";
+import { resolveOpeningInfo, openingCoverage, ecoFamily, normalizeMovesFromPgn, isGenericOpeningName, lookupOpeningFromMovePrefix, ensureOpeningsLoaded } from "./openingResolver.js";
+
+const chartWidgets = () => import("./chartWidgets.jsx");
+const Donut = lazy(() => chartWidgets().then(m => ({ default: m.Donut })));
+const PlaystyleWheel = lazy(() => chartWidgets().then(m => ({ default: m.PlaystyleWheel })));
+const OpeningsOutcomeChart = lazy(() => chartWidgets().then(m => ({ default: m.OpeningsOutcomeChart })));
+const ColorComparisonChart = lazy(() => chartWidgets().then(m => ({ default: m.ColorComparisonChart })));
+const ColorTimeControlChart = lazy(() => chartWidgets().then(m => ({ default: m.ColorTimeControlChart })));
+const EloBreakdownChart = lazy(() => chartWidgets().then(m => ({ default: m.EloBreakdownChart })));
+const CompareRadarChart = lazy(() => chartWidgets().then(m => ({ default: m.CompareRadarChart })));
+const CompareSharedOpeningsChart = lazy(() => chartWidgets().then(m => ({ default: m.CompareSharedOpeningsChart })));
+const MonthlyTrajectoryChart = lazy(() => chartWidgets().then(m => ({ default: m.MonthlyTrajectoryChart })));
 
 // ── Fonts ─────────────────────────────────────────────────────────────────────
 const fl = document.createElement("link");
@@ -442,7 +448,12 @@ async function fetchArchiveGames(url, user) {
 
 async function loadPlayer(user, months=3) {
   const base = `https://api.chess.com/pub/player/${user}`;
-  const [profile, stats, archives] = await Promise.all([fetchJSON(base), fetchJSON(`${base}/stats`), fetchJSON(`${base}/games/archives`)]);
+  const [, profile, stats, archives] = await Promise.all([
+    ensureOpeningsLoaded(),
+    fetchJSON(base),
+    fetchJSON(`${base}/stats`),
+    fetchJSON(`${base}/games/archives`),
+  ]);
   if (!profile.username) throw new Error(`Player "${user}" not found on Chess.com`);
   const allUrls = archives.archives || [];
   // months=0 means all time
@@ -1398,6 +1409,10 @@ function computeWinPlan(player, opponent, months) {
 // ── UI Primitives ─────────────────────────────────────────────────────────────
 const Sk = ({w="100%",h=18,style={}}) => <div className="skel" style={{width:w,height:h,...style}}/>;
 
+function ChartSuspense({ height = 200, children }) {
+  return <Suspense fallback={<Sk h={height} />}>{children}</Suspense>;
+}
+
 function Card({children,style={},t,glow=false,hover=true,className=""}) {
   return <div className={`${hover?"card-hover":""} ${className}`} style={{background:t.card,border:`1px solid ${glow?t.accent+"40":t.cardBorder}`,borderRadius:14,boxShadow:`inset 0 1px 0 ${t.accent}08,0 4px 28px rgba(0,0,0,.45)${glow?`,0 0 40px ${t.glowC}`:""}`,padding:22,...style}}>{children}</div>;
 }
@@ -1416,15 +1431,6 @@ function ChartTip({active,payload,label,t}) {
     <div style={{color:t.accent,fontWeight:600,marginBottom:4}}>{label}</div>
     {payload.map((p,i)=><div key={i} style={{color:p.color||t.text}}>{p.name}: {p.value}{["winPct","Win%","Loss%","Draw%"].includes(p.name)?"%":""}</div>)}
   </div>;
-}
-
-function Donut({wins,losses,draws,size=100,t}) {
-  const data=[{value:wins,color:t.win},{value:losses,color:t.loss},{value:draws,color:t.draw}];
-  return <PieChart width={size} height={size}>
-    <Pie data={data} cx={size/2-2} cy={size/2-2} innerRadius={size*.3} outerRadius={size*.46} dataKey="value" paddingAngle={2} isAnimationActive animationDuration={900} animationBegin={80}>
-      {data.map((d,i)=><Cell key={i} fill={d.color}/>)}
-    </Pie>
-  </PieChart>;
 }
 
 // ── Animated counter ──────────────────────────────────────────────────────────
@@ -1497,32 +1503,6 @@ function RingGauge({value, size=84, stroke=8, color, t, label, delay=0, suffix="
     <div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:0}}>
       <span style={{fontFamily:t.headingFont,fontSize:size*.27,fontWeight:900,color,lineHeight:1}}><AnimatedNumber value={pct} duration={1100}/>{suffix}</span>
       {label&&<span style={{fontSize:Math.max(8,size*.1),color:t.textDim,textTransform:"uppercase",letterSpacing:".06em",fontWeight:700,marginTop:2}}>{label}</span>}
-    </div>
-  </div>;
-}
-
-// ── Playstyle wheel — one glance at your 7 dimensions ─────────────────────────
-function PlaystyleWheel({dimensions, p, c, t, size=220}) {
-  const data=dimensions.map(d=>({name:d.label,value:d.value,color:dimensionTier(d.value).color,key:d.key}));
-  return <div style={{display:"flex",flexDirection:"column",alignItems:"center",flexShrink:0}}>
-    <div style={{position:"relative",width:size,height:size}}>
-      <PieChart width={size} height={size}>
-        <Pie data={data} cx="50%" cy="50%" innerRadius={size*.36} outerRadius={size*.46} dataKey="value" paddingAngle={2} stroke="none" isAnimationActive animationDuration={900}>
-          {data.map(d=><Cell key={d.key} fill={d.color} style={{filter:`drop-shadow(0 0 6px ${d.color}40)`}}/>)}
-        </Pie>
-      </PieChart>
-      <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",pointerEvents:"none"}}>
-        <div style={{filter:`drop-shadow(0 0 12px ${c}60)`}}><Ico size={size*.22}>{p.icon}</Ico></div>
-      </div>
-    </div>
-    <div style={{textAlign:"center",maxWidth:size+48,marginTop:10,padding:"0 4px"}}>
-      <div style={{fontFamily:t.headingFont,fontSize:15,fontWeight:900,color:c,lineHeight:1.2,overflowWrap:"anywhere"}}>{p.title}</div>
-      <div style={{fontSize:9,color:t.textDim,marginTop:5,fontWeight:700,letterSpacing:".04em",overflowWrap:"anywhere"}}>{p.dnaCode}</div>
-    </div>
-    <div style={{display:"flex",flexWrap:"wrap",gap:5,justifyContent:"center",marginTop:10}}>
-      {data.map(d=>(
-        <span key={d.key} title={`${d.name}: ${d.value}`} style={{fontSize:9,fontWeight:700,color:d.color,background:`${d.color}14`,border:`1px solid ${d.color}30`,borderRadius:999,padding:"2px 7px",display:"inline-flex",alignItems:"center",gap:3}}><Ico size={9}>{DIMENSION_META[d.key]?.icon||"•"}</Ico> {d.value}</span>
-      ))}
     </div>
   </div>;
 }
@@ -1851,16 +1831,9 @@ function OpeningsTab({games,loading,t}) {
 
     <Card t={t}>
       <SecTitle t={t}>Top Openings — Outcome Split</SecTitle>
-      <ResponsiveContainer width="100%" height={Math.max(180,top10.length*36)}>
-        <BarChart data={top10} layout="vertical" margin={{left:160}}>
-          <XAxis type="number" domain={[0,100]} tick={{fill:t.textDim,fontSize:10}} axisLine={false} tickLine={false}/>
-          <YAxis type="category" dataKey="opening" tick={{fill:t.textMid,fontSize:11}} width={155} axisLine={false} tickLine={false} tickFormatter={v=>v.length>22?v.slice(0,20)+"…":v}/>
-          <Tooltip content={tip}/><Legend wrapperStyle={{color:t.textMid,fontSize:12}}/>
-          <Bar dataKey="winPct" name="Win %" stackId="a" fill={t.win} isAnimationActive animationDuration={700} animationBegin={100}/>
-          <Bar dataKey="drawPct" name="Draw %" stackId="a" fill={t.draw} isAnimationActive animationDuration={700} animationBegin={200}/>
-          <Bar dataKey="lossPct" name="Loss %" stackId="a" fill={t.loss} radius={[0,4,4,0]} isAnimationActive animationDuration={700} animationBegin={300}/>
-        </BarChart>
-      </ResponsiveContainer>
+      <ChartSuspense height={Math.max(180, top10.length * 36)}>
+        <OpeningsOutcomeChart data={top10} t={t} tip={tip} />
+      </ChartSuspense>
     </Card>
     <Card t={t}>
       <SecTitle t={t} sub={`${sorted.length} openings sorted by ${sort.key}`}>All Openings</SecTitle>
@@ -1898,7 +1871,9 @@ function ColorTab({games,loading,t}) {
       </div>
       <div style={{fontSize:12,color:t.textDim,marginBottom:14}}>{s.total} games</div>
       <div style={{display:"flex",gap:14,alignItems:"center",flexWrap:"wrap"}}>
-        <Donut wins={s.wins} losses={s.losses} draws={s.draws} t={t} size={100}/>
+        <ChartSuspense height={100}>
+          <Donut wins={s.wins} losses={s.losses} draws={s.draws} t={t} size={100}/>
+        </ChartSuspense>
         <div style={{display:"flex",flexDirection:"column",gap:5}}>
           {[["Wins",s.wins,t.win],["Losses",s.losses,t.loss],["Draws",s.draws,t.draw]].map(([l,v,c])=>(
             <div key={l} style={{display:"flex",alignItems:"center",gap:8,fontSize:13}}>
@@ -1975,29 +1950,16 @@ function ColorTab({games,loading,t}) {
 
     <Reveal><Card t={t}>
       <SecTitle t={t}>White vs Black</SecTitle>
-      <ResponsiveContainer width="100%" height={160}>
-        <BarChart data={[{name:"Win%",White:wWp,Black:bWp},{name:"Draw%",White:percent(white.draws,white.total),Black:percent(black.draws,black.total)},{name:"Loss%",White:percent(white.losses,white.total),Black:percent(black.losses,black.total)}]}>
-          <XAxis dataKey="name" tick={{fill:t.textDim,fontSize:12}} axisLine={false} tickLine={false}/>
-          <YAxis domain={[0,100]} tick={{fill:t.textDim,fontSize:11}} axisLine={false} tickLine={false}/>
-          <Tooltip content={tip}/>
-          <Bar dataKey="White" fill="#f8c840" radius={[4,4,0,0]} isAnimationActive animationDuration={700}/><Bar dataKey="Black" fill="#6e7ff3" radius={[4,4,0,0]} isAnimationActive animationDuration={700} animationBegin={150}/>
-          <Legend wrapperStyle={{color:t.textMid,fontSize:12}}/>
-        </BarChart>
-      </ResponsiveContainer>
+      <ChartSuspense height={160}>
+        <ColorComparisonChart wWp={wWp} bWp={bWp} white={white} black={black} t={t} tip={tip} percent={percent} />
+      </ChartSuspense>
     </Card></Reveal>
 
     {tcColor.length>0&&<Reveal><Card t={t}>
       <SecTitle t={t} sub="Win% as each color, per time control">Color × Time Control</SecTitle>
-      <ResponsiveContainer width="100%" height={180}>
-        <BarChart data={tcColor} barCategoryGap="25%">
-          <XAxis dataKey="name" tick={{fill:t.textDim,fontSize:12}} axisLine={false} tickLine={false}/>
-          <YAxis domain={[0,100]} tick={{fill:t.textDim,fontSize:10}} axisLine={false} tickLine={false} width={30}/>
-          <Tooltip content={tip}/>
-          <Bar dataKey="White" fill="#f8c840" radius={[4,4,0,0]} isAnimationActive animationDuration={700}/>
-          <Bar dataKey="Black" fill="#6e7ff3" radius={[4,4,0,0]} isAnimationActive animationDuration={700} animationBegin={120}/>
-          <Legend wrapperStyle={{color:t.textMid,fontSize:12}}/>
-        </BarChart>
-      </ResponsiveContainer>
+      <ChartSuspense height={180}>
+        <ColorTimeControlChart tcColor={tcColor} t={t} tip={tip} />
+      </ChartSuspense>
     </Card></Reveal>}
   </div>;
 }
@@ -2020,14 +1982,9 @@ function EloTab({games,loading,t}) {
   return <div style={{display:"flex",flexDirection:"column",gap:16}}>
     <Card t={t} style={{animation:"blurIn .5s cubic-bezier(.22,1,.36,1) both"}}>
       <SecTitle t={t} sub={`Avg opponent: ${avgOpp} · bar width shows sample size below`}>Win% by Opponent Rating</SecTitle>
-      <ResponsiveContainer width="100%" height={220}>
-        <BarChart data={data}>
-          <XAxis dataKey="label" tick={{fill:t.textDim,fontSize:11}} axisLine={false} tickLine={false}/>
-          <YAxis domain={[0,100]} tick={{fill:t.textDim,fontSize:11}} axisLine={false} tickLine={false}/>
-          <Tooltip content={tip}/>
-          <Bar dataKey="winPct" name="Win%" radius={[5,5,0,0]} isAnimationActive animationDuration={800}>{data.map((e,i)=><Cell key={i} fill={e.winPct>=55?t.win:e.winPct>=45?"#ffc800":t.loss}/>)}</Bar>
-        </BarChart>
-      </ResponsiveContainer>
+      <ChartSuspense height={220}>
+        <EloBreakdownChart data={data} t={t} tip={tip} />
+      </ChartSuspense>
       <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:8}}>
         {data.map((b,i)=>(
           <div key={b.label} style={{flex:"1 1 80px",background:`${t.accent}08`,border:`1px solid ${t.cardBorder}`,borderRadius:8,padding:"6px 10px",textAlign:"center",animation:`fadeInUp .35s ${.05+i*.04}s cubic-bezier(.22,1,.36,1) both`}}>
@@ -2196,28 +2153,16 @@ function CompareTab({p1,p2,l1,l2,p2In,setP2In,loadP2,e2,months,t,onChangeP2}) {
     </Card>
 
     <Card t={t} className="stagger-3"><SecTitle t={t} sub="Normalized for shape — see table above for exact ratings">Radar Comparison</SecTitle>
-      <ResponsiveContainer width="100%" height={250}>
-        <RadarChart data={radar} cx="50%" cy="50%">
-          <PolarGrid stroke={`${t.accent}15`}/><PolarAngleAxis dataKey="subject" tick={{fill:t.textMid,fontSize:12}}/><PolarRadiusAxis tick={false} axisLine={false} domain={[0,100]}/>
-          <Radar name={u1} dataKey={u1} stroke={P1_COLOR} fill={P1_FILL} fillOpacity={1} animationDuration={800}/>
-          <Radar name={u2} dataKey={u2} stroke={P2_COLOR} fill={P2_FILL} fillOpacity={1} animationDuration={900}/>
-          <Legend wrapperStyle={{color:t.textMid,fontSize:12,fontFamily:t.font}}/><Tooltip content={tip}/>
-        </RadarChart>
-      </ResponsiveContainer>
+      <ChartSuspense height={250}>
+        <CompareRadarChart radar={radar} u1={u1} u2={u2} t={t} tip={tip} />
+      </ChartSuspense>
     </Card>
 
     <Card t={t} className="stagger-4">
       <SecTitle t={t} sub={shared.length?"Openings both players have played (8+ games each)":"No shared openings with enough games"}>Shared Opening Win%</SecTitle>
-      {shared.length ? <ResponsiveContainer width="100%" height={Math.max(180,shared.length*34)}>
-        <BarChart data={shared} layout="vertical" margin={{left:125}}>
-          <XAxis type="number" domain={[0,100]} tick={{fill:t.textDim,fontSize:10}} axisLine={false} tickLine={false}/>
-          <YAxis type="category" dataKey="opening" tick={{fill:t.textMid,fontSize:11}} width={120} axisLine={false} tickLine={false}/>
-          <Tooltip content={tip}/>
-          <Bar dataKey={u1} fill={P1_COLOR} radius={[0,4,4,0]} animationDuration={700}/>
-          <Bar dataKey={u2} fill={P2_COLOR} radius={[0,4,4,0]} animationDuration={800}/>
-          <Legend wrapperStyle={{color:t.textMid,fontSize:12}}/>
-        </BarChart>
-      </ResponsiveContainer> : <div style={{color:t.textDim,fontSize:13,padding:"12px 0"}}>Try a wider range or a different opponent.</div>}
+      {shared.length ? <ChartSuspense height={Math.max(180, shared.length * 34)}>
+        <CompareSharedOpeningsChart shared={shared} u1={u1} u2={u2} t={t} tip={tip} />
+      </ChartSuspense> : <div style={{color:t.textDim,fontSize:13,padding:"12px 0"}}>Try a wider range or a different opponent.</div>}
     </Card>
   </div>;
 }
@@ -2605,7 +2550,9 @@ function DnaTab({games,stats,loading,t,profile}) {
       <SecTitle t={t} sub="Seven scores from your loaded games — bigger bar = stronger signal">Your Playstyle Profile</SecTitle>
       <div className="two-col-900" style={{display:"flex",gap:28,alignItems:"flex-start",flexWrap:"wrap"}}>
         <div style={{flex:"0 0 auto",display:"flex",justifyContent:"center",padding:"8px 0"}}>
-          <PlaystyleWheel dimensions={p.dimensions} p={p} c={c} t={t} size={240}/>
+          <ChartSuspense height={240}>
+            <PlaystyleWheel dimensions={p.dimensions.map(d=>({...d,color:dimensionTier(d.value).color}))} p={p} c={c} t={t} size={240} Ico={Ico} DIMENSION_META={DIMENSION_META}/>
+          </ChartSuspense>
         </div>
         <div style={{flex:1,minWidth:260}}>
           <StatSheet dimensions={p.dimensions} t={t}/>
@@ -2755,17 +2702,9 @@ function OverviewTab({data,loading,t,onGoTab}) {
     <div style={{display:"flex",gap:14,flexWrap:"wrap"}}>
       {monthly.length>=2&&<Card t={t} style={{flex:2,minWidth:260}} hover={false}>
         <SecTitle t={t} sub="Volume and win rate per month">Monthly Trajectory</SecTitle>
-        <ResponsiveContainer width="100%" height={200}>
-          <ComposedChart data={monthly} margin={{top:5,right:8,left:0,bottom:0}}>
-            <CartesianGrid stroke={`${t.accent}10`} strokeDasharray="3 3"/>
-            <XAxis dataKey="month" tick={{fill:t.textDim,fontSize:10}} axisLine={false} tickLine={false}/>
-            <YAxis yAxisId="pct" domain={[0,100]} tick={{fill:t.textDim,fontSize:10}} axisLine={false} tickLine={false} width={32}/>
-            <YAxis yAxisId="vol" orientation="right" tick={{fill:t.textDim,fontSize:10}} axisLine={false} tickLine={false} width={32}/>
-            <Tooltip content={tip}/>
-            <Bar yAxisId="vol" dataKey="games" name="Games" fill={`${t.accent}30`} radius={[4,4,0,0]} isAnimationActive animationDuration={700}/>
-            <Line yAxisId="pct" type="monotone" dataKey="winPct" name="Win%" stroke={t.accent} strokeWidth={2.5} dot={{r:3,fill:t.accent}} activeDot={{r:5}} isAnimationActive animationDuration={1000}/>
-          </ComposedChart>
-        </ResponsiveContainer>
+        <ChartSuspense height={200}>
+          <MonthlyTrajectoryChart monthly={monthly} t={t} tip={tip} />
+        </ChartSuspense>
       </Card>}
       {tcData.length>0&&<Card t={t} style={{flex:1,minWidth:200}}>
         <SecTitle t={t} sub="How you split your games">Time Controls</SecTitle>

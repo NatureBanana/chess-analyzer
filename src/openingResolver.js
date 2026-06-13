@@ -1,4 +1,16 @@
-import { ECO_BY_CODE, MOVE_BOOK } from "./data/openings.js";
+let openingsData = null;
+let openingsPromise = null;
+
+export async function ensureOpeningsLoaded() {
+  if (openingsData) return openingsData;
+  if (!openingsPromise) {
+    openingsPromise = import("./data/openings.js").then((mod) => {
+      openingsData = mod;
+      return mod;
+    });
+  }
+  return openingsPromise;
+}
 
 const FIRST_MOVE_NAMES = {
   e4: "King's Pawn Opening",
@@ -85,7 +97,8 @@ export function ecoFamily(eco) {
 
 export function lookupEcoName(eco) {
   const code = normalizeEco(eco);
-  return code ? ECO_BY_CODE[code] || null : null;
+  if (!code || !openingsData) return null;
+  return openingsData.ECO_BY_CODE[code] || null;
 }
 
 export function normalizeMovesFromPgn(pgn) {
@@ -117,8 +130,9 @@ export function lookupOpeningFromMovePrefix(prefix) {
     }
   }
 
+  const moveBook = openingsData?.MOVE_BOOK ?? [];
   let best = null;
-  for (const [bookMoves, eco, name] of MOVE_BOOK) {
+  for (const [bookMoves, eco, name] of moveBook) {
     if (
       normalized === bookMoves
       || normalized.startsWith(bookMoves + " ")
@@ -150,7 +164,8 @@ export function inferOpeningFromMoves(pgn) {
   const moves = normalizeMovesFromPgn(pgn);
   if (!moves) return null;
 
-  for (const [bookMoves, eco, name] of MOVE_BOOK) {
+  const moveBook = openingsData?.MOVE_BOOK ?? [];
+  for (const [bookMoves, eco, name] of moveBook) {
     if (moves === bookMoves || moves.startsWith(bookMoves + " ")) {
       return { opening: name, eco, source: "moves" };
     }
