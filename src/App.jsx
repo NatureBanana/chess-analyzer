@@ -108,7 +108,7 @@ document.head.appendChild(styleEl);
 function injectTheme(t) {
   styleEl.textContent = `
     *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
-    body { background:${t.bg}; color:${t.text}; font-family:${t.font},${EMOJI_FONT}; scroll-behavior:smooth; line-height:1.35; }
+    body { background:${t.bg}; color:${t.text}; font-family:${t.font},${EMOJI_FONT}; scroll-behavior:smooth; line-height:1.35; transition:background .5s ease,color .3s ease; }
     .ico{font-family:${EMOJI_FONT};font-style:normal;font-weight:400}
     .chess-ico{font-family:${CHESS_FONT};font-style:normal;font-weight:400}
     ::-webkit-scrollbar{width:5px} ::-webkit-scrollbar-track{background:transparent} ::-webkit-scrollbar-thumb{background:${t.scrollThumb};border-radius:3px}
@@ -170,6 +170,9 @@ function injectTheme(t) {
     @keyframes emptyFloat{0%,100%{transform:translateY(0) rotate(-6deg)}50%{transform:translateY(-12px) rotate(6deg)}}
     @keyframes tipPop{0%{opacity:0;transform:scale(.92) translateY(4px)}100%{opacity:1;transform:scale(1) translateY(0)}}
     @keyframes staggerFade{from{opacity:0;transform:translateY(16px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+    @keyframes contentSwap{from{opacity:0;transform:translateY(14px) scale(.985);filter:blur(6px)}to{opacity:1;transform:translateY(0) scale(1);filter:blur(0)}}
+    @keyframes heroGlow{0%,100%{opacity:.08;transform:translateY(0) rotate(0deg)}50%{opacity:.2;transform:translateY(-14px) rotate(6deg)}}
+    @keyframes premiumPulse{0%,100%{transform:scale(1);box-shadow:0 0 0 0 rgba(255,215,0,.4)}50%{transform:scale(1.08);box-shadow:0 0 12px 2px rgba(255,215,0,.35)}}
 
     /* ── Stagger classes ── */
     .stagger-1{animation:fadeInUp .45s .04s cubic-bezier(.22,1,.36,1) both}
@@ -184,7 +187,21 @@ function injectTheme(t) {
     .stagger-10{animation:fadeInUp .45s .58s cubic-bezier(.22,1,.36,1) both}
     .stagger-11{animation:fadeInUp .45s .64s cubic-bezier(.22,1,.36,1) both}
     .stagger-12{animation:fadeInUp .45s .70s cubic-bezier(.22,1,.36,1) both}
-    .tab-content{animation:tabSlideIn .35s cubic-bezier(.22,1,.36,1) both}
+    .tab-content{animation:contentSwap .42s cubic-bezier(.22,1,.36,1) both}
+    .page-transition{transition:opacity .42s cubic-bezier(.22,1,.36,1),transform .42s cubic-bezier(.22,1,.36,1),filter .42s cubic-bezier(.22,1,.36,1)}
+    .sec-sub{animation:fadeIn .5s .12s cubic-bezier(.22,1,.36,1) both}
+    .insight-card{transition:transform .28s cubic-bezier(.22,1,.36,1),background .28s ease,border-color .28s ease,box-shadow .28s ease}
+    .insight-card:hover{transform:translateY(-3px);background:${t.accent}0c!important;border-color:${t.accent}30!important;box-shadow:0 8px 24px rgba(0,0,0,.28)}
+    .quick-link{transition:all .24s cubic-bezier(.22,1,.36,1);cursor:pointer;font-family:${t.font}}
+    .quick-link:hover{transform:translateY(-3px) scale(1.01);border-color:${t.accent}50!important;box-shadow:0 8px 22px rgba(0,0,0,.28);background:${t.accent}0e!important}
+    .quick-link:active{transform:translateY(-1px) scale(.99)}
+    .weapon-card{transition:transform .25s cubic-bezier(.22,1,.36,1),border-color .25s ease,box-shadow .25s ease}
+    .weapon-card:hover{transform:translateX(4px);box-shadow:0 6px 20px rgba(0,0,0,.22)}
+    .hero-float-piece{position:absolute;pointer-events:none;animation:heroGlow 7s ease-in-out infinite;opacity:.1;font-family:${CHESS_FONT}}
+    a{transition:color .18s ease,opacity .18s ease}
+    a:hover{color:${t.hl}!important;opacity:.92}
+    button:focus-visible,input:focus-visible,select:focus-visible,.tab-btn:focus-visible,.quick-link:focus-visible,.filter-pill:focus-visible,.range-pill:focus-visible{outline:2px solid ${t.accent}70;outline-offset:2px}
+    tr:hover{transform:translateX(2px)}
     .bar-grow{animation:barGrow .7s cubic-bezier(.22,1,.36,1) both;transform-origin:left}
     .ring-pop{animation:ringPop .45s cubic-bezier(.22,1,.36,1) both}
     .pop-in{animation:popIn .4s cubic-bezier(.22,1,.36,1) both}
@@ -249,7 +266,7 @@ function injectTheme(t) {
     th{color:${t.accent};font-weight:600;font-size:11px;letter-spacing:.07em;text-transform:uppercase;padding:10px;border-bottom:1px solid ${t.cardBorder};text-align:left;cursor:pointer;user-select:none;transition:color .15s}
     th:hover{color:${t.hl}}
     td{padding:8px 10px;border-bottom:1px solid ${t.cardBorder}35;color:${t.textMid};vertical-align:middle;transition:background .15s;overflow-wrap:anywhere}
-    tr{transition:background .15s}
+    tr{transition:background .18s ease,transform .22s cubic-bezier(.22,1,.36,1)}
     tr:hover td{background:${t.skA}}
 
     /* ── Badges ── */
@@ -1022,7 +1039,7 @@ function SecTitle({children,sub,t}) {
   return <div style={{marginBottom:16}}>
     <h2 style={{fontFamily:t.headingFont,fontSize:20,fontWeight:700,color:t.accent,letterSpacing:"-.01em",lineHeight:1.2,overflowWrap:"anywhere"}}>{children}</h2>
     <div style={{height:2,width:48,background:`linear-gradient(90deg,${t.accent},transparent)`,borderRadius:2,marginTop:8,animation:"underlineGrow .55s cubic-bezier(.22,1,.36,1) both"}}/>
-    {sub && <p style={{fontSize:12,color:t.textDim,marginTop:6}}>{sub}</p>}
+    {sub && <p className="sec-sub" style={{fontSize:12,color:t.textDim,marginTop:6}}>{sub}</p>}
   </div>;
 }
 
@@ -1037,7 +1054,7 @@ function ChartTip({active,payload,label,t}) {
 function Donut({wins,losses,draws,size=100,t}) {
   const data=[{value:wins,color:t.win},{value:losses,color:t.loss},{value:draws,color:t.draw}];
   return <PieChart width={size} height={size}>
-    <Pie data={data} cx={size/2-2} cy={size/2-2} innerRadius={size*.3} outerRadius={size*.46} dataKey="value" paddingAngle={2}>
+    <Pie data={data} cx={size/2-2} cy={size/2-2} innerRadius={size*.3} outerRadius={size*.46} dataKey="value" paddingAngle={2} isAnimationActive animationDuration={900} animationBegin={80}>
       {data.map((d,i)=><Cell key={i} fill={d.color}/>)}
     </Pie>
   </PieChart>;
@@ -1168,13 +1185,13 @@ function PageTransition({children, keyVal}) {
   const [visible, setVisible] = useState(false);
   useEffect(() => {
     setVisible(false);
-    const timer = setTimeout(() => setVisible(true), 40);
+    const timer = setTimeout(() => setVisible(true), 30);
     return () => clearTimeout(timer);
   }, [keyVal]);
-  return <div style={{
+  return <div className="page-transition" style={{
     opacity: visible ? 1 : 0,
-    transform: visible ? "translateY(0)" : "translateY(12px)",
-    transition: "opacity .35s cubic-bezier(.22,1,.36,1), transform .35s cubic-bezier(.22,1,.36,1)",
+    transform: visible ? "translateY(0) scale(1)" : "translateY(14px) scale(.985)",
+    filter: visible ? "blur(0)" : "blur(6px)",
   }}>{children}</div>;
 }
 
@@ -1190,15 +1207,16 @@ function LoadingBar({active, t}) {
     return () => [t1,t2,t3].forEach(clearTimeout);
   }, [active]);
   if (!active && width === 0) return null;
-  return <div style={{position:"fixed",top:0,left:0,right:0,zIndex:9999,height:3,background:`${t.glowC}30`,transition:"all .3s ease"}}>
+  return <div style={{position:"fixed",top:0,left:0,right:0,zIndex:9999,height:3,background:`${t.glowC}30`,opacity:active||width<100?1:0,transition:"opacity .45s ease"}}>
     <div style={{
       height:"100%",width:`${active ? width : 100}%`,
       background:`linear-gradient(90deg,${t.accent2},${t.accent},${t.hl},${t.accent})`,
       backgroundSize:"200% 100%",
       animation:active?"progressShimmer 1.8s linear infinite":"none",
       borderRadius:"0 3px 3px 0",
-      transition:active?"width 0.8s cubic-bezier(.4,0,.2,1)":"width .3s ease",
+      transition:active?"width 0.8s cubic-bezier(.4,0,.2,1)":"width .35s cubic-bezier(.22,1,.36,1), opacity .35s ease",
       boxShadow:`0 0 14px ${t.glowC},0 0 4px ${t.accent}`,
+      opacity:active?1:0,
     }}/>
   </div>;
 }
@@ -1216,7 +1234,7 @@ function ScrollProgress({t}) {
     return ()=>window.removeEventListener("scroll",fn);
   },[]);
   if (pct<1) return null;
-  return <div style={{position:"fixed",top:3,left:0,height:2,zIndex:9998,width:`${pct}%`,background:`linear-gradient(90deg,${t.accent2},${t.accent})`,transition:"width .12s linear",boxShadow:`0 0 10px ${t.glowC}`,borderRadius:"0 2px 2px 0",pointerEvents:"none"}}/>;
+  return <div style={{position:"fixed",top:3,left:0,height:2,zIndex:9998,width:`${pct}%`,background:`linear-gradient(90deg,${t.accent2},${t.accent})`,transition:"width .18s cubic-bezier(.22,1,.36,1)",boxShadow:`0 0 10px ${t.glowC}`,borderRadius:"0 2px 2px 0",pointerEvents:"none"}}/>;
 }
 
 // ── Win/Draw/Loss Bar ─────────────────────────────────────────────────────────
@@ -1258,7 +1276,7 @@ function PlayerHeroCard({data,loading,t}) {
             ? <img src={profile.avatar} alt="avatar" style={{width:"100%",height:"100%",objectFit:"cover"}} onError={e=>{e.target.style.display="none";e.target.parentElement.innerHTML="♟";}}/>
             : <ChessIco size={40}>♟</ChessIco>}
         </div>
-        {profile.status==="premium"&&<div style={{position:"absolute",bottom:0,right:0,background:"#ffd700",borderRadius:"50%",width:22,height:22,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,color:"#080400"}}>★</div>}
+        {profile.status==="premium"&&<div style={{position:"absolute",bottom:0,right:0,background:"#ffd700",borderRadius:"50%",width:22,height:22,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,color:"#080400",animation:"premiumPulse 2.5s ease-in-out infinite"}}>★</div>}
       </div>
 
       {/* Info */}
@@ -1326,7 +1344,7 @@ function DataTruthStrip({data,months,t}) {
 // ── Insights Column ───────────────────────────────────────────────────────────
 function InsightCard({item,t}) {
   const iconEl=renderIcon(item.icon,22);
-  return <div style={{background:`${t.accent}06`,border:`1px solid ${t.cardBorder}`,borderRadius:10,padding:"14px 16px",display:"flex",gap:12,alignItems:"flex-start",height:"100%"}}>
+  return <div style={{background:`${t.accent}06`,border:`1px solid ${t.cardBorder}`,borderRadius:10,padding:"14px 16px",display:"flex",gap:12,alignItems:"flex-start",height:"100%"}} className="insight-card">
     <span style={{flexShrink:0}}>{iconEl}</span>
     <div style={{flex:1,minWidth:0}}>
       <div style={{fontSize:10,color:t.textDim,textTransform:"uppercase",letterSpacing:".07em",marginBottom:3,fontFamily:t.font}}>{item.label}</div>
@@ -1487,9 +1505,9 @@ function ColorTab({games,loading,t}) {
   if (loading) return <Sk h={240}/>;
   if (!games?.length) return <div style={{color:t.textDim}}>No games.</div>;
   const {white,black}=colorStats(games);
-  const Panel=({label,s,icon})=>{
+  const Panel=({label,s,icon,anim})=>{
     const tot=s.total||1;
-    return <Card t={t} style={{flex:1,minWidth:200}}>
+    return <Card t={t} style={{flex:1,minWidth:200,animation:`${anim||"revealCard"} .5s cubic-bezier(.22,1,.36,1) both`}}>
       <div style={{fontFamily:t.headingFont,fontSize:18,fontWeight:700,color:t.text,marginBottom:4,display:"flex",alignItems:"center",gap:8}}>
         {icon===CHESS_WHITE||icon===CHESS_BLACK?<ChessIco size={18}>{icon}</ChessIco>:<Ico size={18}>{icon}</Ico>} {label}
       </div>
@@ -1532,10 +1550,10 @@ function ColorTab({games,loading,t}) {
   }).filter(Boolean);
 
   return <div style={{display:"flex",flexDirection:"column",gap:16}}>
-    <div style={{display:"flex",gap:14,flexWrap:"wrap"}}><Panel label="White" s={white} icon={CHESS_WHITE}/><Panel label="Black" s={black} icon={CHESS_BLACK}/></div>
+    <div style={{display:"flex",gap:14,flexWrap:"wrap"}}><Panel label="White" s={white} icon={CHESS_WHITE} anim="slideInLeft"/><Panel label="Black" s={black} icon={CHESS_BLACK} anim="slideInRight"/></div>
 
     {/* Color gap verdict */}
-    <Card t={t} hover={false} style={{display:"flex",gap:18,alignItems:"center",flexWrap:"wrap",justifyContent:"center",textAlign:"center"}}>
+    <Card t={t} hover={false} style={{display:"flex",gap:18,alignItems:"center",flexWrap:"wrap",justifyContent:"center",textAlign:"center",animation:"blurIn .55s .08s cubic-bezier(.22,1,.36,1) both"}}>
       <RingGauge value={100-Math.min(gap*3,100)} size={86} stroke={8} color={gap<=5?t.win:gap<=12?"#ffc800":t.loss} t={t} label="balance"/>
       <div style={{maxWidth:520}}>
         <div style={{fontFamily:t.headingFont,fontSize:20,fontWeight:900,color:t.text}}>
@@ -1553,12 +1571,12 @@ function ColorTab({games,loading,t}) {
         <Card key={label} t={t} style={{flex:1,minWidth:250}}>
           <SecTitle t={t} sub="Best weapon and biggest leak (3+ games)"><ChessIco size={16}>{piece}</ChessIco> {label} Repertoire</SecTitle>
           <div style={{display:"flex",flexDirection:"column",gap:9}}>
-            {ops.best&&<div style={{background:`${t.win}0b`,border:`1px solid ${t.win}25`,borderRadius:12,padding:"11px 13px"}}>
+            {ops.best&&<div className="weapon-card" style={{background:`${t.win}0b`,border:`1px solid ${t.win}25`,borderRadius:12,padding:"11px 13px",animation:"slideInLeft .45s cubic-bezier(.22,1,.36,1) both"}}>
               <div style={{fontSize:10,color:t.win,textTransform:"uppercase",letterSpacing:".1em",fontWeight:800,marginBottom:4,display:"flex",alignItems:"center",gap:4}}><Ico size={10}>⭐</Ico> Weapon</div>
               <a href={openingLink(ops.best.opening,ops.best.openingUrl)} target="_blank" rel="noopener noreferrer" style={{fontSize:13,fontWeight:700,color:t.text,textDecoration:"none",overflowWrap:"anywhere"}}>{ops.best.opening}</a>
               <div style={{fontSize:11,color:t.textDim,marginTop:3}}>{ops.best.winPct}% win · {ops.best.games} games{ops.best.eco!=="?"?` · ${ops.best.eco}`:""}</div>
             </div>}
-            {ops.worst&&ops.worst.lossPct>=40&&<div style={{background:`${t.loss}0b`,border:`1px solid ${t.loss}25`,borderRadius:12,padding:"11px 13px"}}>
+            {ops.worst&&ops.worst.lossPct>=40&&<div className="weapon-card" style={{background:`${t.loss}0b`,border:`1px solid ${t.loss}25`,borderRadius:12,padding:"11px 13px",animation:"slideInRight .45s .06s cubic-bezier(.22,1,.36,1) both"}}>
               <div style={{fontSize:10,color:t.loss,textTransform:"uppercase",letterSpacing:".1em",fontWeight:800,marginBottom:4,display:"flex",alignItems:"center",gap:4}}><Ico size={10}>💀</Ico> Leak</div>
               <a href={openingLink(ops.worst.opening,ops.worst.openingUrl)} target="_blank" rel="noopener noreferrer" style={{fontSize:13,fontWeight:700,color:t.text,textDecoration:"none",overflowWrap:"anywhere"}}>{ops.worst.opening}</a>
               <div style={{fontSize:11,color:t.textDim,marginTop:3}}>{ops.worst.lossPct}% loss · {ops.worst.games} games{ops.worst.eco!=="?"?` · ${ops.worst.eco}`:""}</div>
@@ -1614,7 +1632,7 @@ function EloTab({games,loading,t}) {
   ].filter(Boolean);
 
   return <div style={{display:"flex",flexDirection:"column",gap:16}}>
-    <Card t={t}>
+    <Card t={t} style={{animation:"blurIn .5s cubic-bezier(.22,1,.36,1) both"}}>
       <SecTitle t={t} sub={`Avg opponent: ${avgOpp} · bar width shows sample size below`}>Win% by Opponent Rating</SecTitle>
       <ResponsiveContainer width="100%" height={220}>
         <BarChart data={data}>
@@ -1688,7 +1706,7 @@ function CompareTab({p1,p2,l1,l2,p2In,setP2In,loadP2,e2,months,t,onChangeP2}) {
       <input placeholder="Opponent username…" value={p2In} onChange={e=>setP2In(e.target.value)} onKeyDown={e=>e.key==="Enter"&&loadP2()} style={{flex:1,minWidth:180}}/>
       <button className="primary" onClick={loadP2} disabled={!p2In.trim()||l2}>{l2?<span style={{display:"inline-flex",alignItems:"center",gap:8}}><span style={{width:14,height:14,border:`2px solid ${t.btnColor}`,borderTopColor:"transparent",borderRadius:"50%",display:"inline-block",animation:"spin .8s linear infinite"}}/>Loading…</span>:"Compare"}</button>
     </div>
-    {e2&&<div style={{marginTop:12,fontSize:13,color:t.loss}}>⚠ {e2}</div>}
+    {e2&&<div className="error-shake" style={{marginTop:12,fontSize:13,color:t.loss,padding:"8px 14px",background:`${t.loss}12`,border:`1px solid ${t.loss}30`,borderRadius:8,display:"inline-block"}}>⚠ {e2}</div>}
     </Card>
   </div>;
 
@@ -1833,7 +1851,7 @@ function WinPlanTab({p1,p2,l1,l2,p2In,setP2In,loadP2,e2,months,t,onChangeP2}) {
       <input placeholder="Opponent username…" value={p2In} onChange={e=>setP2In(e.target.value)} onKeyDown={e=>e.key==="Enter"&&loadP2()} style={{flex:1,minWidth:180}}/>
       <button className="primary" onClick={loadP2} disabled={!p2In.trim()||l2}>{l2?<span style={{display:"inline-flex",alignItems:"center",gap:8}}><span style={{width:14,height:14,border:`2px solid ${t.btnColor}`,borderTopColor:"transparent",borderRadius:"50%",display:"inline-block",animation:"spin .8s linear infinite"}}/>Analyzing…</span>:"Build Win Plan"}</button>
     </div>
-    {e2&&<div style={{marginTop:12,fontSize:13,color:t.loss}}>⚠ {e2}</div>}
+    {e2&&<div className="error-shake" style={{marginTop:12,fontSize:13,color:t.loss,padding:"8px 14px",background:`${t.loss}12`,border:`1px solid ${t.loss}30`,borderRadius:8,display:"inline-block"}}>⚠ {e2}</div>}
     </Card>
   </div>;
 
@@ -1842,7 +1860,7 @@ function WinPlanTab({p1,p2,l1,l2,p2In,setP2In,loadP2,e2,months,t,onChangeP2}) {
   const plan=computeWinPlan(p1,p2,months);
   if (!plan) return <div style={{color:t.textDim}}>Not enough opponent games loaded.</div>;
 
-  const Pill=({label,value,color=t.accent})=><div style={{background:`${color}10`,border:`1px solid ${color}28`,borderRadius:14,padding:"12px 14px",minWidth:120,flex:"1 1 120px"}}>
+  const Pill=({label,value,color=t.accent,i=0})=><div style={{background:`${color}10`,border:`1px solid ${color}28`,borderRadius:14,padding:"12px 14px",minWidth:120,flex:"1 1 120px",animation:`popIn .4s ${.06+i*.05}s cubic-bezier(.22,1,.36,1) both`}}>
     <div style={{fontSize:10,color:t.textDim,textTransform:"uppercase",letterSpacing:".1em",fontWeight:700,marginBottom:5}}>{label}</div>
     <div style={{fontFamily:t.headingFont,fontSize:24,lineHeight:1.1,color,overflowWrap:"anywhere",fontWeight:900}}>{value}</div>
   </div>;
@@ -1873,12 +1891,12 @@ function WinPlanTab({p1,p2,l1,l2,p2In,setP2In,loadP2,e2,months,t,onChangeP2}) {
         </div>
       </div>
       <div style={{position:"relative",display:"flex",gap:10,flexWrap:"wrap",marginTop:22}}>
-        <Pill label="Loaded games" value={plan.total} color={t.accent}/>
-        <Pill label="Opponent W/D/L" value={`${plan.winPct}/${plan.drawPct}/${plan.lossPct}%`} color={t.text}/>
-        <Pill label="Recent win%" value={`${plan.recentWinPct}%`} color={plan.recentWinPct<plan.winPct?t.loss:t.win}/>
-        {plan.tilt&&<Pill label="After-loss win%" value={`${plan.tilt.afterLossPct}%`} color={plan.tilt.tilt>=12?t.loss:t.text}/>}
-        {plan.lengths&&<Pill label="Avg game length" value={`${plan.lengths.avgMoves} moves`} color={t.hl}/>}
-        <Pill label="Range" value={plan.monthsLabel} color={t.hl}/>
+        <Pill label="Loaded games" value={plan.total} color={t.accent} i={0}/>
+        <Pill label="Opponent W/D/L" value={`${plan.winPct}/${plan.drawPct}/${plan.lossPct}%`} color={t.text} i={1}/>
+        <Pill label="Recent win%" value={`${plan.recentWinPct}%`} color={plan.recentWinPct<plan.winPct?t.loss:t.win} i={2}/>
+        {plan.tilt&&<Pill label="After-loss win%" value={`${plan.tilt.afterLossPct}%`} color={plan.tilt.tilt>=12?t.loss:t.text} i={3}/>}
+        {plan.lengths&&<Pill label="Avg game length" value={`${plan.lengths.avgMoves} moves`} color={t.hl} i={4}/>}
+        <Pill label="Range" value={plan.monthsLabel} color={t.hl} i={5}/>
       </div>
     </Card>
 
@@ -1970,7 +1988,7 @@ function WinPlanTab({p1,p2,l1,l2,p2In,setP2In,loadP2,e2,months,t,onChangeP2}) {
         <SecTitle t={t} sub="Highest loss rates with enough games">Opening traps to prepare</SecTitle>
         <div style={{display:"flex",flexDirection:"column",gap:8}}>
           {plan.targetOpenings.length?plan.targetOpenings.map((o,i)=>(
-            <div key={o.opening} style={{background:`${t.loss}0d`,border:`1px solid ${t.loss}24`,borderRadius:12,padding:"11px 12px",display:"grid",gridTemplateColumns:"auto 1fr auto",gap:10,alignItems:"center"}}>
+            <div key={o.opening} className="rival-row" style={{background:`${t.loss}0d`,border:`1px solid ${t.loss}24`,borderRadius:12,padding:"11px 12px",display:"grid",gridTemplateColumns:"auto 1fr auto",gap:10,alignItems:"center",animation:`slideUp .35s ${.05+i*.06}s cubic-bezier(.22,1,.36,1) both`}}>
               <div style={{width:24,height:24,borderRadius:"50%",background:i===0?t.loss:`${t.loss}20`,color:i===0?t.bg:t.loss,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:900}}>{i+1}</div>
               <div style={{minWidth:0}}>
                 <a href={openingLink(o.opening,o.openingUrl)} target="_blank" rel="noopener noreferrer" style={{fontSize:13,color:t.text,fontWeight:700,textDecoration:"none",lineHeight:1.3,overflowWrap:"anywhere"}}>{o.opening}</a>
@@ -1985,8 +2003,8 @@ function WinPlanTab({p1,p2,l1,l2,p2In,setP2In,loadP2,e2,months,t,onChangeP2}) {
       <Card t={t}>
         <SecTitle t={t} sub="What they choose most often">Comfort zones to disrupt</SecTitle>
         <div style={{display:"flex",flexDirection:"column",gap:9}}>
-          {plan.overusedOpenings.map(o=>(
-            <div key={o.opening} style={{display:"grid",gridTemplateColumns:"1fr auto",gap:10,alignItems:"center",padding:"10px 0",borderBottom:`1px solid ${t.cardBorder}40`}}>
+          {plan.overusedOpenings.map((o,i)=>(
+            <div key={o.opening} className="cheat-row" style={{display:"grid",gridTemplateColumns:"1fr auto",gap:10,alignItems:"center",padding:"10px 0",borderBottom:`1px solid ${t.cardBorder}40`,animation:`fadeInUp .35s ${.04+i*.05}s cubic-bezier(.22,1,.36,1) both`}}>
               <div style={{minWidth:0}}>
                 <div style={{color:t.text,fontWeight:700,fontSize:13,lineHeight:1.3,overflowWrap:"anywhere"}}>{o.opening}</div>
                 <div style={{fontSize:11,color:t.textDim}}>{o.games} games · {o.winPct}% win</div>
@@ -2001,8 +2019,8 @@ function WinPlanTab({p1,p2,l1,l2,p2In,setP2In,loadP2,e2,months,t,onChangeP2}) {
     {plan.matchupNotes.length?<Card t={t}>
       <SecTitle t={t} sub="Combines your loaded profile with their weaknesses">Your matchup notes</SecTitle>
       <div style={{display:"flex",flexDirection:"column",gap:10}}>
-        {plan.matchupNotes.map(note=>(
-          <div key={note} style={{display:"flex",gap:10,alignItems:"flex-start",background:`${t.win}0b`,border:`1px solid ${t.win}22`,borderRadius:12,padding:"12px 14px"}}>
+        {plan.matchupNotes.map((note,i)=>(
+          <div key={note} className="cheat-row" style={{display:"flex",gap:10,alignItems:"flex-start",background:`${t.win}0b`,border:`1px solid ${t.win}22`,borderRadius:12,padding:"12px 14px",animation:`slideInLeft .4s ${.06+i*.06}s cubic-bezier(.22,1,.36,1) both`}}>
             <span style={{color:t.win,fontWeight:900}}>✓</span>
             <span style={{fontSize:13,color:t.textMid,lineHeight:1.55}}>{note}</span>
           </div>
@@ -2040,8 +2058,8 @@ function DnaTab({games,stats,loading,t,profile}) {
         </div>
         <div style={{display:"flex",flexDirection:"column",gap:10,minWidth:180,alignItems:"stretch"}}>
           <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:8}}>
-            {[["Win rate",`${p.winPct}%`,t.win],["Format",p.favTC,t.accent],["Openings",p.uniqueOpenings,t.hl],["Recent",`${p.recentWinPct}%`,p.recentWinPct>=p.winPct?t.win:t.loss]].map(([label,val,col])=>(
-              <div key={label} style={{background:`${col}0c`,border:`1px solid ${col}22`,borderRadius:12,padding:"10px 12px",textAlign:"center"}}>
+            {[["Win rate",`${p.winPct}%`,t.win],["Format",p.favTC,t.accent],["Openings",p.uniqueOpenings,t.hl],["Recent",`${p.recentWinPct}%`,p.recentWinPct>=p.winPct?t.win:t.loss]].map(([label,val,col],i)=>(
+              <div key={label} style={{background:`${col}0c`,border:`1px solid ${col}22`,borderRadius:12,padding:"10px 12px",textAlign:"center",animation:`scaleIn .4s ${.08+i*.06}s cubic-bezier(.22,1,.36,1) both`}}>
                 <div style={{fontSize:9,color:t.textDim,textTransform:"uppercase",letterSpacing:".08em",fontWeight:700}}>{label}</div>
                 <div style={{fontFamily:t.headingFont,fontSize:22,fontWeight:900,color:col,marginTop:4,textTransform:"capitalize"}}>{val}</div>
               </div>
@@ -2110,12 +2128,10 @@ function TabQuickLinks({t,onSelect}) {
     [6,"🧬","Chess DNA","Playstyle profile"],
   ];
   return <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:10}}>
-    {links.map(([idx,icon,label,sub])=>(
-      <button key={idx} onClick={()=>onSelect(idx)} style={{background:`${t.accent}06`,border:`1px solid ${t.cardBorder}`,borderRadius:12,padding:"14px 16px",textAlign:"left",cursor:"pointer",fontFamily:t.font,transition:"all .2s cubic-bezier(.22,1,.36,1)",color:t.text}}
-        onMouseEnter={e=>{e.currentTarget.style.borderColor=`${t.accent}50`;e.currentTarget.style.transform="translateY(-2px)";}}
-        onMouseLeave={e=>{e.currentTarget.style.borderColor=t.cardBorder;e.currentTarget.style.transform="";}}>
+    {links.map(([idx,icon,label,sub],i)=>(
+      <button key={idx} onClick={()=>onSelect(idx)} className="quick-link" style={{background:`${t.accent}06`,border:`1px solid ${t.cardBorder}`,borderRadius:12,padding:"14px 16px",textAlign:"left",color:t.text,animation:`fadeInUp .4s ${.04+i*.06}s cubic-bezier(.22,1,.36,1) both`}}>
         <div style={{fontSize:15,fontWeight:700,marginBottom:4,display:"flex",alignItems:"center",gap:6}}><Ico size={15}>{icon}</Ico> {label}</div>
-        <div style={{fontSize:11,color:t.textDim}}>{sub} →</div>
+        <div style={{fontSize:11,color:t.textDim,transition:"color .2s ease"}}>{sub} →</div>
       </button>
     ))}
   </div>;
@@ -2225,7 +2241,7 @@ function OverviewTab({data,loading,t,onGoTab}) {
         <SecTitle t={t} sub="How you split your games">Time Controls</SecTitle>
         <div style={{display:"flex",height:10,borderRadius:6,overflow:"hidden",gap:2,marginBottom:12}}>
           {tcData.map((d,i)=>(
-            <div key={d.name} title={`${d.name}: ${d.value}`} style={{width:`${d.value/tcTotal*100}%`,background:[t.accent,t.accent2,t.hl,t.textMid][i%4],transition:"width .7s ease"}}/>
+            <div key={d.name} title={`${d.name}: ${d.value}`} className="bar-grow" style={{width:`${d.value/tcTotal*100}%`,background:[t.accent,t.accent2,t.hl,t.textMid][i%4],transition:"width .7s ease",animationDelay:`${.08+i*.06}s`}}/>
           ))}
         </div>
         <div style={{display:"flex",flexDirection:"column",gap:8}}>
@@ -2290,6 +2306,7 @@ export default function App() {
   const monthsRef=useRef(months);
   const p1LoadId=useRef(0);
   const p2LoadId=useRef(0);
+  const tabStripRef=useRef(null);
 
   // ── On mount: read URL and auto-load player ──
   useEffect(()=>{
@@ -2384,6 +2401,9 @@ export default function App() {
 
   const handleTabChange = (i) => {
     setTab(i);
+    requestAnimationFrame(()=>{
+      tabStripRef.current?.scrollIntoView({behavior:"smooth",block:"nearest"});
+    });
     if (!p1) return;
     if (i===6) setHash(p1.profile.username, "card");
     else if (i===5 && p2) setHash(p1.profile.username, "plan", p2.profile.username);
@@ -2403,6 +2423,9 @@ export default function App() {
 
       {/* ── Hero section ── */}
       <div className="hero-pad" style={{textAlign:"center",padding:"70px 0 46px",animation:"fadeInUp .6s ease both",position:"relative",overflow:"hidden"}}>
+        {[["♜",12,8,0],["♞",88,18,2.5],["♝",6,72,1.2],["♛",92,65,3.8]].map(([piece,x,y,delay],i)=>(
+          <span key={i} className="hero-float-piece chess-ico" style={{left:`${x}%`,top:`${y}%`,fontSize:[28,22,24,20][i],animationDelay:`${delay}s`,animationDuration:`${6.5+i}s`}}>{piece}</span>
+        ))}
         <div style={{position:"relative"}}>
         <div className="hero-emoji" style={{fontSize:76,marginBottom:12,animation:"heroChess 4s ease-in-out infinite",display:"inline-block",filter:`drop-shadow(0 0 34px ${t.glowC})`}}><ChessIco size={76}>♟</ChessIco></div>
         <h1 style={{fontFamily:t.headingFont,fontSize:"clamp(52px,11vw,112px)",fontWeight:900,color:t.accent,letterSpacing:"-.055em",lineHeight:1.02,animation:"glow 3s ease-in-out infinite, scaleIn .6s cubic-bezier(.22,1,.36,1) both",paddingBottom:4}}>ChessDNA</h1>
@@ -2443,7 +2466,7 @@ export default function App() {
       </Reveal>}
 
       {/* ── Tabs ── */}
-      {(p1||l1)&&<Reveal delay={0.03}><div className="tab-strip" style={{background:t.card,border:`1px solid ${t.cardBorder}`,borderRadius:10,padding:6,marginBottom:14,boxShadow:`0 4px 20px rgba(0,0,0,.25)`}}>
+      {(p1||l1)&&<Reveal delay={0.03}><div ref={tabStripRef} className="tab-strip" style={{background:t.card,border:`1px solid ${t.cardBorder}`,borderRadius:10,padding:6,marginBottom:14,boxShadow:`0 4px 20px rgba(0,0,0,.25)`,scrollMarginTop:12}}>
         {TABS.map(([icon,name],i)=>(
           <button key={name} className={`tab-btn ${tab===i?"active":""}`} onClick={()=>handleTabChange(i)} style={tab===i?{animation:"elasticIn .25s cubic-bezier(.22,1,.36,1) both"}:{}}><Ico size={14}>{icon}</Ico> {name}</button>
         ))}
@@ -2462,7 +2485,7 @@ export default function App() {
 
       {/* ── Empty state ── */}
       {!p1&&!l1&&!e1&&<div style={{textAlign:"center",padding:"40px 0 60px",animation:"fadeInUp .5s .2s ease both"}}>
-        <div style={{fontSize:64,opacity:.15,marginBottom:20}}>♜</div>
+        <div className="empty-piece" style={{fontSize:64,opacity:.15,marginBottom:20,display:"inline-block",fontFamily:CHESS_FONT}}>♜</div>
         <div style={{fontFamily:t.headingFont,fontSize:20,color:t.textMid}}>Enter a username to reveal your Chess DNA</div>
         <div style={{fontSize:13,color:t.textDim,marginTop:8,maxWidth:420,margin:"8px auto 0"}}>Win rates, openings, color splits, opponent breakdowns, matchup plans, and a playstyle profile — all from public Chess.com data.</div>
       </div>}
