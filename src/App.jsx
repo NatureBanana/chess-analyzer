@@ -196,8 +196,6 @@ function injectTheme(t) {
     .chart-tip-pop{animation:tipPop .22s cubic-bezier(.22,1,.36,1) both}
     .error-shake{animation:shake .45s cubic-bezier(.22,1,.36,1) both}
     .empty-piece{display:inline-block;animation:emptyFloat 4s ease-in-out infinite}
-    .insight-expand{transition:transform .25s cubic-bezier(.22,1,.36,1),box-shadow .25s ease,border-color .25s ease,background .25s ease}
-    .insight-expand:hover{transform:translateX(4px) translateY(-1px);box-shadow:0 8px 24px rgba(0,0,0,.35)}
     tr.row-in{animation:staggerFade .35s cubic-bezier(.22,1,.36,1) both}
     .rating-pill{transition:transform .2s cubic-bezier(.22,1,.36,1),box-shadow .2s ease,border-color .2s ease}
     .rating-pill:hover{transform:translateY(-3px) scale(1.04);box-shadow:0 6px 18px rgba(0,0,0,.3);border-color:${t.accent}45!important}
@@ -1630,20 +1628,13 @@ function PerformanceChart({games,loading,t}) {
 
 // ── Insights Column ───────────────────────────────────────────────────────────
 function InsightCard({item,t}) {
-  const [hovered,setHovered]=useState(false);
-  return <div
-    className="insight-expand"
-    onMouseEnter={()=>setHovered(true)}
-    onMouseLeave={()=>setHovered(false)}
-    style={{background:hovered?`${item.color||t.accent}12`:`${t.accent}06`,border:`1px solid ${hovered?(item.color||t.accent)+"50":t.cardBorder}`,borderRadius:10,padding:"12px 14px",display:"flex",gap:12,alignItems:"flex-start",cursor:"default",position:"relative"}}>
-    <span style={{fontSize:22,flexShrink:0,transition:"transform .25s cubic-bezier(.22,1,.36,1)",transform:hovered?"scale(1.15) rotate(-4deg)":"none",display:"inline-block"}}>{item.icon}</span>
+  return <div style={{background:`${t.accent}06`,border:`1px solid ${t.cardBorder}`,borderRadius:10,padding:"12px 14px",display:"flex",gap:12,alignItems:"flex-start"}}>
+    <span style={{fontSize:22,flexShrink:0}}>{item.icon}</span>
     <div style={{flex:1,minWidth:0}}>
       <div style={{fontSize:10,color:t.textDim,textTransform:"uppercase",letterSpacing:".07em",marginBottom:3,fontFamily:t.font}}>{item.label}</div>
-      <div style={{fontSize:14,fontWeight:600,color:item.color||t.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.value}</div>
-      {!hovered&&item.sub&&<div style={{fontSize:11,color:t.textDim,marginTop:2}}>{item.sub}</div>}
-      {hovered&&<div style={{fontSize:12,color:t.textMid,marginTop:6,lineHeight:1.55,whiteSpace:"normal",animation:"fadeInUp .2s cubic-bezier(.22,1,.36,1) both"}}>{item.detail}</div>}
+      <div style={{fontSize:14,fontWeight:600,color:item.color||t.text,overflowWrap:"anywhere"}}>{item.value}</div>
+      {item.sub&&<div style={{fontSize:11,color:t.textDim,marginTop:2}}>{item.sub}</div>}
     </div>
-    <div style={{fontSize:10,color:t.textDim,flexShrink:0,marginTop:2}}>{hovered?"▲":"▼"}</div>
   </div>;
 }
 
@@ -1654,7 +1645,6 @@ function InsightsColumn({games,loading,t}) {
   if (!items.length) return <div style={{color:t.textDim,fontSize:13}}>Not enough game data for insights.</div>;
   return <div style={{display:"flex",flexDirection:"column",gap:10}}>
     {items.map((item,i)=><div key={item.id} style={{animation:`fadeInUp .4s ${.05+i*.06}s cubic-bezier(.22,1,.36,1) both`}}><InsightCard item={item} t={t}/></div>)}
-    <div style={{fontSize:10,color:t.textDim,textAlign:"center",marginTop:2}}>Hover any card for details</div>
   </div>;
 }
 
@@ -2895,11 +2885,6 @@ export default function App() {
         <div className="hero-emoji" style={{fontSize:76,marginBottom:12,animation:"heroChess 4s ease-in-out infinite",display:"inline-block",filter:`drop-shadow(0 0 34px ${t.glowC})`}}>♟</div>
         <h1 style={{fontFamily:t.headingFont,fontSize:"clamp(52px,11vw,112px)",fontWeight:900,color:t.accent,letterSpacing:"-.055em",lineHeight:1.02,animation:"glow 3s ease-in-out infinite, scaleIn .6s cubic-bezier(.22,1,.36,1) both",paddingBottom:4}}>ChessDNA</h1>
         <p style={{fontSize:20,color:t.textMid,marginTop:16,fontFamily:t.font,animation:"fadeInDown .7s .2s cubic-bezier(.22,1,.36,1) both"}}>A measured identity from real Chess.com games</p>
-        <div style={{display:"flex",gap:8,justifyContent:"center",marginTop:14,flexWrap:"wrap",animation:"fadeInUp .6s .28s cubic-bezier(.22,1,.36,1) both"}}>
-          {["Openings","DNA Profile","Win Plan","Compare"].map((tag,i)=>(
-            <span key={tag} style={{fontSize:11,fontWeight:600,color:t.accent,background:`${t.accent}10`,border:`1px solid ${t.accent}25`,borderRadius:999,padding:"5px 12px",letterSpacing:".04em",animation:`elasticIn .4s ${.35+i*.06}s cubic-bezier(.22,1,.36,1) both`,transition:"transform .2s ease,box-shadow .2s ease",cursor:"default"}} onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px) scale(1.04)";e.currentTarget.style.boxShadow=`0 4px 14px ${t.glowC}`;}} onMouseLeave={e=>{e.currentTarget.style.transform="";e.currentTarget.style.boxShadow="";}}>{tag}</span>
-          ))}
-        </div>
 
         {/* Search */}
         <div style={{display:"flex",gap:10,maxWidth:680,margin:"28px auto 0",alignItems:"center",flexWrap:"wrap",animation:"fadeInUp .65s .32s cubic-bezier(.22,1,.36,1) both"}}>
@@ -2980,19 +2965,10 @@ export default function App() {
       </PageTransition>}
 
       {/* ── Empty state ── */}
-      {!p1&&!l1&&!e1&&<div style={{textAlign:"center",padding:"40px 0 60px",animation:"fadeInUp .5s .2s ease both",position:"relative"}}>
-        <div style={{display:"flex",justifyContent:"center",gap:20,marginBottom:24}}>
-          {["♜","♞","♝","♛","♚"].map((p,i)=>(
-            <span key={p} className="empty-piece" style={{fontSize:28+i*4,opacity:.12+(i*.04),color:t.accent,animationDelay:`${i*.35}s`,filter:`drop-shadow(0 0 12px ${t.glowC})`}}>{p}</span>
-          ))}
-        </div>
-        <div style={{fontFamily:t.headingFont,fontSize:22,color:t.textMid,animation:"blurIn .6s .3s cubic-bezier(.22,1,.36,1) both"}}>Enter a username to reveal your Chess DNA</div>
-        <div style={{fontSize:13,color:t.textDim,marginTop:10,animation:"fadeInUp .5s .45s cubic-bezier(.22,1,.36,1) both"}}>Openings · Color stats · Elo breakdown · Win plan · Personality · Compare · Trading card</div>
-        <div style={{display:"flex",gap:8,justifyContent:"center",marginTop:20,flexWrap:"wrap",animation:"fadeInUp .5s .55s cubic-bezier(.22,1,.36,1) both"}}>
-          {["♟ Analyze any player","📊 Deep stats","🧬 Personality DNA"].map((hint,i)=>(
-            <span key={hint} style={{fontSize:11,color:t.textDim,background:`${t.accent}08`,border:`1px solid ${t.cardBorder}`,borderRadius:8,padding:"6px 12px",animation:`elasticIn .35s ${.6+i*.08}s cubic-bezier(.22,1,.36,1) both`}}>{hint}</span>
-          ))}
-        </div>
+      {!p1&&!l1&&!e1&&<div style={{textAlign:"center",padding:"40px 0 60px",animation:"fadeInUp .5s .2s ease both"}}>
+        <div style={{fontSize:64,opacity:.15,marginBottom:20}}>♜</div>
+        <div style={{fontFamily:t.headingFont,fontSize:20,color:t.textMid}}>Enter a username to reveal your Chess DNA</div>
+        <div style={{fontSize:13,color:t.textDim,marginTop:8}}>Openings · Color stats · Elo breakdown · Win plan · Personality · Compare · Trading card</div>
       </div>}
 
       <div style={{textAlign:"center",marginTop:48,fontSize:11,color:t.textDim,opacity:.8,animation:"fadeIn 1s .8s ease both"}}>Chess DNA · Data from Chess.com Public API · No data stored</div>
