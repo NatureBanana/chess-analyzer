@@ -293,6 +293,36 @@ async function tryFetch(url, asText) {
 const fetchJSON = u => tryFetch(u, false);
 const fetchText = u => tryFetch(u, true);
 
+const PLAYER_CACHE_TTL_MS = 3 * 60 * 1000;
+function playerCacheKey(user, months) {
+  return `${user.toLowerCase()}:${months}`;
+}
+function readPlayerCache(user, months) {
+  try {
+    const key = playerCacheKey(user, months);
+    const raw = sessionStorage.getItem(key);
+    if (!raw) return null;
+    const { cachedAt, data } = JSON.parse(raw);
+    if (Date.now() - cachedAt > PLAYER_CACHE_TTL_MS) {
+      sessionStorage.removeItem(key);
+      return null;
+    }
+    return data;
+  } catch {
+    return null;
+  }
+}
+function writePlayerCache(user, months, data) {
+  try {
+    sessionStorage.setItem(
+      playerCacheKey(user, months),
+      JSON.stringify({ cachedAt: Date.now(), data })
+    );
+  } catch {
+    // sessionStorage unavailable or full
+  }
+}
+
 // ── PGN parser ────────────────────────────────────────────────────────────────
 function inferTimeControl(tc) {
   if (!tc) return "other";
@@ -447,6 +477,9 @@ async function fetchArchiveGames(url, user) {
 }
 
 async function loadPlayer(user, months=3) {
+  const cached = readPlayerCache(user, months);
+  if (cached) return cached;
+
   const base = `https://api.chess.com/pub/player/${user}`;
   const [, profile, stats, archives] = await Promise.all([
     ensureOpeningsLoaded(),
@@ -460,7 +493,9 @@ async function loadPlayer(user, months=3) {
   const urls = months === 0 ? allUrls : allUrls.slice(-months);
   const archiveData = await Promise.all(urls.map(u => fetchArchiveGames(u, user)));
   const games = archiveData.flatMap(games => games.map(g => normalizeArchiveGame(g, user)).filter(Boolean)).sort((a,b)=>(b.endTime||0)-(a.endTime||0));
-  return { profile, stats, games, monthsLoaded: urls.length };
+  const result = { profile, stats, games, monthsLoaded: urls.length };
+  writePlayerCache(user, months, result);
+  return result;
 }
 
 // ── Analytics helpers ─────────────────────────────────────────────────────────
