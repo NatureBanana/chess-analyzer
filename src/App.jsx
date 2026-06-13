@@ -1,6 +1,6 @@
 /* eslint-disable react-hooks/set-state-in-effect, react-hooks/static-components, react-hooks/immutability */
 import { useState, useEffect, useRef, useMemo } from "react";
-import { resolveOpeningInfo, openingCoverage, ecoFamily, normalizeMovesFromPgn } from "./openingResolver.js";
+import { resolveOpeningInfo, openingCoverage, ecoFamily, normalizeMovesFromPgn, isGenericOpeningName, lookupOpeningFromMovePrefix } from "./openingResolver.js";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, RadarChart, Radar, PolarGrid, PolarAngleAxis,
@@ -519,12 +519,21 @@ function primaryRating(stats) {
 const RANGE_LABELS = {3:"3 months",6:"6 months",12:"1 year",0:"all time"};
 function rangeLabel(months) { return RANGE_LABELS[months] ?? `${months} months`; }
 
+function gameOpeningKey(g) {
+  if (g.opening && !isGenericOpeningName(g.opening)) return g.opening;
+  if (g.movePrefix) {
+    const inferred = lookupOpeningFromMovePrefix(g.movePrefix);
+    if (inferred?.opening) return inferred.opening;
+  }
+  return null;
+}
+
 function aggOpenings(games, tc="all") {
   const f = tc==="all" ? games : games.filter(g=>g.timeControl===tc);
   const map = {};
   for (const g of f) {
-    if (!g.opening) continue;
-    const k = g.opening;
+    const k = gameOpeningKey(g);
+    if (!k) continue;
     if (!map[k]) map[k]={opening:k,openingUrl:g.openingUrl||null,eco:g.eco||"?",ecoFamily:g.ecoFamily||ecoFamily(g.eco),games:0,wins:0,losses:0,draws:0,elos:[]};
     if (!map[k].openingUrl && g.openingUrl) map[k].openingUrl = g.openingUrl;
     if (map[k].eco === "?" && g.eco && g.eco !== "?") map[k].eco = g.eco;
@@ -1066,12 +1075,16 @@ function aggregateSequences(games) {
     else m[key].draws++;
     if (g.color === "white") m[key].white++; else m[key].black++;
   }
-  return Object.values(m).map(s => ({
-    ...s,
-    winPct: percent(s.wins, s.games),
-    lossPct: percent(s.losses, s.games),
-    dominantColor: s.white >= s.black ? "White" : "Black",
-  }));
+  return Object.values(m).map(s => {
+    const inferred = lookupOpeningFromMovePrefix(s.sequence);
+    return {
+      ...s,
+      winPct: percent(s.wins, s.games),
+      lossPct: percent(s.losses, s.games),
+      dominantColor: s.white >= s.black ? "White" : "Black",
+      openingName: inferred?.opening || null,
+    };
+  });
 }
 
 function aggregateEcoFamilies(games) {
@@ -1168,6 +1181,7 @@ function computeWinPlan(player, opponent, months) {
 
   const openings = aggOpenings(games);
   const openingLeaks = openings
+    .filter(o => !isGenericOpeningName(o.opening))
     .map(o => segmentWeakness(o, baseline, minOpening, "loss"))
     .filter(Boolean)
     .sort((a, b) => b.score - a.score);
@@ -1262,7 +1276,7 @@ function computeWinPlan(player, opponent, months) {
       detail: `${weakTC.tc} is their weakest format in this sample (${weakTC.games} games, ${weakTC.delta}pp below baseline). They play it ${weakTC.share}% of the time — when you can choose the pairing, pick this clock.`,
       games: weakTC.games, delta: weakTC.delta, confidence: weakTC.confidence, confidenceColor: weakTC.confidenceColor, score: weakTC.score,
     },
-    targetOpenings[0] && {
+    targetOpenings[0] && !sequences[0] && {
       id: "opening", icon: "♟", category: "Opening",
       label: targetOpenings[0].opening.length > 42 ? targetOpenings[0].opening.slice(0, 40) + "…" : targetOpenings[0].opening,
       value: `${targetOpenings[0].lossPct}% loss rate (+${targetOpenings[0].delta}pp vs baseline)`,
@@ -1271,10 +1285,12 @@ function computeWinPlan(player, opponent, months) {
       opening: targetOpenings[0],
     },
     sequences[0] && {
-      id: "sequence", icon: "📜", category: "Move order",
-      label: `Force the line ${sequences[0].sequence}`,
+      id: "sequence", icon: "♟", category: "Opening",
+      label: sequences[0].openingName
+        ? `${sequences[0].openingName}: ${sequences[0].sequence}`
+        : `Force the line ${sequences[0].sequence}`,
       value: `${sequences[0].lossPct}% loss · ${sequences[0].games} games`,
-      detail: `When the game opens ${sequences[0].sequence}, they lose ${sequences[0].lossPct}% (${sequences[0].delta}pp above baseline). Mostly as ${sequences[0].dominantColor}. Study this exact move order — it's more specific than the opening name alone.`,
+      detail: `When the game opens ${sequences[0].sequence}, they lose ${sequences[0].lossPct}% (${sequences[0].delta}pp above baseline). Mostly as ${sequences[0].dominantColor}.${sequences[0].openingName ? ` This is the ${sequences[0].openingName}.` : ""} Study this exact move order.`,
       games: sequences[0].games, delta: sequences[0].delta, confidence: sequences[0].confidence, confidenceColor: sequences[0].confidenceColor, score: sequences[0].score,
       sequence: sequences[0].sequence,
     },
@@ -1365,9 +1381,13 @@ function computeWinPlan(player, opponent, months) {
     },
     {
       phase: "Opening", icon: "1",
-      title: topSeq ? `Aim for ${topSeq.sequence}` : topOpening ? `Prepare ${topOpening.opening}` : "Deny comfort early",
+      title: topSeq
+        ? topSeq.openingName
+          ? `Prepare ${topSeq.openingName} (${topSeq.sequence})`
+          : `Aim for ${topSeq.sequence}`
+        : topOpening ? `Prepare ${topOpening.opening}` : "Deny comfort early",
       text: topSeq
-        ? `This exact four-move start appears ${topSeq.games} times with a ${topSeq.lossPct}% loss rate (+${topSeq.delta}pp vs baseline). ${topOpening ? `Named as ${topOpening.opening}.` : ""} Have a concrete line — not just the opening name.`
+        ? `This line appears ${topSeq.games} times with a ${topSeq.lossPct}% loss rate (+${topSeq.delta}pp vs baseline).${topSeq.openingName ? ` ${topSeq.openingName}.` : ""} Have a concrete response ready.`
         : topOpening
           ? `${topOpening.opening}: ${topOpening.games} games, ${topOpening.lossPct}% losses (${topOpening.confidence} confidence). Baseline is only ${baseline.lossPct}%.`
           : `Need ${minOpening}+ games per line before calling an opening leak — keep probing early.`,
@@ -1404,7 +1424,7 @@ function computeWinPlan(player, opponent, months) {
 
   const cheatSheet = [
     weakTC && ["Time control", `${weakTC.tc} — ${weakTC.winPct}% win, n=${weakTC.games}, ${weakTC.confidence} conf`],
-    topSeq && ["Move order", `${topSeq.sequence} (${topSeq.lossPct}% loss, n=${topSeq.games})`],
+    topSeq && ["Opening", `${topSeq.openingName ? `${topSeq.openingName}: ` : ""}${topSeq.sequence} (${topSeq.lossPct}% loss, n=${topSeq.games})`],
     topOpening && !topSeq && ["Opening", `${topOpening.opening} (${topOpening.lossPct}% loss, n=${topOpening.games})`],
     weakColor && ["Color", `Make them play ${weakColor.color} (${weakColor.winPct}% win, n=${weakColor.games})`],
     overusedOpenings[0] && overusedOpenings[0].share >= 12 && ["Prep their habit", `${overusedOpenings[0].opening} — ${overusedOpenings[0].share}% of games`],
@@ -2378,6 +2398,7 @@ function WinPlanTab({p1,p2,l1,l2,p2In,setP2In,loadP2,e2,months,t,onChangeP2}) {
               {plan.sequences.map((s,i)=>{
                 const moves=s.sequence.split(" ");
                 return <div key={s.sequence} className="rival-row" style={{background:`${t.loss}08`,border:`1px solid ${i===0?`${t.loss}40`:`${t.loss}20`}`,borderRadius:14,padding:"14px 16px",animation:`slideUp .4s ${.05+i*.06}s cubic-bezier(.22,1,.36,1) both`}}>
+                  {s.openingName&&<div style={{fontSize:12,fontWeight:800,color:t.text,marginBottom:8}}>{s.openingName}</div>}
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,flexWrap:"wrap"}}>
                     <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
                       {moves.map((m,j)=><span key={j} style={{fontFamily:"'Space Grotesk',monospace",fontSize:13,fontWeight:700,background:`${t.accent}12`,border:`1px solid ${t.accent}28`,borderRadius:8,padding:"5px 10px",color:t.text}}>{j%2===0?`${Math.floor(j/2)+1}.`:""} {m}</span>)}

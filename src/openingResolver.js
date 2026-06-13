@@ -21,6 +21,34 @@ const FIRST_MOVE_NAMES = {
   h4: "Desprez Opening",
 };
 
+export const GENERIC_OPENING_NAMES = new Set([
+  "chess opening",
+  "early opening",
+  "opening phase",
+  "transitional position",
+  "classified opening",
+  "undefined",
+  "opening",
+]);
+
+export function isGenericOpeningName(name) {
+  if (!name || typeof name !== "string") return true;
+  return GENERIC_OPENING_NAMES.has(name.trim().toLowerCase());
+}
+
+const SHORT_LINE_NAMES = {
+  "e4 e5 Qh5 Nf6": "Wayward Queen Attack",
+  "e4 e5 Qh5 Nc6": "Wayward Queen Attack",
+  "e4 e5 Qh5": "Wayward Queen Attack",
+  "e4 e5 Qf3 Nc6": "Wayward Queen Attack",
+  "e4 e5 Qf3": "Wayward Queen Attack",
+  "e4 e5 Bc4 Nf6": "Bishop's Opening",
+  "e4 e5 Bc4": "Bishop's Opening",
+  "e4 e5 f4": "King's Gambit",
+  "e4 c5 Nf3 d6": "Sicilian Defense",
+  "d4 d5 c4": "Queen's Gambit",
+};
+
 const TWO_MOVE_FAMILIES = {
   "e4 e5": "King's Pawn Game",
   "e4 c5": "Sicilian Defense",
@@ -74,6 +102,48 @@ export function normalizeMovesFromPgn(pgn) {
     .map((m) => m.replace(/0-0-0/g, "O-O-O").replace(/0-0/g, "O-O"))
     .join(" ")
     .trim();
+}
+
+export function lookupOpeningFromMovePrefix(prefix) {
+  if (!prefix) return null;
+  const normalized = prefix.trim();
+  if (!normalized) return null;
+
+  const parts = normalized.split(/\s+/);
+  for (let len = Math.min(parts.length, 6); len >= 3; len--) {
+    const key = parts.slice(0, len).join(" ");
+    if (SHORT_LINE_NAMES[key]) {
+      return { opening: SHORT_LINE_NAMES[key], eco: null, source: "short-line" };
+    }
+  }
+
+  let best = null;
+  for (const [bookMoves, eco, name] of MOVE_BOOK) {
+    if (
+      normalized === bookMoves
+      || normalized.startsWith(bookMoves + " ")
+      || bookMoves.startsWith(normalized + " ")
+      || bookMoves.startsWith(normalized)
+    ) {
+      if (!best || bookMoves.length > best.bookMoves.length) {
+        best = { opening: name, eco, bookMoves };
+      }
+    }
+  }
+  if (best) return { opening: best.opening, eco: best.eco, source: "moves" };
+
+  if (parts.length >= 2) {
+    const two = `${parts[0]} ${parts[1]}`;
+    if (TWO_MOVE_FAMILIES[two]) {
+      return { opening: TWO_MOVE_FAMILIES[two], eco: null, source: "family" };
+    }
+  }
+
+  if (parts[0] && FIRST_MOVE_NAMES[parts[0]]) {
+    return { opening: FIRST_MOVE_NAMES[parts[0]], eco: null, source: "first-move" };
+  }
+
+  return null;
 }
 
 export function inferOpeningFromMoves(pgn) {
@@ -132,8 +202,13 @@ export function resolveOpeningInfo(tags = {}, pgn = "") {
     : urlName ? `https://www.chess.com/openings/${urlName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`
     : null;
 
-  let opening = tags.Opening?.trim() || urlName || lookupEcoName(eco);
-  let source = opening ? (tags.Opening ? "tag" : urlName ? "url" : "eco") : null;
+  const tagOpening = tags.Opening?.trim() || null;
+  let opening = (tagOpening && !isGenericOpeningName(tagOpening) ? tagOpening : null)
+    || (urlName && !isGenericOpeningName(urlName) ? urlName : null)
+    || lookupEcoName(eco);
+  let source = opening
+    ? (tagOpening && !isGenericOpeningName(tagOpening) ? "tag" : urlName ? "url" : "eco")
+    : null;
 
   if (!opening) {
     const inferred = inferOpeningFromMoves(pgn);
