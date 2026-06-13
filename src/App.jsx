@@ -10,19 +10,11 @@ import {
 // ── Fonts ─────────────────────────────────────────────────────────────────────
 const fl = document.createElement("link");
 fl.rel = "stylesheet";
-fl.href = "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;900&family=DM+Sans:wght@300;400;500;600&family=Space+Grotesk:wght@400;500;600;700&family=Syne:wght@400;600;700;800&display=swap";
+fl.href = "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;900&family=DM+Sans:wght@300;400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap";
 document.head.appendChild(fl);
 
-// ── Themes ────────────────────────────────────────────────────────────────────
-// bgType controls the SVG/CSS background pattern rendered per theme
-const THEMES = {
-  slate:    { name:"Slate",    icon:"🎯", bg:"#0d1117", bgType:"grid",  card:"linear-gradient(135deg,rgba(20,26,36,.92),rgba(10,14,20,.96))",  cardBorder:"rgba(139,148,158,0.15)", accent:"#58a6ff", accent2:"#1f6feb", hl:"#79c0ff", text:"#c9d1d9", textDim:"#4a5568", textMid:"#8b949e", win:"#3fb950", loss:"#f85149", draw:"#6e7681", inputBg:"rgba(20,26,36,.9)",     btnGrad:"linear-gradient(135deg,#1f6feb,#58a6ff)", btnColor:"#0d1117", skA:"rgba(88,166,255,.04)",  skB:"rgba(88,166,255,.1)",  font:"'DM Sans',sans-serif",        headingFont:"'Playfair Display',serif", scrollThumb:"#58a6ff28", glowC:"#58a6ff35", glowC2:"#58a6ff70" },
-  forest:   { name:"Forest",   icon:"🌲", bg:"#040f08", bgType:"leaves",    card:"linear-gradient(135deg,rgba(0,44,22,.9),rgba(0,18,9,.96))",    cardBorder:"rgba(0,255,136,0.13)",   accent:"#00ff88", accent2:"#00c860", hl:"#39ffa0", text:"#c8f0dc", textDim:"#3a6048", textMid:"#7ab898", win:"#00ff88", loss:"#ff5555", draw:"#5a8e6e", inputBg:"rgba(0,40,20,.85)",     btnGrad:"linear-gradient(135deg,#00c860,#00ff88)", btnColor:"#030e06", skA:"rgba(0,255,136,.04)",   skB:"rgba(0,255,136,.1)",   font:"'DM Sans',sans-serif",          headingFont:"'Playfair Display',serif", scrollThumb:"#00ff8828", glowC:"#00ff8840", glowC2:"#00ff8880" },
-  midnight: { name:"Midnight", icon:"🌙", bg:"#06070f", bgType:"stars",    card:"linear-gradient(135deg,rgba(15,18,50,.9),rgba(6,7,25,.96))",   cardBorder:"rgba(100,120,255,0.15)", accent:"#7b8fff", accent2:"#5060dd", hl:"#a0aaff", text:"#d0d4f8", textDim:"#404880", textMid:"#8890cc", win:"#7b8fff", loss:"#ff6b8a", draw:"#5a6090", inputBg:"rgba(15,18,50,.85)",    btnGrad:"linear-gradient(135deg,#5060dd,#7b8fff)", btnColor:"#06070f", skA:"rgba(123,143,255,.04)", skB:"rgba(123,143,255,.1)", font:"'Space Grotesk',sans-serif",   headingFont:"'Syne',sans-serif",        scrollThumb:"#7b8fff28", glowC:"#7b8fff40", glowC2:"#7b8fff80" },
-  gold:     { name:"Gold",     icon:"👑", bg:"#0c0a02", bgType:"diamonds", card:"linear-gradient(135deg,rgba(35,28,4,.92),rgba(18,14,2,.96))",  cardBorder:"rgba(255,200,0,0.14)",   accent:"#ffd700", accent2:"#cc9900", hl:"#ffe566", text:"#f0e8c0", textDim:"#6a5a18", textMid:"#c0a840", win:"#ffd700", loss:"#ff6060", draw:"#8a7830", inputBg:"rgba(35,28,4,.85)",     btnGrad:"linear-gradient(135deg,#cc9900,#ffd700)", btnColor:"#0c0a02", skA:"rgba(255,215,0,.04)",   skB:"rgba(255,215,0,.1)",   font:"'DM Sans',sans-serif",          headingFont:"'Playfair Display',serif", scrollThumb:"#ffd70028", glowC:"#ffd70040", glowC2:"#ffd70080" },
-  crimson:  { name:"Crimson",  icon:"🔴", bg:"#0f0608", bgType:"hex",      card:"linear-gradient(135deg,rgba(40,8,12,.9),rgba(20,4,6,.96))",    cardBorder:"rgba(255,80,80,0.13)",   accent:"#ff5c5c", accent2:"#cc3333", hl:"#ff9090", text:"#f0d0d0", textDim:"#6a2838", textMid:"#c07080", win:"#ff5c5c", loss:"#5caaff", draw:"#8a5060", inputBg:"rgba(40,8,12,.85)",     btnGrad:"linear-gradient(135deg,#cc3333,#ff5c5c)", btnColor:"#0f0608", skA:"rgba(255,92,92,.04)",   skB:"rgba(255,92,92,.1)",   font:"'DM Sans',sans-serif",          headingFont:"'Playfair Display',serif", scrollThumb:"#ff5c5c28", glowC:"#ff5c5c40", glowC2:"#ff5c5c80" },
-  obsidian: { name:"Obsidian", icon:"🖤", bg:"#080808", bgType:"noise",    card:"linear-gradient(135deg,rgba(22,22,22,.92),rgba(10,10,10,.96))",cardBorder:"rgba(200,200,200,0.1)",  accent:"#e0e0e0", accent2:"#999999", hl:"#ffffff", text:"#d8d8d8", textDim:"#444444", textMid:"#999999", win:"#e0e0e0", loss:"#ff6060", draw:"#666666", inputBg:"rgba(22,22,22,.9)",     btnGrad:"linear-gradient(135deg,#555,#e0e0e0)",    btnColor:"#080808", skA:"rgba(200,200,200,.04)", skB:"rgba(200,200,200,.09)",font:"'Space Grotesk',sans-serif",   headingFont:"'Syne',sans-serif",        scrollThumb:"#ffffff18", glowC:"#ffffff28", glowC2:"#ffffff60" },
-};
+// ── Theme ─────────────────────────────────────────────────────────────────────
+const THEME = { bg:"#0d1117", card:"linear-gradient(135deg,rgba(20,26,36,.92),rgba(10,14,20,.96))", cardBorder:"rgba(139,148,158,0.15)", accent:"#58a6ff", accent2:"#1f6feb", hl:"#79c0ff", text:"#c9d1d9", textDim:"#4a5568", textMid:"#8b949e", win:"#3fb950", loss:"#f85149", draw:"#6e7681", inputBg:"rgba(20,26,36,.9)", btnGrad:"linear-gradient(135deg,#1f6feb,#58a6ff)", btnColor:"#0d1117", skA:"rgba(88,166,255,.04)", skB:"rgba(88,166,255,.1)", font:"'DM Sans',sans-serif", headingFont:"'Playfair Display',serif", scrollThumb:"#58a6ff28", glowC:"#58a6ff35", glowC2:"#58a6ff70" };
 
 const EMOJI_FONT = '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
 const CHESS_FONT = '"Segoe UI Symbol","Noto Sans Symbols2",serif';
@@ -43,56 +35,13 @@ function renderIcon(icon,size=18) {
   return <Ico size={size}>{icon}</Ico>;
 }
 
-// Per-theme background renderer
 function ThemeBg({t}) {
-  const a = t.accent;
-  const patterns = {
-    // Slate: simple subtle dot grid — very minimal, barely visible
-    grid: <svg style={{position:"fixed",inset:0,width:"100%",height:"100%",zIndex:0,pointerEvents:"none",opacity:.18}} xmlns="http://www.w3.org/2000/svg">
-      <defs><pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
-        <circle cx="16" cy="16" r=".7" fill={a}/>
-      </pattern></defs>
-      <rect width="100%" height="100%" fill="url(#grid)"/>
-    </svg>,
-    // Forest: organic diagonal line stripes — no checkerboard
-    leaves: <svg style={{position:"fixed",inset:0,width:"100%",height:"100%",zIndex:0,pointerEvents:"none",opacity:.06}} xmlns="http://www.w3.org/2000/svg">
-      <defs><pattern id="leaves" width="40" height="40" patternUnits="userSpaceOnUse" patternTransform="rotate(35)">
-        <line x1="0" y1="0" x2="0" y2="40" stroke={a} strokeWidth="1.2"/>
-      </pattern></defs>
-      <rect width="100%" height="100%" fill="url(#leaves)"/>
-    </svg>,
-    // Midnight: star field
-    stars: <svg style={{position:"fixed",inset:0,width:"100%",height:"100%",zIndex:0,pointerEvents:"none"}} xmlns="http://www.w3.org/2000/svg">
-      {[...Array(80)].map((_,i)=>{
-        const x=(i*137.5)%100, y=(i*97.3+23)%100;
-        const r=i%5===0?.9:i%3===0?.6:.35;
-        return <circle key={i} cx={`${x}%`} cy={`${y}%`} r={r} fill={a} opacity={.2+(.6*(i%7)/7)} style={{animation:`twinkle ${2.5+(i%5)*.8}s ease-in-out infinite`,animationDelay:`${(i%11)*.3}s`}}/>
-      })}
-    </svg>,
-    // Gold: diagonal diamond grid
-    diamonds: <svg style={{position:"fixed",inset:0,width:"100%",height:"100%",zIndex:0,pointerEvents:"none",opacity:.08}} xmlns="http://www.w3.org/2000/svg">
-      <defs><pattern id="diamonds" width="40" height="40" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-        <rect width="40" height="40" fill="none" stroke={a} strokeWidth=".8"/>
-        <rect x="10" y="10" width="20" height="20" fill="none" stroke={a} strokeWidth=".4"/>
-      </pattern></defs>
-      <rect width="100%" height="100%" fill="url(#diamonds)"/>
-    </svg>,
-    // Crimson: hexagon grid
-    hex: <svg style={{position:"fixed",inset:0,width:"100%",height:"100%",zIndex:0,pointerEvents:"none",opacity:.07}} xmlns="http://www.w3.org/2000/svg">
-      <defs><pattern id="hex" width="56" height="48" patternUnits="userSpaceOnUse">
-        <path d="M14 0l14 8v16l-14 8-14-8V8zM42 0l14 8v16l-14 8-14-8V8zM28 24l14 8v16l-14 8-14-8v-16z" stroke={a} strokeWidth=".8" fill="none"/>
-      </pattern></defs>
-      <rect width="100%" height="100%" fill="url(#hex)"/>
-    </svg>,
-    // Obsidian: subtle dot grid
-    noise: <svg style={{position:"fixed",inset:0,width:"100%",height:"100%",zIndex:0,pointerEvents:"none",opacity:.06}} xmlns="http://www.w3.org/2000/svg">
-      <defs><pattern id="dots" width="24" height="24" patternUnits="userSpaceOnUse">
-        <circle cx="12" cy="12" r=".8" fill={a}/>
-      </pattern></defs>
-      <rect width="100%" height="100%" fill="url(#dots)"/>
-    </svg>,
-  };
-  return <>{patterns[t.bgType]||null}</>;
+  return <svg style={{position:"fixed",inset:0,width:"100%",height:"100%",zIndex:0,pointerEvents:"none",opacity:.18}} xmlns="http://www.w3.org/2000/svg">
+    <defs><pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <circle cx="16" cy="16" r=".7" fill={t.accent}/>
+    </pattern></defs>
+    <rect width="100%" height="100%" fill="url(#grid)"/>
+  </svg>;
 }
 
 // ── Player comparison colors (theme-independent, always high contrast) ──────
@@ -155,7 +104,6 @@ function injectTheme(t) {
     @keyframes orbit{from{transform:rotate(0deg) translateX(11px) rotate(0deg)}to{transform:rotate(360deg) translateX(11px) rotate(-360deg)}}
     @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
     @keyframes tickerSlide{from{opacity:0;transform:translateY(100%)}to{opacity:1;transform:translateY(0)}}
-    @keyframes twinkle{0%,100%{opacity:.15;transform:scale(1)}50%{opacity:.85;transform:scale(1.35)}}
     @keyframes driftOrb{0%,100%{transform:translate3d(0,0,0) scale(1)}33%{transform:translate3d(28px,-22px,0) scale(1.12)}66%{transform:translate3d(-18px,14px,0) scale(.94)}}
     @keyframes pieceFloat{0%,100%{transform:translateY(0) rotate(0deg);opacity:.12}50%{transform:translateY(-18px) rotate(8deg);opacity:.28}}
     @keyframes slideUnderline{from{transform:scaleX(0);opacity:0}to{transform:scaleX(1);opacity:1}}
@@ -2872,7 +2820,7 @@ function setHash(user, sub, other) {
 }
 
 export default function App() {
-  const t=THEMES.slate;
+  const t=THEME;
   useEffect(()=>{ injectTheme(t); document.body.style.background=t.bg; },[]);
 
   const [tab,setTab]=useState(0);
