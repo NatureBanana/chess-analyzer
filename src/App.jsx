@@ -24,10 +24,10 @@ const CHESS_BLACK = "♙";
 
 // Renders emoji with the system color-emoji font (avoids serif heading fonts swallowing glyphs).
 function Ico({children,size,style={}}) {
-  return <span className="ico" style={{fontSize:size,lineHeight:1,display:"inline-block",verticalAlign:"-0.1em",...style}}>{children}</span>;
+  return <span className="ico" aria-hidden="true" style={{fontSize:size,lineHeight:1,display:"inline-block",verticalAlign:"-0.1em",...style}}>{children}</span>;
 }
 function ChessIco({children,size,style={}}) {
-  return <span className="chess-ico" style={{fontSize:size,lineHeight:1,display:"inline-block",verticalAlign:"-0.08em",...style}}>{children}</span>;
+  return <span className="chess-ico" aria-hidden="true" style={{fontSize:size,lineHeight:1,display:"inline-block",verticalAlign:"-0.08em",...style}}>{children}</span>;
 }
 function renderIcon(icon,size=18) {
   if (icon==null) return null;
@@ -36,7 +36,7 @@ function renderIcon(icon,size=18) {
 }
 
 function ThemeBg({t}) {
-  return <svg style={{position:"fixed",inset:0,width:"100%",height:"100%",zIndex:0,pointerEvents:"none",opacity:.18}} xmlns="http://www.w3.org/2000/svg">
+  return <svg aria-hidden="true" style={{position:"fixed",inset:0,width:"100%",height:"100%",zIndex:0,pointerEvents:"none",opacity:.18}} xmlns="http://www.w3.org/2000/svg">
     <defs><pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
       <circle cx="16" cy="16" r=".7" fill={t.accent}/>
     </pattern></defs>
@@ -60,6 +60,7 @@ function injectTheme(t) {
     body { background:${t.bg}; color:${t.text}; font-family:${t.font},${EMOJI_FONT}; scroll-behavior:smooth; line-height:1.35; transition:background .5s ease,color .3s ease; }
     .ico{font-family:${EMOJI_FONT};font-style:normal;font-weight:400}
     .chess-ico{font-family:${CHESS_FONT};font-style:normal;font-weight:400}
+    .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
     ::-webkit-scrollbar{width:5px} ::-webkit-scrollbar-track{background:transparent} ::-webkit-scrollbar-thumb{background:${t.scrollThumb};border-radius:3px}
     /* ── Keyframes ── */
     @keyframes fadeInUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
@@ -1585,14 +1586,14 @@ function StatSheet({dimensions,t,compact=false,limit=7}) {
 }
 
 // ── Page transition wrapper ───────────────────────────────────────────────────
-function PageTransition({children, keyVal}) {
+function PageTransition({children, keyVal, panelId, labelledBy}) {
   const [visible, setVisible] = useState(false);
   useEffect(() => {
     setVisible(false);
     const timer = setTimeout(() => setVisible(true), 30);
     return () => clearTimeout(timer);
   }, [keyVal]);
-  return <div className="page-transition" style={{
+  return <div id={panelId} role="tabpanel" aria-labelledby={labelledBy} tabIndex={0} className="page-transition" style={{
     opacity: visible ? 1 : 0,
     transform: visible ? "translateY(0) scale(1)" : "translateY(14px) scale(.985)",
     filter: visible ? "blur(0)" : "blur(6px)",
@@ -2087,10 +2088,11 @@ function CompareTab({p1,p2,l1,l2,p2In,setP2In,loadP2,e2,months,t,onChangeP2}) {
       <div style={{fontSize:13}}>Compare stats for the same {rangeLabel(months)} window</div>
     </div>
     <Card t={t}><div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
-      <input placeholder="Opponent username…" value={p2In} onChange={e=>setP2In(e.target.value)} onKeyDown={e=>e.key==="Enter"&&loadP2()} style={{flex:1,minWidth:180}}/>
-      <button className="primary" onClick={loadP2} disabled={!p2In.trim()||l2}>{l2?<span style={{display:"inline-flex",alignItems:"center",gap:8}}><span style={{width:14,height:14,border:`2px solid ${t.btnColor}`,borderTopColor:"transparent",borderRadius:"50%",display:"inline-block",animation:"spin .8s linear infinite"}}/>Loading…</span>:"Compare"}</button>
+      <label htmlFor="opponent-username-compare" className="sr-only">Opponent Chess.com username</label>
+      <input id="opponent-username-compare" placeholder="Opponent username…" value={p2In} onChange={e=>setP2In(e.target.value)} onKeyDown={e=>e.key==="Enter"&&loadP2()} style={{flex:1,minWidth:180}} autoComplete="username"/>
+      <button className="primary" onClick={loadP2} disabled={!p2In.trim()||l2}>{l2?<span style={{display:"inline-flex",alignItems:"center",gap:8}}><span aria-hidden="true" style={{width:14,height:14,border:`2px solid ${t.btnColor}`,borderTopColor:"transparent",borderRadius:"50%",display:"inline-block",animation:"spin .8s linear infinite"}}/>Loading…</span>:"Compare"}</button>
     </div>
-    {e2&&<div className="error-shake" style={{marginTop:12,fontSize:13,color:t.loss,padding:"8px 14px",background:`${t.loss}12`,border:`1px solid ${t.loss}30`,borderRadius:8,display:"inline-block"}}>⚠ {e2}</div>}
+    {e2&&<div role="alert" className="error-shake" style={{marginTop:12,fontSize:13,color:t.loss,padding:"8px 14px",background:`${t.loss}12`,border:`1px solid ${t.loss}30`,borderRadius:8,display:"inline-block"}}><span aria-hidden="true">⚠ </span>{e2}</div>}
     </Card>
   </div>;
 
@@ -2231,10 +2233,11 @@ function WinPlanTab({p1,p2,l1,l2,p2In,setP2In,loadP2,e2,months,t,onChangeP2}) {
       </div>
     </Card>
     <Card t={t}><div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
-      <input placeholder="Opponent username…" value={p2In} onChange={e=>setP2In(e.target.value)} onKeyDown={e=>e.key==="Enter"&&loadP2()} style={{flex:1,minWidth:180}}/>
-      <button className="primary" onClick={loadP2} disabled={!p2In.trim()||l2}>{l2?<span style={{display:"inline-flex",alignItems:"center",gap:8}}><span style={{width:14,height:14,border:`2px solid ${t.btnColor}`,borderTopColor:"transparent",borderRadius:"50%",display:"inline-block",animation:"spin .8s linear infinite"}}/>Analyzing…</span>:"Build Win Plan"}</button>
+      <label htmlFor="opponent-username-winplan" className="sr-only">Opponent Chess.com username</label>
+      <input id="opponent-username-winplan" placeholder="Opponent username…" value={p2In} onChange={e=>setP2In(e.target.value)} onKeyDown={e=>e.key==="Enter"&&loadP2()} style={{flex:1,minWidth:180}} autoComplete="username"/>
+      <button className="primary" onClick={loadP2} disabled={!p2In.trim()||l2}>{l2?<span style={{display:"inline-flex",alignItems:"center",gap:8}}><span aria-hidden="true" style={{width:14,height:14,border:`2px solid ${t.btnColor}`,borderTopColor:"transparent",borderRadius:"50%",display:"inline-block",animation:"spin .8s linear infinite"}}/>Analyzing…</span>:"Build Win Plan"}</button>
     </div>
-    {e2&&<div className="error-shake" style={{marginTop:12,fontSize:13,color:t.loss,padding:"8px 14px",background:`${t.loss}12`,border:`1px solid ${t.loss}30`,borderRadius:8,display:"inline-block"}}>⚠ {e2}</div>}
+    {e2&&<div role="alert" className="error-shake" style={{marginTop:12,fontSize:13,color:t.loss,padding:"8px 14px",background:`${t.loss}12`,border:`1px solid ${t.loss}30`,borderRadius:8,display:"inline-block"}}><span aria-hidden="true">⚠ </span>{e2}</div>}
     </Card>
   </div>;
 
@@ -2943,7 +2946,7 @@ export default function App() {
       {/* ── Hero section ── */}
       <div className="hero-pad" style={{textAlign:"center",padding:"70px 0 46px",animation:"fadeInUp .6s ease both",position:"relative",overflow:"visible"}}>
         {[["♜",2,6,0],["♞",96,10,1.8],["♝",4,42,0.6],["♛",95,58,2.4],["♟",50,3,3.2],["♚",8,88,1.2],["♞",88,78,2.8],["♝",18,22,0.3],["♜",72,92,3.6]].map(([piece,x,y,delay],i)=>(
-          <span key={i} className="hero-float-piece chess-ico" style={{left:`${x}%`,top:`${y}%`,fontSize:[26,20,22,18,24,22,20,18,24][i],animationDelay:`${delay}s`,animationDuration:`${7+i*.8}s`}}>{piece}</span>
+          <span key={i} aria-hidden="true" className="hero-float-piece chess-ico" style={{left:`${x}%`,top:`${y}%`,fontSize:[26,20,22,18,24,22,20,18,24][i],animationDelay:`${delay}s`,animationDuration:`${7+i*.8}s`}}>{piece}</span>
         ))}
         <div style={{position:"relative"}}>
         <div className="hero-emoji" style={{fontSize:76,marginBottom:12,animation:"heroChess 4s ease-in-out infinite",display:"inline-block",filter:`drop-shadow(0 0 34px ${t.glowC})`}}><ChessIco size={76}>♟</ChessIco></div>
@@ -2953,11 +2956,12 @@ export default function App() {
         {/* Search */}
         <div style={{display:"flex",gap:10,maxWidth:680,margin:"28px auto 0",alignItems:"center",flexWrap:"wrap",animation:"fadeInUp .65s .32s cubic-bezier(.22,1,.36,1) both"}}>
           <div className="search-wrap" style={{flex:1,minWidth:200,position:"relative"}}>
-            <span className="search-icon ico" style={{position:"absolute",left:14,top:"50%",transform:"translateY(-50%)",color:t.textDim,fontSize:16,pointerEvents:"none",transition:"color .2s ease"}}>🔍</span>
-            <input placeholder="Enter Chess.com username…" value={p1In} onChange={e=>setP1In(e.target.value)} onKeyDown={e=>e.key==="Enter"&&load1()} style={{paddingLeft:42,fontSize:16}}/>
+            <span aria-hidden="true" className="search-icon ico" style={{position:"absolute",left:14,top:"50%",transform:"translateY(-50%)",color:t.textDim,fontSize:16,pointerEvents:"none",transition:"color .2s ease"}}>🔍</span>
+            <label htmlFor="player-username" className="sr-only">Chess.com username</label>
+            <input id="player-username" placeholder="Enter Chess.com username…" value={p1In} onChange={e=>setP1In(e.target.value)} onKeyDown={e=>e.key==="Enter"&&load1()} style={{paddingLeft:42,fontSize:16}} autoComplete="username"/>
           </div>
           <button className="primary" onClick={load1} disabled={l1||!p1In.trim()}>
-            {l1?<span style={{display:"inline-flex",alignItems:"center",gap:8}}><span style={{width:14,height:14,border:`2px solid ${t.btnColor}`,borderTopColor:"transparent",borderRadius:"50%",display:"inline-block",animation:"spin .8s linear infinite"}}/>Analyzing…</span>:"Analyze Player"}
+            {l1?<span style={{display:"inline-flex",alignItems:"center",gap:8}}><span aria-hidden="true" style={{width:14,height:14,border:`2px solid ${t.btnColor}`,borderTopColor:"transparent",borderRadius:"50%",display:"inline-block",animation:"spin .8s linear infinite"}}/>Analyzing…</span>:"Analyze Player"}
           </button>
         </div>
         <div style={{display:"flex",gap:6,justifyContent:"center",marginTop:12,alignItems:"center",animation:"fadeInUp .5s .4s cubic-bezier(.22,1,.36,1) both"}}>
@@ -2969,7 +2973,7 @@ export default function App() {
           ))}
           {p1&&<span style={{fontSize:11,color:t.textDim,marginLeft:4,animation:"fadeIn .4s ease both"}}>· <AnimatedNumber value={p1.games.length} duration={700}/> games loaded</span>}
         </div>
-        {e1&&<div className="error-shake" style={{marginTop:12,fontSize:13,color:t.loss,padding:"8px 14px",background:`${t.loss}12`,border:`1px solid ${t.loss}30`,borderRadius:8,display:"inline-block"}}>⚠ {e1}</div>}
+        {e1&&<div role="alert" className="error-shake" style={{marginTop:12,fontSize:13,color:t.loss,padding:"8px 14px",background:`${t.loss}12`,border:`1px solid ${t.loss}30`,borderRadius:8,display:"inline-block"}}><span aria-hidden="true">⚠ </span>{e1}</div>}
         </div>
       </div>
 
@@ -2985,14 +2989,14 @@ export default function App() {
       </Reveal>}
 
       {/* ── Tabs ── */}
-      {(p1||l1)&&<Reveal delay={0.03}><div ref={tabStripRef} className="tab-strip" style={{background:t.card,border:`1px solid ${t.cardBorder}`,borderRadius:10,padding:6,marginBottom:14,boxShadow:`0 4px 20px rgba(0,0,0,.25)`,scrollMarginTop:12}}>
+      {(p1||l1)&&<Reveal delay={0.03}><div ref={tabStripRef} className="tab-strip" role="tablist" aria-label="Analysis sections" style={{background:t.card,border:`1px solid ${t.cardBorder}`,borderRadius:10,padding:6,marginBottom:14,boxShadow:`0 4px 20px rgba(0,0,0,.25)`,scrollMarginTop:12}}>
         {TABS.map(([icon,name],i)=>(
-          <button key={name} className={`tab-btn ${tab===i?"active":""}`} onClick={()=>handleTabChange(i)} style={tab===i?{animation:"elasticIn .25s cubic-bezier(.22,1,.36,1) both"}:{}}><Ico size={14}>{icon}</Ico> {name}</button>
+          <button key={name} id={`tab-${i}`} role="tab" aria-selected={tab===i} aria-controls={`tabpanel-${i}`} tabIndex={tab===i?0:-1} className={`tab-btn ${tab===i?"active":""}`} onClick={()=>handleTabChange(i)} style={tab===i?{animation:"elasticIn .25s cubic-bezier(.22,1,.36,1) both"}:{}}><Ico size={14}>{icon}</Ico> {name}</button>
         ))}
       </div></Reveal>}
 
       {/* ── Tab Content ── */}
-      {(p1||l1)&&<PageTransition keyVal={tab}>
+      {(p1||l1)&&<PageTransition keyVal={tab} panelId={`tabpanel-${tab}`} labelledBy={`tab-${tab}`}>
         {tab===0&&<OverviewTab data={p1} loading={l1} t={t} onGoTab={handleTabChange}/>}
         {tab===1&&<OpeningsTab games={p1?.games} loading={l1} t={t}/>}
         {tab===2&&<ColorTab games={p1?.games} loading={l1} t={t}/>}
@@ -3004,7 +3008,7 @@ export default function App() {
 
       {/* ── Empty state ── */}
       {!p1&&!l1&&!e1&&<div style={{textAlign:"center",padding:"40px 0 60px",animation:"fadeInUp .5s .2s ease both"}}>
-        <div className="empty-piece" style={{fontSize:64,opacity:.15,marginBottom:20,display:"inline-block",fontFamily:CHESS_FONT}}>♜</div>
+        <div aria-hidden="true" className="empty-piece" style={{fontSize:64,opacity:.15,marginBottom:20,display:"inline-block",fontFamily:CHESS_FONT}}>♜</div>
         <div style={{fontFamily:t.headingFont,fontSize:20,color:t.textMid}}>Enter a username to reveal your Chess DNA</div>
         <div style={{fontSize:13,color:t.textDim,marginTop:8,maxWidth:420,margin:"8px auto 0"}}>Win rates, openings, color splits, opponent breakdowns, matchup plans, and a playstyle profile — all from public Chess.com data.</div>
       </div>}
