@@ -1432,7 +1432,7 @@ function computeWinPlan(player, opponent, months) {
     playerColorEdge && `Your ${playerColorEdge.color} scores ${playerColorEdge.winPct}% (${playerColorEdge.games} games) — prefer that side when possible.`,
     playerOpenings[0] && `Your best weapon: ${playerOpenings[0].opening} (${playerOpenings[0].winPct}% over ${playerOpenings[0].games} games).`,
     overusedOpenings[0] && overusedOpenings[0].share >= 10 && `They play ${overusedOpenings[0].opening} in ${overusedOpenings[0].share}% of games — high-value prep target.`,
-    oppDna && `Chess DNA: ${oppDna.title} — expect ${oppDna.favTC} (${oppDna.timeMix[0]?.pct || 0}% of games) and ${oppDna.uniqueOpenings} distinct openings.`,
+    oppDna && `ChessDNA: ${oppDna.title} — expect ${oppDna.favTC} (${oppDna.timeMix[0]?.pct || 0}% of games) and ${oppDna.uniqueOpenings} distinct openings.`,
   ].filter(Boolean);
 
   const primaryAngle = topExploit ? topExploit.category.toLowerCase() : "their repeated patterns";
@@ -2559,7 +2559,7 @@ function DnaTab({games,stats,loading,t,profile}) {
   const p=useMemo(()=>loading?null:computePersonality(games,stats,profile),[games,stats,profile,loading]);
   const evolution=useMemo(()=>loading?null:dnaEvolution(games,stats,profile),[games,stats,profile,loading]);
   if (loading) return <Sk h={300}/>;
-  if (!p) return <div style={{color:t.textDim,textAlign:"center",padding:40,fontSize:14}}>Load a player to reveal their Chess DNA.</div>;
+  if (!p) return <div style={{color:t.textDim,textAlign:"center",padding:40,fontSize:14}}>Load a player to reveal their ChessDNA.</div>;
   const c=p.titleColor;
   const top=p.dimensions[0], weak=p.dimensions[p.dimensions.length-1];
   const shareUrl=()=>window.location.origin+window.location.pathname+`#/${profile?.username||""}/card`;
@@ -2572,7 +2572,7 @@ function DnaTab({games,stats,loading,t,profile}) {
       <div style={{position:"relative",display:"flex",gap:24,alignItems:"flex-start",flexWrap:"wrap"}}>
         <div style={{fontSize:72,lineHeight:1,filter:`drop-shadow(0 0 24px ${c}70)`,animation:"float 3s ease-in-out infinite"}}><Ico size={72}>{p.icon}</Ico></div>
         <div style={{flex:1,minWidth:200}}>
-          <div style={{fontSize:11,color:c,textTransform:"uppercase",letterSpacing:".1em",fontWeight:800,marginBottom:6,overflowWrap:"anywhere"}}>Chess DNA · {p.dnaCode}</div>
+          <div style={{fontSize:11,color:c,textTransform:"uppercase",letterSpacing:".1em",fontWeight:800,marginBottom:6,overflowWrap:"anywhere"}}>ChessDNA · {p.dnaCode}</div>
           <div style={{fontFamily:t.headingFont,fontSize:"clamp(28px,5.5vw,52px)",fontWeight:900,color:c,lineHeight:1.1,letterSpacing:"-.03em",overflowWrap:"anywhere"}}>{p.title}</div>
           <div style={{display:"inline-flex",alignItems:"center",gap:8,background:`${c}14`,border:`1px solid ${c}35`,borderRadius:999,padding:"5px 14px",marginTop:10}}>
             <span style={{width:6,height:6,borderRadius:"50%",background:c,boxShadow:`0 0 10px ${c}`}}/>
@@ -2651,7 +2651,7 @@ function TabQuickLinks({t,onSelect}) {
     [1,"📖","Openings","Repertoire & leaks"],
     [2,"🎨","Color Stats","White vs Black"],
     [3,"📈","Elo Breakdown","By opponent rating"],
-    [6,"🧬","Chess DNA","Playstyle profile"],
+    [6,"🧬","ChessDNA","Playstyle profile"],
   ];
   return <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:10}}>
     {links.map(([idx,icon,label,sub],i)=>(
@@ -2784,7 +2784,7 @@ function OverviewTab({data,loading,t,onGoTab}) {
 }
 
 // ── Main App ──────────────────────────────────────────────────────────────────
-const TABS=[["📊","Overview"],["📖","Openings"],["🎨","Color Stats"],["📈","Elo Breakdown"],["⚔","Compare"],["🎯","Win Plan"],["🧬","Chess DNA"]];
+const TABS=[["📊","Overview"],["📖","Openings"],["🎨","Color Stats"],["📈","Elo Breakdown"],["⚔","Compare"],["🎯","Win Plan"],["🧬","ChessDNA"]];
 const RANGE_OPTIONS = [3,6,12,0];
 function getSavedRange() {
   const raw = localStorage.getItem("chessdna-range");
@@ -3014,7 +3014,7 @@ export default function App() {
       {/* ── Empty state ── */}
       {!p1&&!l1&&!e1&&<div style={{textAlign:"center",padding:"40px 0 60px",animation:"fadeInUp .5s .2s ease both"}}>
         <div aria-hidden="true" className="empty-piece" style={{fontSize:64,opacity:.15,marginBottom:20,display:"inline-block",fontFamily:CHESS_FONT}}>♜</div>
-        <div style={{fontFamily:t.headingFont,fontSize:20,color:t.textMid}}>Enter a username to reveal your Chess DNA</div>
+        <div style={{fontFamily:t.headingFont,fontSize:20,color:t.textMid}}>Enter a username to reveal your ChessDNA</div>
         <div style={{fontSize:13,color:t.textDim,marginTop:8,maxWidth:420,margin:"8px auto 0"}}>Win rates, openings, color splits, opponent breakdowns, matchup plans, and a playstyle profile — all from public Chess.com data.</div>
       </div>}
 
