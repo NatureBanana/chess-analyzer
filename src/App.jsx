@@ -2897,7 +2897,7 @@ export default function App() {
       setP1In(user);
       doLoad1(user);
       if (sub==="card") setTab(6);
-      if (sub==="compare" && other) { setTab(4); setP2In(other); load2(other); }
+      if (sub==="compare") { setTab(4); if (other) { setP2In(other); load2(other); } }
       if (sub==="plan") { setTab(5); if (other) { setP2In(other); load2(other); } }
     }
     const onHash = () => {
@@ -2906,7 +2906,7 @@ export default function App() {
         setP1In(u);
         doLoad1(u);
         if (s==="card") setTab(6);
-        else if (s==="compare" && o) { setTab(4); setP2In(o); load2(o); }
+        else if (s==="compare") { setTab(4); if (o) { setP2In(o); load2(o); } }
         else if (s==="plan") { setTab(5); if (o) { setP2In(o); load2(o); } }
         else setTab(prev=>(prev===4||prev===5||prev===6)?0:prev);
       }
@@ -2978,7 +2978,10 @@ export default function App() {
 
   const clearCompare = () => {
     setP2(null); setP2In(""); setE2(null);
-    if (p1) setHash(p1.profile.username);
+    if (!p1) return;
+    if (tab === 5) setHash(p1.profile.username, "plan");
+    else if (tab === 4) setHash(p1.profile.username, "compare");
+    else setHash(p1.profile.username);
   };
 
   const handleTabChange = (i) => {
@@ -2991,6 +2994,7 @@ export default function App() {
     else if (i===5 && p2) setHash(p1.profile.username, "plan", p2.profile.username);
     else if (i===5) setHash(p1.profile.username, "plan");
     else if (i===4 && p2) setHash(p1.profile.username, "compare", p2.profile.username);
+    else if (i===4) setHash(p1.profile.username, "compare");
     else setHash(p1.profile.username);
   };
 
