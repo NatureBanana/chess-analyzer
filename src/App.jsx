@@ -13,12 +13,6 @@ const CompareRadarChart = lazy(() => chartWidgets().then(m => ({ default: m.Comp
 const CompareSharedOpeningsChart = lazy(() => chartWidgets().then(m => ({ default: m.CompareSharedOpeningsChart })));
 const MonthlyTrajectoryChart = lazy(() => chartWidgets().then(m => ({ default: m.MonthlyTrajectoryChart })));
 
-// ── Fonts ─────────────────────────────────────────────────────────────────────
-const fl = document.createElement("link");
-fl.rel = "stylesheet";
-fl.href = "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;900&family=DM+Sans:wght@300;400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap";
-document.head.appendChild(fl);
-
 // ── Theme ─────────────────────────────────────────────────────────────────────
 const THEME = { bg:"#0d1117", card:"linear-gradient(135deg,rgba(20,26,36,.92),rgba(10,14,20,.96))", cardBorder:"rgba(139,148,158,0.15)", accent:"#58a6ff", accent2:"#1f6feb", hl:"#79c0ff", text:"#c9d1d9", textDim:"#4a5568", textMid:"#8b949e", win:"#3fb950", loss:"#f85149", draw:"#6e7681", inputBg:"rgba(20,26,36,.9)", btnGrad:"linear-gradient(135deg,#1f6feb,#58a6ff)", btnColor:"#0d1117", skA:"rgba(88,166,255,.04)", skB:"rgba(88,166,255,.1)", font:"'DM Sans',sans-serif", headingFont:"'Playfair Display',serif", scrollThumb:"#58a6ff28", glowC:"#58a6ff35", glowC2:"#58a6ff70" };
 
@@ -476,10 +470,25 @@ async function fetchArchiveGames(url, user) {
   return games;
 }
 
-async function loadPlayer(user, months=3) {
-  const cached = readPlayerCache(user, months);
-  if (cached) return cached;
+function formatLoadStatus({ stage, count, total, username }) {
+  if (stage === "cache") return count ? `Loaded ${count.toLocaleString()} cached games` : "Loading cached data…";
+  if (stage === "profile") return `Fetching ${username}…`;
+  if (stage === "archives" && total > 1 && count != null) return `Fetching archives… (${count}/${total})`;
+  if (stage === "archives") return count === 1 ? "Fetching archive…" : `Fetching ${count} archives…`;
+  if (stage === "parsing") return `Parsing ${count.toLocaleString()} games…`;
+  return "Loading…";
+}
 
+async function loadPlayer(user, months=3, onProgress) {
+  const report = (info) => onProgress?.(info);
+
+  const cached = readPlayerCache(user, months);
+  if (cached) {
+    report({ stage: "cache", count: cached.games.length });
+    return cached;
+  }
+
+  report({ stage: "profile", username: user });
   const base = `https://api.chess.com/pub/player/${user}`;
   const [, profile, stats, archives] = await Promise.all([
     ensureOpeningsLoaded(),
@@ -491,8 +500,17 @@ async function loadPlayer(user, months=3) {
   const allUrls = archives.archives || [];
   // months=0 means all time
   const urls = months === 0 ? allUrls : allUrls.slice(-months);
-  const archiveData = await Promise.all(urls.map(u => fetchArchiveGames(u, user)));
+  report({ stage: "archives", count: urls.length });
+  let archivesDone = 0;
+  const archiveData = await Promise.all(urls.map(u =>
+    fetchArchiveGames(u, user).then(games => {
+      archivesDone++;
+      if (urls.length > 1) report({ stage: "archives", count: archivesDone, total: urls.length });
+      return games;
+    })
+  ));
   const games = archiveData.flatMap(games => games.map(g => normalizeArchiveGame(g, user)).filter(Boolean)).sort((a,b)=>(b.endTime||0)-(a.endTime||0));
+  report({ stage: "parsing", count: games.length });
   const result = { profile, stats, games, monthsLoaded: urls.length };
   writePlayerCache(user, months, result);
   return result;
@@ -1581,29 +1599,17 @@ function PageTransition({children, keyVal}) {
   }}>{children}</div>;
 }
 
-// ── Loading bar ───────────────────────────────────────────────────────────────
-function LoadingBar({active, t}) {
-  const [width, setWidth] = useState(0);
-  useEffect(() => {
-    if (!active) { setWidth(0); return; }
-    setWidth(20);
-    const t1 = setTimeout(() => setWidth(55), 400);
-    const t2 = setTimeout(() => setWidth(75), 1200);
-    const t3 = setTimeout(() => setWidth(88), 2500);
-    return () => [t1,t2,t3].forEach(clearTimeout);
-  }, [active]);
-  if (!active && width === 0) return null;
-  return <div style={{position:"fixed",top:0,left:0,right:0,zIndex:9999,height:3,background:`${t.glowC}30`,opacity:active||width<100?1:0,transition:"opacity .45s ease"}}>
-    <div style={{
-      height:"100%",width:`${active ? width : 100}%`,
-      background:`linear-gradient(90deg,${t.accent2},${t.accent},${t.hl},${t.accent})`,
-      backgroundSize:"200% 100%",
-      animation:active?"progressShimmer 1.8s linear infinite":"none",
-      borderRadius:"0 3px 3px 0",
-      transition:active?"width 0.8s cubic-bezier(.4,0,.2,1)":"width .35s cubic-bezier(.22,1,.36,1), opacity .35s ease",
-      boxShadow:`0 0 14px ${t.glowC},0 0 4px ${t.accent}`,
-      opacity:active?1:0,
-    }}/>
+// ── Load status ───────────────────────────────────────────────────────────────
+function LoadStatus({active, message, t}) {
+  if (!active || !message) return null;
+  return <div style={{position:"fixed",top:0,left:0,right:0,zIndex:9999,background:`${t.bg}ee`,borderBottom:`1px solid ${t.cardBorder}`,backdropFilter:"blur(8px)"}}>
+    <div style={{maxWidth:1120,margin:"0 auto",padding:"8px 16px",display:"flex",alignItems:"center",gap:10,fontFamily:t.font,fontSize:13,color:t.textMid}}>
+      <span style={{width:12,height:12,border:`2px solid ${t.accent}`,borderTopColor:"transparent",borderRadius:"50%",display:"inline-block",animation:"spin .8s linear infinite",flexShrink:0}}/>
+      <span style={{color:t.text}}>{message}</span>
+    </div>
+    <div style={{height:2,background:`${t.glowC}30`,overflow:"hidden"}}>
+      <div style={{height:"100%",width:"40%",background:`linear-gradient(90deg,${t.accent2},${t.accent},${t.hl},${t.accent})`,backgroundSize:"200% 100%",animation:"progressShimmer 1.8s linear infinite",borderRadius:"0 2px 2px 0"}}/>
+    </div>
   </div>;
 }
 
@@ -2804,6 +2810,7 @@ export default function App() {
   const [p2,setP2]=useState(null);
   const [l1,setL1]=useState(false);
   const [l2,setL2]=useState(false);
+  const [loadStatus,setLoadStatus]=useState("");
   const [e1,setE1]=useState(null);
   const [e2,setE2]=useState(null);
   const [months,setMonths]=useState(getSavedRange);
@@ -2844,11 +2851,13 @@ export default function App() {
     const loadId = ++p1LoadId.current;
     setL1(true); setE1(null); setP1(null);
     try {
-      const data = await loadPlayer(u, m);
+      const data = await loadPlayer(u, m, info => {
+        if (loadId === p1LoadId.current) setLoadStatus(formatLoadStatus(info));
+      });
       if (loadId === p1LoadId.current) setP1(data);
     }
     catch(e) { if (loadId === p1LoadId.current) setE1(e.message||"Failed to load"); }
-    finally { if (loadId === p1LoadId.current) setL1(false); }
+    finally { if (loadId === p1LoadId.current) { setL1(false); setLoadStatus(""); } }
   };
 
   const load1 = () => {
@@ -2873,7 +2882,9 @@ export default function App() {
     const loadId = ++p2LoadId.current;
     setL2(true); setP2(null); setE2(null);
     try{
-      const data = await loadPlayer(u, m);
+      const data = await loadPlayer(u, m, info => {
+        if (loadId === p2LoadId.current) setLoadStatus(formatLoadStatus(info));
+      });
       if (loadId === p2LoadId.current) {
         setP2(data);
         setP2In(data.profile.username);
@@ -2881,7 +2892,7 @@ export default function App() {
     }
     catch(e){
       if (loadId === p2LoadId.current) setE2(e.message||"Failed to load player");
-    }finally{if (loadId === p2LoadId.current) setL2(false);}
+    }finally{if (loadId === p2LoadId.current) { setL2(false); setLoadStatus(""); }}
   };
 
   const runCompare = () => {
@@ -2924,7 +2935,7 @@ export default function App() {
     {/* Background */}
     <div style={{position:"fixed",inset:0,zIndex:0,background:t.bg,pointerEvents:"none"}}/>
     <ThemeBg t={t}/>
-    <LoadingBar active={l1||l2} t={t}/>
+    <LoadStatus active={l1||l2} message={loadStatus} t={t}/>
     <ScrollProgress t={t}/>
 
     <div style={{position:"relative",zIndex:1,isolation:"isolate",maxWidth:1120,margin:"0 auto",padding:"0 16px 80px"}}>
