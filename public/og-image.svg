@@ -22,6 +22,6 @@
   </g>
   <text x="600" y="310" text-anchor="middle" fill="url(#title)" font-family="Georgia, 'Times New Roman', serif" font-size="96" font-weight="700" letter-spacing="-2">Chess Analyzer</text>
   <text x="600" y="380" text-anchor="middle" fill="#8b949e" font-family="system-ui, -apple-system, sans-serif" font-size="34" font-weight="400">Deep stats from real Chess.com games</text>
-  <text x="600" y="450" text-anchor="middle" fill="#4a5568" font-family="system-ui, -apple-system, sans-serif" font-size="24">Openings · matchups · playstyle DNA profiles</text>
+  <text x="600" y="450" text-anchor="middle" fill="#4a5568" font-family="system-ui, -apple-system, sans-serif" font-size="24">Openings · matchups · playstyle profiles</text>
   <rect x="360" y="520" width="480" height="4" rx="2" fill="#58a6ff" opacity="0.45"/>
 </svg>
