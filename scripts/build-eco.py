@@ -2,7 +2,9 @@
 """Regenerate src/data/openings.js from lichess TSV files."""
 import os, json, re, urllib.request
 
-DIR = os.path.join(os.path.dirname(__file__), "..", "src", "data")
+SCRIPT_DIR = os.path.dirname(__file__)
+TSV_DIR = SCRIPT_DIR
+OUT_DIR = os.path.join(SCRIPT_DIR, "..", "src", "data")
 BASE = "https://raw.githubusercontent.com/lichess-org/chess-openings/master"
 
 def norm_moves(pgn):
@@ -20,13 +22,13 @@ def norm_moves(pgn):
     return " ".join(moves).strip()
 
 def main():
-    os.makedirs(DIR, exist_ok=True)
+    os.makedirs(OUT_DIR, exist_ok=True)
     eco_by_code = {}
     move_entries = []
 
     for letter in "abcde":
         url = f"{BASE}/{letter}.tsv"
-        path = os.path.join(DIR, f"{letter}.tsv")
+        path = os.path.join(TSV_DIR, f"{letter}.tsv")
         print(f"Fetching {url}...")
         urllib.request.urlretrieve(url, path)
         with open(path) as f:
@@ -53,7 +55,7 @@ def main():
         seen.add(e[0])
         deduped.append(e)
 
-    out = os.path.join(DIR, "openings.js")
+    out = os.path.join(OUT_DIR, "openings.js")
     with open(out, "w") as f:
         f.write("// Auto-generated from lichess-org/chess-openings TSV files\n")
         f.write("export const ECO_BY_CODE = ")
