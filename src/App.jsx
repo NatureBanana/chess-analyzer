@@ -568,7 +568,7 @@ function colorStats(games) {
 }
 
 function eloBrackets(games) {
-  return [["<1000",0,1000],["1000-1199",1000,1200],["1200-1399",1200,1400],["1400-1599",1400,1600],["1600-1799",1600,1800],["1800-1999",1800,2000],["2000+",2000,9999]]
+  return [["<600",0,600],["600-799",600,800],["800-999",800,1000],["1000-1199",1000,1200],["1200-1399",1200,1400],["1400-1599",1400,1600],["1600-1799",1600,1800],["1800-1999",1800,2000],["2000+",2000,9999]]
     .map(([label,mn,mx])=>{ const g=games.filter(x=>x.oppElo>=mn&&x.oppElo<mx); return {label,games:g.length,winPct:g.length?Math.round(g.filter(x=>x.result==="win").length/g.length*100):0}; })
     .filter(b=>b.games>0);
 }
