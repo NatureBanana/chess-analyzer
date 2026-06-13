@@ -534,11 +534,16 @@ function rangeLabel(months) { return RANGE_LABELS[months] ?? `${months} months`;
 
 function gameOpeningKey(g) {
   if (g.opening && !isGenericOpeningName(g.opening)) return g.opening;
-  if (g.movePrefix) {
-    const inferred = lookupOpeningFromMovePrefix(g.movePrefix);
-    if (inferred?.opening) return inferred.opening;
+  const prefix = g.movePrefix || g.firstMove;
+  if (prefix) {
+    const inferred = lookupOpeningFromMovePrefix(prefix);
+    if (inferred?.opening && !isGenericOpeningName(inferred.opening)) return inferred.opening;
   }
   return null;
+}
+
+function displayOpeningName(g) {
+  return gameOpeningKey(g) || g.opening || "Unknown opening";
 }
 
 function aggOpenings(games, tc="all") {
@@ -680,7 +685,7 @@ function biggestUpsets(games, limit=5) {
     .sort((a,b)=>b.diff-a.diff).slice(0,limit);
 }
 
-function davidGoliath(games) {
+function ratingGapStats(games) {
   const rated=games.filter(g=>g.oppElo&&g.myElo);
   const f=g=>g.length?{games:g.length,winPct:percent(g.filter(x=>x.result==="win").length,g.length)}:null;
   return {
@@ -2013,12 +2018,12 @@ function EloTab({games,loading,t}) {
   if (!games?.length) return <div style={{color:t.textDim}}>No games.</div>;
   const data=eloBrackets(games);
   const avgOpp=(() => { const e=games.filter(g=>g.oppElo).map(g=>g.oppElo); return e.length?Math.round(e.reduce((a,b)=>a+b,0)/e.length):0; })();
-  const dg=davidGoliath(games);
+  const gap=ratingGapStats(games);
   const upsets=biggestUpsets(games,5);
-  const dgRows=[
-    dg.up&&{label:"Punching up",sub:"opponent 50+ above you",icon:"🏔",...dg.up,color:"#a78bfa"},
-    dg.even&&{label:"Even matchups",sub:"within ±50 points",icon:"⚖",...dg.even,color:t.accent},
-    dg.down&&{label:"Punching down",sub:"opponent 50+ below you",icon:"🎯",...dg.down,color:t.win},
+  const gapRows=[
+    gap.up&&{label:"Punching up",sub:"opponent 50+ above you",icon:"🏔",...gap.up,color:"#a78bfa"},
+    gap.even&&{label:"Even matchups",sub:"within ±50 points",icon:"⚖",...gap.even,color:t.accent},
+    gap.down&&{label:"Punching down",sub:"opponent 50+ below you",icon:"🎯",...gap.down,color:t.win},
   ].filter(Boolean);
 
   return <div style={{display:"flex",flexDirection:"column",gap:16}}>
@@ -2038,10 +2043,10 @@ function EloTab({games,loading,t}) {
       </div>
     </Card>
 
-    {dgRows.length>0&&<Reveal><Card t={t} hover={false}>
-      <SecTitle t={t} sub="Score split by rating difference in each individual game">David vs Goliath</SecTitle>
+    {gapRows.length>0&&<Reveal><Card t={t} hover={false}>
+      <SecTitle t={t} sub="Win rate when you're rated higher, lower, or about even with your opponent">Win Rate by Rating Gap</SecTitle>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:12}}>
-        {dgRows.map((r,i)=>(
+        {gapRows.map((r,i)=>(
           <div key={r.label} style={{display:"flex",gap:14,alignItems:"center",background:`${r.color}08`,border:`1px solid ${r.color}25`,borderRadius:14,padding:14,animation:`flipIn .5s ${.06+i*.08}s cubic-bezier(.22,1,.36,1) both`}}>
             <RingGauge value={r.winPct} size={66} stroke={6} color={r.color} t={t} delay={i*.08}/>
             <div>
@@ -2052,7 +2057,7 @@ function EloTab({games,loading,t}) {
           </div>
         ))}
       </div>
-      {dg.up&&dg.down&&dg.up.winPct>=40&&<div style={{fontSize:12,color:t.accent,marginTop:12,fontWeight:600,display:"flex",alignItems:"center",gap:6}}><Ico size={12}>💡</Ico> You win {dg.up.winPct}% even against stronger opposition — you're underrated. Seek harder pairings.</div>}
+      {gap.up&&gap.down&&gap.up.winPct>=40&&<div style={{fontSize:12,color:t.accent,marginTop:12,fontWeight:600,display:"flex",alignItems:"center",gap:6}}><Ico size={12}>💡</Ico> You win {gap.up.winPct}% even against stronger opposition — you're underrated. Seek harder pairings.</div>}
     </Card></Reveal>}
 
     {upsets.length>0&&<Reveal><Card t={t} hover={false}>
@@ -2063,7 +2068,7 @@ function EloTab({games,loading,t}) {
             <div style={{fontSize:20}}>{renderIcon(i===0?"👑":"⚔",20)}</div>
             <div style={{minWidth:0}}>
               <div style={{fontSize:13,fontWeight:700,color:t.text,overflowWrap:"anywhere"}}>beat {u.opponent} <span style={{color:t.win}}>({u.oppElo})</span> as a {u.myElo}</div>
-              <div style={{fontSize:11,color:t.textDim,marginTop:2}}>{u.opening||"Unknown opening"} · {u.timeControl}{u.date?` · ${u.date}`:""}</div>
+              <div style={{fontSize:11,color:t.textDim,marginTop:2}}>{displayOpeningName(u)} · {u.timeControl}{u.date?` · ${u.date}`:""}</div>
             </div>
             <div style={{textAlign:"right"}}>
               <div style={{fontFamily:t.headingFont,fontSize:20,fontWeight:900,color:t.win}}>+{u.diff}</div>
@@ -2729,7 +2734,7 @@ function OverviewTab({data,loading,t,onGoTab}) {
         <div style={{fontSize:11,color:t.textDim,textTransform:"uppercase",letterSpacing:".07em",marginBottom:8}}>Recent form (last 20)</div>
         <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
           {recent.map((g,i)=>(
-            <div key={i} className="pop-in" style={{width:16,height:16,borderRadius:3,background:g.result==="win"?t.win:g.result==="loss"?t.loss:t.draw,opacity:.85,title:`${g.result} · ${g.opening||"—"}`,animationDelay:`${i*.03}s`,transition:"transform .15s ease"}} onMouseEnter={e=>e.target.style.transform="scale(1.3)"} onMouseLeave={e=>e.target.style.transform="scale(1)"}/>
+            <div key={i} className="pop-in" style={{width:16,height:16,borderRadius:3,background:g.result==="win"?t.win:g.result==="loss"?t.loss:t.draw,opacity:.85,title:`${g.result} · ${displayOpeningName(g)}`,animationDelay:`${i*.03}s`,transition:"transform .15s ease"}} onMouseEnter={e=>e.target.style.transform="scale(1.3)"} onMouseLeave={e=>e.target.style.transform="scale(1)"}/>
           ))}
         </div>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8,marginTop:8}}>
