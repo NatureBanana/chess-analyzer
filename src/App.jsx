@@ -1,6 +1,6 @@
 /* eslint-disable react-hooks/set-state-in-effect, react-hooks/static-components, react-hooks/immutability */
 import { useState, useEffect, useRef, useMemo } from "react";
-import { resolveOpeningInfo, openingCoverage, ecoFamily } from "./openingResolver.js";
+import { resolveOpeningInfo, openingCoverage, ecoFamily, normalizeMovesFromPgn } from "./openingResolver.js";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, RadarChart, Radar, PolarGrid, PolarAngleAxis,
@@ -435,7 +435,9 @@ function parsePGNGame(pgn, user, game={}) {
   const dateStr = formatDateFromTimestamp(game.end_time) || tags.EndDate || tags.UTCDate || tags.Date;
   const openingInfo = resolveOpeningInfo(tags, pgn);
   const { moveCount, firstMove } = parseMovetextMeta(pgn);
-  return { ...openingInfo, openingSource:openingInfo.source, color, result, oppElo:(!oppElo||isNaN(oppElo))?null:oppElo, myElo:(!myElo||isNaN(myElo))?null:myElo, timeControl, date:dateStr, endTime:game.end_time||0, opponent:color==="white"?b:w, moveCount, firstMove };
+  const moveParts = pgn ? normalizeMovesFromPgn(pgn).split(/\s+/).filter(Boolean) : [];
+  const movePrefix = moveParts.length >= 2 ? moveParts.slice(0, 6).join(" ") : null;
+  return { ...openingInfo, openingSource:openingInfo.source, color, result, oppElo:(!oppElo||isNaN(oppElo))?null:oppElo, myElo:(!myElo||isNaN(myElo))?null:myElo, timeControl, date:dateStr, endTime:game.end_time||0, opponent:color==="white"?b:w, moveCount, firstMove, movePrefix };
 }
 
 function parsePGN(pgn, user) {
@@ -472,7 +474,7 @@ function normalizeArchiveGame(game, user) {
       date: formatDateFromTimestamp(game.end_time),
       endTime: game.end_time || 0,
       opponent: color === "white" ? b : w,
-      moveCount: null, firstMove: null,
+      moveCount: null, firstMove: null, movePrefix: null,
     };
   }
   return game.color && game.result ? game : null;
@@ -944,88 +946,419 @@ function weaknessLevel(winPct) {
   return "Secondary target";
 }
 
+// ── Win plan statistics (sample-size aware) ───────────────────────────────────
+function adaptiveMinGames(total, floor, pct = 0.05) {
+  return Math.max(floor, Math.ceil(total * pct));
+}
+
+function shrunkRate(wins, games, priorPct, priorWeight = 8) {
+  if (!games) return priorPct;
+  const priorWins = (priorPct / 100) * priorWeight;
+  return percent(wins + priorWins, games + priorWeight);
+}
+
+function confidenceTierFor(n, deltaAbs) {
+  if (n >= 20 && deltaAbs >= 12) return { tier: "High", level: 3, color: "#39ffa0" };
+  if (n >= 12 && deltaAbs >= 8) return { tier: "Medium", level: 2, color: "#ffc800" };
+  if (n >= 8 && deltaAbs >= 6) return { tier: "Low", level: 1, color: "#67e8f9" };
+  return { tier: "Insufficient", level: 0, color: "#6e7681" };
+}
+
+function segmentWeakness(segment, baseline, minGames, mode = "loss") {
+  const n = segment.games;
+  if (n < minGames) return null;
+  const segRate = mode === "loss" ? segment.lossPct : segment.winPct;
+  const baseRate = mode === "loss" ? baseline.lossPct : baseline.winPct;
+  const delta = mode === "loss" ? segRate - baseRate : baseRate - segRate;
+  if (delta < 6) return null;
+  const conf = confidenceTierFor(n, Math.abs(delta));
+  if (conf.level === 0) return null;
+  const rawWins = segment.wins ?? Math.round(segRate * n / 100);
+  const shrunk = shrunkRate(rawWins, n, baseRate);
+  return {
+    ...segment,
+    delta,
+    confidence: conf.tier,
+    confidenceLevel: conf.level,
+    confidenceColor: conf.color,
+    shrunkRate: shrunk,
+    score: delta * Math.sqrt(n) * (0.45 + conf.level * 0.28),
+  };
+}
+
+function aggregateSequences(games) {
+  const m = {};
+  for (const g of games) {
+    if (!g.movePrefix) continue;
+    const parts = g.movePrefix.split(" ");
+    if (parts.length < 3) continue;
+    const key = parts.slice(0, 4).join(" ");
+    if (!m[key]) m[key] = { sequence: key, games: 0, wins: 0, losses: 0, draws: 0, white: 0, black: 0 };
+    m[key].games++;
+    if (g.result === "win") m[key].wins++;
+    else if (g.result === "loss") m[key].losses++;
+    else m[key].draws++;
+    if (g.color === "white") m[key].white++; else m[key].black++;
+  }
+  return Object.values(m).map(s => ({
+    ...s,
+    winPct: percent(s.wins, s.games),
+    lossPct: percent(s.losses, s.games),
+    dominantColor: s.white >= s.black ? "White" : "Black",
+  }));
+}
+
+function aggregateEcoFamilies(games) {
+  const m = {};
+  for (const g of games) {
+    const f = g.ecoFamily;
+    if (!f || f === "?") continue;
+    if (!m[f]) m[f] = { family: f, games: 0, wins: 0, losses: 0, draws: 0 };
+    m[f].games++;
+    if (g.result === "win") m[f].wins++;
+    else if (g.result === "loss") m[f].losses++;
+    else m[f].draws++;
+  }
+  return Object.values(m).map(e => ({ ...e, winPct: percent(e.wins, e.games), lossPct: percent(e.losses, e.games) }));
+}
+
+function timeControlIntel(games) {
+  const m = {};
+  for (const g of games) {
+    const k = g.timeControl || "other";
+    if (!m[k]) m[k] = { tc: k, games: 0, wins: 0, losses: 0, draws: 0 };
+    m[k].games++;
+    if (g.result === "win") m[k].wins++;
+    else if (g.result === "loss") m[k].losses++;
+    else m[k].draws++;
+  }
+  const total = games.length;
+  return Object.values(m)
+    .filter(d => d.tc !== "other")
+    .map(d => ({
+      ...d,
+      share: percent(d.games, total),
+      winPct: percent(d.wins, d.games),
+      lossPct: percent(d.losses, d.games),
+      drawPct: percent(d.draws, d.games),
+    }))
+    .sort((a, b) => a.winPct - b.winPct || b.games - a.games);
+}
+
+function repertoireHabits(openings, total) {
+  return openings
+    .filter(o => o.games >= 5)
+    .map(o => ({
+      ...o,
+      share: percent(o.games, total),
+      habit: o.games / total >= 0.18 ? "Core repertoire" : o.games / total >= 0.09 ? "Frequent" : "Occasional",
+    }))
+    .sort((a, b) => b.games - a.games);
+}
+
+function colorTimeCross(games, minGames = 8) {
+  const m = {};
+  for (const g of games) {
+    const k = `${g.color}|${g.timeControl}`;
+    if (!m[k]) m[k] = { color: g.color, tc: g.timeControl, games: 0, wins: 0, losses: 0 };
+    m[k].games++;
+    if (g.result === "win") m[k].wins++;
+    else if (g.result === "loss") m[k].losses++;
+  }
+  return Object.values(m)
+    .filter(d => d.tc !== "other" && d.games >= minGames)
+    .map(d => ({ ...d, winPct: percent(d.wins, d.games), lossPct: percent(d.losses, d.games), icon: d.color === "white" ? CHESS_WHITE : CHESS_BLACK }));
+}
+
 function computeWinPlan(player, opponent, months) {
   if (!opponent?.games?.length) return null;
-  const games=opponent.games;
-  const total=games.length;
-  const oppName=opponent.profile?.username||"Opponent";
-  const wins=games.filter(g=>g.result==="win").length;
-  const losses=games.filter(g=>g.result==="loss").length;
-  const draws=games.filter(g=>g.result==="draw").length;
-  const winPct=percent(wins,total);
-  const lossPct=percent(losses,total);
-  const drawPct=percent(draws,total);
-  const oppDna=computePersonality(games,opponent.stats,opponent.profile);
-  const colors=colorStats(games);
-  const colorRows=[
-    {color:"White",icon:CHESS_WHITE,...colors.white,winPct:percent(colors.white.wins,colors.white.total),lossPct:percent(colors.white.losses,colors.white.total)},
-    {color:"Black",icon:CHESS_BLACK,...colors.black,winPct:percent(colors.black.wins,colors.black.total),lossPct:percent(colors.black.losses,colors.black.total)},
-  ].filter(c=>c.total);
-  const weakColor=[...colorRows].sort((a,b)=>a.winPct-b.winPct || b.total-a.total)[0];
-  const tcRows=Object.entries(games.reduce((m,g)=>{const k=g.timeControl||"other";if(!m[k])m[k]={tc:k,games:0,wins:0,losses:0,draws:0};m[k].games++;if(g.result==="win")m[k].wins++;else if(g.result==="loss")m[k].losses++;else m[k].draws++;return m;},{}))
-    .map(([,d])=>({...d,winPct:percent(d.wins,d.games),lossPct:percent(d.losses,d.games)}))
-    .filter(d=>d.tc!=="other")
-    .sort((a,b)=>a.winPct-b.winPct || b.games-a.games);
-  const weakTC=tcRows.find(d=>d.games>=6) || tcRows[0] || null;
-  const openings=aggOpenings(games);
-  const targetOpenings=[...openings].filter(o=>o.games>=4).sort((a,b)=>b.lossPct-a.lossPct || b.games-a.games).slice(0,5);
-  const overusedOpenings=[...openings].filter(o=>o.games>=5).sort((a,b)=>b.games-a.games).slice(0,4);
-  const eloWeak=worstByWinPct(eloBrackets(games),5);
-  const recent=games.slice(0,Math.min(20,total));
-  const recentWinPct=percent(recent.filter(g=>g.result==="win").length,recent.length);
-  const streak=computeStreak(games);
-  const dayMap={};
-  games.forEach(g=>{if(g.date&&g.date!=="?"){if(!dayMap[g.date])dayMap[g.date]={t:0,w:0,l:0};dayMap[g.date].t++;if(g.result==="win")dayMap[g.date].w++;if(g.result==="loss")dayMap[g.date].l++;}});
-  const volatileDays=Object.values(dayMap).filter(d=>d.t>=4).map(d=>percent(d.w,d.t));
-  const volatility=volatileDays.length>=3?Math.round(Math.sqrt(avg(volatileDays.map(v=>(v-avg(volatileDays))**2)))):null;
-  const playerOpenings=player?.games?.length?aggOpenings(player.games).filter(o=>o.games>=3).sort((a,b)=>b.winPct-a.winPct || b.games-a.games).slice(0,4):[];
-  const playerColors=player?.games?.length?colorStats(player.games):null;
-  const playerColorEdge=playerColors?[{color:"White",winPct:percent(playerColors.white.wins,playerColors.white.total)},{color:"Black",winPct:percent(playerColors.black.wins,playerColors.black.total)}].sort((a,b)=>b.winPct-a.winPct)[0]:null;
-  // Tilt: do they collapse after a loss within the same session?
-  const tilt=tiltStats(games);
-  // Worst time-of-day block with enough sample
-  const todRows=timeOfDayStats(games).filter(d=>d.games>=8).sort((a,b)=>a.winPct-b.winPct);
-  const weakHour=todRows[0]&&todRows.length>=2&&todRows[todRows.length-1].winPct-todRows[0].winPct>=8?todRows[0]:null;
-  // Endgame proxy: do they survive long games?
-  const lengths=gameLengthStats(games);
-  const grindWeak=lengths&&lengths.longWinPct!==null&&lengths.longWinPct<=winPct-8?lengths:null;
-  // Plan confidence from sample size and clarity of the strongest signal
-  const confidence=clamp(Math.min(60,total/6)+(targetOpenings[0]?Math.min(20,targetOpenings[0].lossPct-40):0)+(weakColor?Math.min(20,50-weakColor.winPct):0));
-  const confidenceTier=confidence>=70?"High":confidence>=45?"Medium":"Low";
-  const riskFlags=[
-    weakColor && {id:"color",icon:weakColor.icon,label:`Make them play ${weakColor.color}`,value:`${weakColor.winPct}% win · ${weakColor.lossPct}% loss`,detail:`Their weakest color in loaded archives is ${weakColor.color}. Prioritize lines that steer them into uncomfortable structures from that side.`,score:100-weakColor.winPct},
-    weakTC && {id:"clock",icon:"⏱",label:`Choose ${weakTC.tc} pace`,value:`${weakTC.winPct}% win over ${weakTC.games} games`,detail:`Their lowest-scoring time control is ${weakTC.tc}. Keep clock pressure high and avoid letting them settle into slower decisions.`,score:90-weakTC.winPct},
-    targetOpenings[0] && {id:"opening",icon:"♟",label:"Target losing openings",value:`${targetOpenings[0].lossPct}% loss in ${targetOpenings[0].opening}`,detail:`The strongest archive weakness is ${targetOpenings[0].opening}: ${targetOpenings[0].losses} losses from ${targetOpenings[0].games} games.`,score:targetOpenings[0].lossPct+targetOpenings[0].games},
-    eloWeak && {id:"elo",icon:"📉",label:`Stress ${eloWeak.label} band`,value:`${eloWeak.winPct}% win in ${eloWeak.games} games`,detail:`They score lowest against opponents in the ${eloWeak.label} band. Match that practical pressure: solid positions, no free tactics, and repeated small problems.`,score:85-eloWeak.winPct},
-    recent.length>=8 && recentWinPct+8<winPct && {id:"form",icon:"❄",label:"Recent form dip",value:`${recentWinPct}% last ${recent.length} vs ${winPct}% overall`,detail:"Their recent results are below their loaded-range baseline. Start with forcing but sound choices and make them rebuild confidence.",score:70},
-    streak.count>=3 && streak.type==="loss" && {id:"streak",icon:"🧊",label:"Active losing streak",value:`${streak.count} losses in a row`,detail:"Do not bail them out with speculative sacrifices. Make the position feel survivable but unpleasant.",score:75+streak.count},
-    volatility!==null && volatility>=28 && {id:"tilt",icon:"🎢",label:"Volatile sessions",value:`${volatility}% session swing`,detail:"Their day-to-day results swing hard. Keep the game practical and increase decisions under time pressure.",score:volatility},
-    tilt && tilt.tilt>=12 && {id:"tiltprone",icon:"🫠",label:"Tilts after losses",value:`${tilt.afterLossPct}% after a loss vs ${tilt.afterWinPct}% after a win`,detail:`In same-session games, they score ${tilt.tilt}% worse right after losing (${tilt.afterLossGames} samples). If you take game one, accept the rematch — the next game is statistically yours to press.`,score:tilt.tilt+30},
-    weakHour && {id:"hour",icon:weakHour.icon,label:`Catch them in the ${weakHour.label.toLowerCase()}`,value:`${weakHour.winPct}% win across ${weakHour.games} ${weakHour.label.toLowerCase()} games`,detail:`Their ${weakHour.label.toLowerCase()} results are their softest time-of-day block in this range. If you can pick when to play, pick then.`,score:80-weakHour.winPct},
-    grindWeak && {id:"grind",icon:"🐢",label:"Grind long games",value:`${grindWeak.longWinPct}% win in 40+ move games`,detail:`Their score drops to ${grindWeak.longWinPct}% when games pass move 40 (${grindWeak.longGames} games). Decline early simplifications that bail them out — steer for long, technical positions instead.`,score:75-grindWeak.longWinPct},
-  ].filter(Boolean).sort((a,b)=>b.score-a.score).slice(0,6);
-  const planSteps=[
-    {phase:"Opening",icon:"1",title:targetOpenings[0]?`Prepare ${targetOpenings[0].opening}`:"Deny comfort early",text:targetOpenings[0]?`Use move orders that reach or resemble ${targetOpenings[0].opening}; they lose ${targetOpenings[0].lossPct}% there in this range.`:"Avoid their pet lines until more archive data reveals a clear opening leak."},
-    {phase:"Middlegame",icon:"2",title:weakColor?`Keep them defending as ${weakColor.color}`:"Create repeated choices",text:weakColor?`Trade into structures where ${weakColor.color} must solve problems instead of attack. Their ${weakColor.color} score is ${weakColor.winPct}%.`:"Make them choose between king safety, pawn structure, and time; the goal is repeated practical strain."},
-    {phase:"Clock",icon:"3",title:weakTC?`Use ${weakTC.tc} pressure`:"Keep the pace uncomfortable",text:weakTC?`${weakTC.tc} is their softest format in loaded games. Keep useful threats on the board and avoid long forcing lines that simplify too early.`:"Use clock pressure as a weapon: maintain tension and ask them to find several only moves."},
-    {phase:"Conversion",icon:"4",title:"Win boring if needed",text:`They still score ${winPct}% overall, so do not rely on one trap. Convert by removing counterplay, forcing clean decisions, and making every recapture slightly worse.`},
+  const games = opponent.games;
+  const total = games.length;
+  const oppName = opponent.profile?.username || "Opponent";
+  const wins = games.filter(g => g.result === "win").length;
+  const losses = games.filter(g => g.result === "loss").length;
+  const draws = games.filter(g => g.result === "draw").length;
+  const baseline = { winPct: percent(wins, total), lossPct: percent(losses, total), drawPct: percent(draws, total) };
+  const minOpening = adaptiveMinGames(total, 8, 0.05);
+  const minSequence = adaptiveMinGames(total, 6, 0.035);
+  const minTC = adaptiveMinGames(total, 10, 0.08);
+  const minEco = adaptiveMinGames(total, 10, 0.06);
+  const minColor = adaptiveMinGames(total, 12, 0.1);
+
+  const oppDna = computePersonality(games, opponent.stats, opponent.profile);
+  const colors = colorStats(games);
+  const colorRows = [
+    { color: "White", icon: CHESS_WHITE, ...colors.white, winPct: percent(colors.white.wins, colors.white.total), lossPct: percent(colors.white.losses, colors.white.total) },
+    { color: "Black", icon: CHESS_BLACK, ...colors.black, winPct: percent(colors.black.wins, colors.black.total), lossPct: percent(colors.black.losses, colors.black.total) },
+  ].filter(c => c.total);
+  const weakColorRaw = [...colorRows].sort((a, b) => a.winPct - b.winPct || b.total - a.total)[0];
+  const weakColor = weakColorRaw && weakColorRaw.total >= minColor
+    ? segmentWeakness({ ...weakColorRaw, games: weakColorRaw.total }, baseline, minColor, "win")
+    : null;
+
+  const tcRows = timeControlIntel(games);
+  const weakTC = tcRows.map(d => segmentWeakness(d, baseline, minTC, "win")).filter(Boolean).sort((a, b) => b.score - a.score)[0] || null;
+  const strongTC = tcRows.filter(d => d.games >= minTC).sort((a, b) => b.winPct - a.winPct)[0] || null;
+
+  const openings = aggOpenings(games);
+  const openingLeaks = openings
+    .map(o => segmentWeakness(o, baseline, minOpening, "loss"))
+    .filter(Boolean)
+    .sort((a, b) => b.score - a.score);
+  const targetOpenings = openingLeaks.slice(0, 6);
+  const overusedOpenings = repertoireHabits(openings, total).slice(0, 5);
+
+  const sequences = aggregateSequences(games)
+    .map(s => segmentWeakness(s, baseline, minSequence, "loss"))
+    .filter(Boolean)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 6);
+
+  const ecoFamilies = aggregateEcoFamilies(games)
+    .map(e => segmentWeakness(e, baseline, minEco, "loss"))
+    .filter(Boolean)
+    .sort((a, b) => b.score - a.score);
+
+  const eloWeak = worstByWinPct(eloBrackets(games), 8);
+  const eloWeakSig = eloWeak && eloWeak.games >= 8 && baseline.winPct - eloWeak.winPct >= 8
+    ? { ...eloWeak, delta: baseline.winPct - eloWeak.winPct, confidence: confidenceTierFor(eloWeak.games, baseline.winPct - eloWeak.winPct).tier }
+    : null;
+
+  const recent = games.slice(0, Math.min(20, total));
+  const recentWinPct = percent(recent.filter(g => g.result === "win").length, recent.length);
+  const streak = computeStreak(games);
+  const dayMap = {};
+  games.forEach(g => {
+    if (g.date && g.date !== "?") {
+      if (!dayMap[g.date]) dayMap[g.date] = { t: 0, w: 0 };
+      dayMap[g.date].t++;
+      if (g.result === "win") dayMap[g.date].w++;
+    }
+  });
+  const volatileDays = Object.values(dayMap).filter(d => d.t >= 4).map(d => percent(d.w, d.t));
+  const volatility = volatileDays.length >= 3 ? Math.round(Math.sqrt(avg(volatileDays.map(v => (v - avg(volatileDays)) ** 2)))) : null;
+
+  const playerOpenings = player?.games?.length
+    ? aggOpenings(player.games).filter(o => o.games >= 5).sort((a, b) => b.winPct - a.winPct || b.games - a.games).slice(0, 4)
+    : [];
+  const playerColors = player?.games?.length ? colorStats(player.games) : null;
+  const playerColorEdge = playerColors
+    ? [{ color: "White", winPct: percent(playerColors.white.wins, playerColors.white.total), games: playerColors.white.total },
+       { color: "Black", winPct: percent(playerColors.black.wins, playerColors.black.total), games: playerColors.black.total }]
+        .filter(c => c.games >= 8)
+        .sort((a, b) => b.winPct - a.winPct)[0]
+    : null;
+
+  const tilt = tiltStats(games);
+  const lengths = gameLengthStats(games);
+  const grindWeak = lengths && lengths.longGames >= 10 && lengths.longWinPct !== null && baseline.winPct - lengths.longWinPct >= 8
+    ? { ...lengths, delta: baseline.winPct - lengths.longWinPct, confidence: confidenceTierFor(lengths.longGames, baseline.winPct - lengths.longWinPct).tier }
+    : null;
+  const blitzWeak = lengths && lengths.shortGames >= 10 && lengths.shortWinPct !== null && baseline.winPct - lengths.shortWinPct >= 8
+    ? { ...lengths, delta: baseline.winPct - lengths.shortWinPct, confidence: confidenceTierFor(lengths.shortGames, baseline.winPct - lengths.shortWinPct).tier }
+    : null;
+
+  const colorTC = colorTimeCross(games, Math.max(8, Math.ceil(total * 0.06)))
+    .map(d => segmentWeakness(d, baseline, Math.max(8, Math.ceil(total * 0.06)), "win"))
+    .filter(Boolean)
+    .sort((a, b) => b.score - a.score);
+
+  const fm = firstMoveStats(games);
+  const firstMoveLeaks = [...fm.asWhite, ...fm.asBlack]
+    .filter(r => r.games >= Math.max(8, Math.ceil(total * 0.05)))
+    .map(r => segmentWeakness({ ...r, label: `1.${r.move}` }, baseline, Math.max(8, Math.ceil(total * 0.05)), "win"))
+    .filter(Boolean)
+    .sort((a, b) => b.score - a.score);
+
+  // Time-of-day: only surface when sample is large AND gap is meaningful (not a cheat-sheet item)
+  const todRows = timeOfDayStats(games);
+  const weakHour = (() => {
+    const sorted = todRows.filter(d => d.games >= 20).sort((a, b) => a.winPct - b.winPct);
+    if (sorted.length < 2) return null;
+    const worst = sorted[0];
+    const best = sorted[sorted.length - 1];
+    if (best.winPct - worst.winPct < 12 || baseline.winPct - worst.winPct < 8) return null;
+    return { ...worst, delta: baseline.winPct - worst.winPct, confidence: "Low", note: "Context only — fatigue patterns are noisy; prioritize openings and time control." };
+  })();
+
+  const exploitCandidates = [
+    weakColor && {
+      id: "color", icon: weakColor.icon, category: "Color",
+      label: `Steer them onto ${weakColor.color}`,
+      value: `${weakColor.winPct}% win (${weakColor.delta}pp below baseline)`,
+      detail: `Across ${weakColor.games} ${weakColor.color} games they win ${weakColor.winPct}% vs ${baseline.winPct}% overall. Shrinkage-adjusted estimate: ${weakColor.shrunkRate}%. Trade into structures where ${weakColor.color} must defend.`,
+      games: weakColor.games, delta: weakColor.delta, confidence: weakColor.confidence, confidenceColor: weakColor.confidenceColor, score: weakColor.score,
+    },
+    weakTC && {
+      id: "clock", icon: "⏱", category: "Time control",
+      label: `Queue ${weakTC.tc}`,
+      value: `${weakTC.winPct}% win · ${weakTC.share}% of their games`,
+      detail: `${weakTC.tc} is their weakest format in this sample (${weakTC.games} games, ${weakTC.delta}pp below baseline). They play it ${weakTC.share}% of the time — when you can choose the pairing, pick this clock.`,
+      games: weakTC.games, delta: weakTC.delta, confidence: weakTC.confidence, confidenceColor: weakTC.confidenceColor, score: weakTC.score,
+    },
+    targetOpenings[0] && {
+      id: "opening", icon: "♟", category: "Opening",
+      label: targetOpenings[0].opening.length > 42 ? targetOpenings[0].opening.slice(0, 40) + "…" : targetOpenings[0].opening,
+      value: `${targetOpenings[0].lossPct}% loss rate (+${targetOpenings[0].delta}pp vs baseline)`,
+      detail: `${targetOpenings[0].losses} losses in ${targetOpenings[0].games} games — not a tiny sample. Baseline loss rate is ${baseline.lossPct}%. Prepare move orders that reach this territory.${targetOpenings[0].eco !== "?" ? ` ECO ${targetOpenings[0].eco}.` : ""}`,
+      games: targetOpenings[0].games, delta: targetOpenings[0].delta, confidence: targetOpenings[0].confidence, confidenceColor: targetOpenings[0].confidenceColor, score: targetOpenings[0].score,
+      opening: targetOpenings[0],
+    },
+    sequences[0] && {
+      id: "sequence", icon: "📜", category: "Move order",
+      label: `Force the line ${sequences[0].sequence}`,
+      value: `${sequences[0].lossPct}% loss · ${sequences[0].games} games`,
+      detail: `When the game opens ${sequences[0].sequence}, they lose ${sequences[0].lossPct}% (${sequences[0].delta}pp above baseline). Mostly as ${sequences[0].dominantColor}. Study this exact move order — it's more specific than the opening name alone.`,
+      games: sequences[0].games, delta: sequences[0].delta, confidence: sequences[0].confidence, confidenceColor: sequences[0].confidenceColor, score: sequences[0].score,
+      sequence: sequences[0].sequence,
+    },
+    ecoFamilies[0] && {
+      id: "eco", icon: "📚", category: "ECO family",
+      label: `Target ECO ${ecoFamilies[0].family} structures`,
+      value: `${ecoFamilies[0].lossPct}% loss in ${ecoFamilies[0].games} games`,
+      detail: `Volume ${ecoFamilies[0].family} games leak ${ecoFamilies[0].delta}pp more than their average. Useful when you can't match a specific named line — steer toward this pawn-structure family.`,
+      games: ecoFamilies[0].games, delta: ecoFamilies[0].delta, confidence: ecoFamilies[0].confidence, confidenceColor: ecoFamilies[0].confidenceColor, score: ecoFamilies[0].score,
+    },
+    colorTC[0] && {
+      id: "colortc", icon: colorTC[0].icon, category: "Color × format",
+      label: `${colorTC[0].color} in ${colorTC[0].tc}`,
+      value: `${colorTC[0].winPct}% win (${colorTC[0].delta}pp below baseline)`,
+      detail: `Combined slice: ${colorTC[0].games} games as ${colorTC[0].color} in ${colorTC[0].tc}. If pairing lets you influence both color and clock, this is the softest intersection.`,
+      games: colorTC[0].games, delta: colorTC[0].delta, confidence: colorTC[0].confidence, confidenceColor: colorTC[0].confidenceColor, score: colorTC[0].score,
+    },
+    eloWeakSig && {
+      id: "elo", icon: "📉", category: "Opponent pool",
+      label: `They struggle vs ${eloWeakSig.label} rated players`,
+      value: `${eloWeakSig.winPct}% win (${eloWeakSig.delta}pp below baseline)`,
+      detail: `${eloWeakSig.games} games in this rating band. Play solid, low-risk chess — they don't handle steady pressure from peers in this bracket.`,
+      games: eloWeakSig.games, delta: eloWeakSig.delta, confidence: confidenceTierFor(eloWeakSig.games, eloWeakSig.delta).tier, confidenceColor: confidenceTierFor(eloWeakSig.games, eloWeakSig.delta).color, score: eloWeakSig.delta * Math.sqrt(eloWeakSig.games),
+    },
+    grindWeak && {
+      id: "grind", icon: "🐢", category: "Game length",
+      label: "Extend into long games",
+      value: `${grindWeak.longWinPct}% win past move 40`,
+      detail: `In ${grindWeak.longGames} games of 40+ moves they win only ${grindWeak.longWinPct}% (${grindWeak.delta}pp below baseline). Decline early queen trades and mass simplifications.`,
+      games: grindWeak.longGames, delta: grindWeak.delta, confidence: grindWeak.confidence, confidenceColor: confidenceTierFor(grindWeak.longGames, grindWeak.delta).color, score: grindWeak.delta * Math.sqrt(grindWeak.longGames),
+    },
+    blitzWeak && {
+      id: "short", icon: "⚡", category: "Game length",
+      label: "Strike early (≤20 moves)",
+      value: `${blitzWeak.shortWinPct}% win in short games`,
+      detail: `Quick games (${blitzWeak.shortGames} samples) see them at ${blitzWeak.shortWinPct}% — ${blitzWeak.delta}pp below baseline. Open with purpose; don't let them settle.`,
+      games: blitzWeak.shortGames, delta: blitzWeak.delta, confidence: blitzWeak.confidence, confidenceColor: confidenceTierFor(blitzWeak.shortGames, blitzWeak.delta).color, score: blitzWeak.delta * Math.sqrt(blitzWeak.shortGames),
+    },
+    tilt && tilt.tilt >= 12 && {
+      id: "tiltprone", icon: "🫠", category: "Session pattern",
+      label: "Press after you win game one",
+      value: `${tilt.afterLossPct}% win after a loss vs ${tilt.afterWinPct}% after a win`,
+      detail: `Same-session rematch data: ${tilt.afterLossGames} games after losses, ${tilt.afterWinGames} after wins. They score ${tilt.tilt}pp worse immediately after losing — accept rematches if you take the first game.`,
+      games: tilt.afterLossGames + tilt.afterWinGames, delta: tilt.tilt, confidence: tilt.afterLossGames >= 15 ? "Medium" : "Low", confidenceColor: "#ffc800", score: tilt.tilt + 25,
+    },
+    recent.length >= 12 && recentWinPct + 10 < baseline.winPct && {
+      id: "form", icon: "❄", category: "Recent form",
+      label: "They're below their baseline",
+      value: `${recentWinPct}% last ${recent.length} vs ${baseline.winPct}% overall`,
+      detail: `${recentWinPct - baseline.winPct}pp form dip over the most recent games. Start with sound, forcing play — confidence may already be fragile.`,
+      games: recent.length, delta: baseline.winPct - recentWinPct, confidence: recent.length >= 18 ? "Medium" : "Low", confidenceColor: "#ffc800", score: (baseline.winPct - recentWinPct) * 2,
+    },
+    streak.count >= 4 && streak.type === "loss" && {
+      id: "streak", icon: "🧊", category: "Momentum",
+      label: "Active losing streak",
+      value: `${streak.count} losses in a row`,
+      detail: "Don't offer easy complications that bail them out. Keep the position unpleasant but technically sound.",
+      games: streak.count, delta: 12, confidence: "Low", confidenceColor: "#67e8f9", score: 60 + streak.count,
+    },
+    overusedOpenings[0] && overusedOpenings[0].share >= 12 && overusedOpenings[0].winPct <= baseline.winPct - 6 && overusedOpenings[0].games >= minOpening && {
+      id: "habit", icon: "🎯", category: "Predictable habit",
+      label: `Prep their go-to: ${overusedOpenings[0].opening.length > 36 ? overusedOpenings[0].opening.slice(0, 34) + "…" : overusedOpenings[0].opening}`,
+      value: `${overusedOpenings[0].share}% of games · ${overusedOpenings[0].winPct}% win`,
+      detail: `They reach this line in ${overusedOpenings[0].games} games (${overusedOpenings[0].share}% of archive). High hit-rate prep pays off here.`,
+      games: overusedOpenings[0].games, delta: baseline.winPct - overusedOpenings[0].winPct, confidence: overusedOpenings[0].games >= 15 ? "High" : "Medium", confidenceColor: overusedOpenings[0].games >= 15 ? "#39ffa0" : "#ffc800", score: overusedOpenings[0].share + (baseline.winPct - overusedOpenings[0].winPct),
+    },
+  ].filter(Boolean).sort((a, b) => b.score - a.score);
+
+  const riskFlags = exploitCandidates.slice(0, 8);
+  const topExploit = riskFlags[0] || null;
+
+  const signalStrength = riskFlags.filter(f => f.confidence === "High").length * 18
+    + riskFlags.filter(f => f.confidence === "Medium").length * 10
+    + riskFlags.filter(f => f.confidence === "Low").length * 4
+    + Math.min(35, total / 8);
+  const confidence = clamp(Math.round(signalStrength));
+  const confidenceTier = confidence >= 70 ? "High" : confidence >= 45 ? "Medium" : "Low";
+
+  const topOpening = targetOpenings[0];
+  const topSeq = sequences[0];
+  const planSteps = [
+    {
+      phase: "Before the game", icon: "0",
+      title: weakTC ? `Choose ${weakTC.tc} if you can` : "Pick your strongest format",
+      text: weakTC
+        ? `${weakTC.tc} shows a ${weakTC.delta}pp win-rate drop (${weakTC.games} games, ${weakTC.confidence} confidence). ${playerColorEdge ? `You score ${playerColorEdge.winPct}% as ${playerColorEdge.color} — lean that way if pairing allows.` : "Queue the time control where their sample is weakest."}`
+        : `${oppName} plays ${tcRows[0]?.share || "—"}% ${tcRows[0]?.tc || "blitz"}. Match your best clock against their most common habit.`,
+    },
+    {
+      phase: "Opening", icon: "1",
+      title: topSeq ? `Aim for ${topSeq.sequence}` : topOpening ? `Prepare ${topOpening.opening}` : "Deny comfort early",
+      text: topSeq
+        ? `This exact four-move start appears ${topSeq.games} times with a ${topSeq.lossPct}% loss rate (+${topSeq.delta}pp vs baseline). ${topOpening ? `Named as ${topOpening.opening}.` : ""} Have a concrete line — not just the opening name.`
+        : topOpening
+          ? `${topOpening.opening}: ${topOpening.games} games, ${topOpening.lossPct}% losses (${topOpening.confidence} confidence). Baseline is only ${baseline.lossPct}%.`
+          : `Need ${minOpening}+ games per line before calling an opening leak — keep probing early.`,
+    },
+    {
+      phase: "Middlegame", icon: "2",
+      title: weakColor ? `Keep them on ${weakColor.color}` : "Accumulate small problems",
+      text: weakColor
+        ? `${weakColor.color}: ${weakColor.winPct}% win over ${weakColor.games} games (${weakColor.delta}pp below baseline). Trade toward structures where that color defends.`
+        : "Repeated practical choices beat one-shot traps. Make every recapture slightly worse.",
+    },
+    {
+      phase: "Clock & conversion", icon: "3",
+      title: grindWeak ? "Don't simplify — grind" : tilt ? "Consider the rematch" : "Win cleanly",
+      text: grindWeak
+        ? `Past move 40 they win ${grindWeak.longWinPct}% (${grindWeak.delta}pp below baseline, n=${grindWeak.longGames}).`
+        : tilt && tilt.tilt >= 12
+          ? `After losing they score ${tilt.afterLossPct}% in the next same-session game (${tilt.afterLossGames} samples).`
+          : `Overall they still win ${baseline.winPct}% — convert by removing counterplay, not hero tactics.`,
+    },
   ];
-  const matchupNotes=[
-    playerColorEdge && `Your better color is ${playerColorEdge.color} (${playerColorEdge.winPct}% in loaded games). If pairing allows it, lean into that side.`,
-    playerOpenings[0] && `Your strongest reusable weapon is ${playerOpenings[0].opening} (${playerOpenings[0].winPct}% over ${playerOpenings[0].games} games).`,
-    oppDna && `${oppName}'s ChessDNA reads ${oppDna.title}; expect ${oppDna.favTC} habits and ${oppDna.uniqueOpenings} named openings in the sample.`,
+
+  const matchupNotes = [
+    playerColorEdge && `Your ${playerColorEdge.color} scores ${playerColorEdge.winPct}% (${playerColorEdge.games} games) — prefer that side when possible.`,
+    playerOpenings[0] && `Your best weapon: ${playerOpenings[0].opening} (${playerOpenings[0].winPct}% over ${playerOpenings[0].games} games).`,
+    overusedOpenings[0] && overusedOpenings[0].share >= 10 && `They play ${overusedOpenings[0].opening} in ${overusedOpenings[0].share}% of games — high-value prep target.`,
+    oppDna && `ChessDNA: ${oppDna.title} — expect ${oppDna.favTC} (${oppDna.timeMix[0]?.pct || 0}% of games) and ${oppDna.uniqueOpenings} distinct openings.`,
   ].filter(Boolean);
-  const summary=`${oppName} scores ${winPct}% across ${total} loaded games, but the clearest attack points are ${weakColor?weakColor.color+" color":"color selection"}, ${weakTC?weakTC.tc+" time control":"clock pressure"}, and ${targetOpenings[0]?targetOpenings[0].opening:"their most repeated openings"}.`;
-  const cheatSheet=[
-    weakColor&&["Force their color",`Make them play ${weakColor.color} (${weakColor.winPct}% win)`],
-    weakTC&&["Pick the pace",`${weakTC.tc} — their softest format (${weakTC.winPct}% win)`],
-    targetOpenings[0]&&["Aim the opening",`${targetOpenings[0].opening} (${targetOpenings[0].lossPct}% loss rate)`],
-    weakHour&&["Pick the hour",`${weakHour.label} games: they score only ${weakHour.winPct}%`],
-    tilt&&tilt.tilt>=12&&["Rematch after winning",`They drop to ${tilt.afterLossPct}% right after a loss`],
-    grindWeak&&["Stretch the game",`Only ${grindWeak.longWinPct}% win past move 40 — don't simplify early`],
-    ["Convert calmly",`They still win ${winPct}% overall — remove counterplay, no hero moves`],
+
+  const primaryAngle = topExploit ? topExploit.category.toLowerCase() : "their repeated patterns";
+  const summary = riskFlags.length
+    ? `${oppName} wins ${baseline.winPct}% across ${total} games (${rangeLabel(months)}). Strongest backed angle: ${topExploit.label.toLowerCase()} — ${topExploit.games} game sample, ${topExploit.confidence} confidence.`
+    : `${oppName} wins ${baseline.winPct}% across ${total} games — not enough repeated leaks at our thresholds yet. Play solid chess and widen the date range.`;
+
+  const cheatSheet = [
+    weakTC && ["Time control", `${weakTC.tc} — ${weakTC.winPct}% win, n=${weakTC.games}, ${weakTC.confidence} conf`],
+    topSeq && ["Move order", `${topSeq.sequence} (${topSeq.lossPct}% loss, n=${topSeq.games})`],
+    topOpening && !topSeq && ["Opening", `${topOpening.opening} (${topOpening.lossPct}% loss, n=${topOpening.games})`],
+    weakColor && ["Color", `Make them play ${weakColor.color} (${weakColor.winPct}% win, n=${weakColor.games})`],
+    overusedOpenings[0] && overusedOpenings[0].share >= 12 && ["Prep their habit", `${overusedOpenings[0].opening} — ${overusedOpenings[0].share}% of games`],
+    tilt && tilt.tilt >= 12 && ["Rematch edge", `${tilt.afterLossPct}% after a loss (n=${tilt.afterLossGames})`],
+    grindWeak && ["Game length", `Grind 40+ moves — ${grindWeak.longWinPct}% win (n=${grindWeak.longGames})`],
+    ["Baseline", `They still win ${baseline.winPct}% — convert calmly, no hero moves`],
   ].filter(Boolean);
-  return {oppName,total,wins,losses,draws,winPct,lossPct,drawPct,weakColor,weakTC,targetOpenings,overusedOpenings,eloWeak,recentWinPct,streak,volatility,tilt,weakHour,lengths,grindWeak,confidence,confidenceTier,riskFlags,planSteps,matchupNotes,summary,cheatSheet,monthsLabel:rangeLabel(months)};
+
+  return {
+    oppName, total, wins, losses, draws,
+    winPct: baseline.winPct, lossPct: baseline.lossPct, drawPct: baseline.drawPct,
+    baseline, weakColor, weakTC, strongTC, targetOpenings, overusedOpenings, sequences, ecoFamilies,
+    eloWeak: eloWeakSig, recentWinPct, streak, volatility, tilt, weakHour, lengths, grindWeak, blitzWeak,
+    colorTC, firstMoveLeaks, tcRows, confidence, confidenceTier, riskFlags, planSteps, matchupNotes, summary, cheatSheet,
+    methodology: {
+      minOpening, minSequence, minTC, minEco, minColor,
+      note: `Only surfaces patterns with enough games (typically ${minOpening}+ per opening, ${minTC}+ per time control) and ≥6pp deviation from baseline. Small samples are ignored — 3 games in a line is not a leak.`,
+    },
+    monthsLabel: rangeLabel(months),
+  };
 }
 
 // ── UI Primitives ─────────────────────────────────────────────────────────────
@@ -1837,6 +2170,17 @@ function CompareTab({p1,p2,l1,l2,p2In,setP2In,loadP2,e2,months,t,onChangeP2}) {
 }
 
 // ── Win Plan Tab ───────────────────────────────────────────────────────────────
+function ConfPill({tier,color,t}) {
+  const c=color||{High:t.win,Medium:"#ffc800",Low:t.hl,Insufficient:t.textDim}[tier]||t.textDim;
+  return <span style={{fontSize:9,fontWeight:800,textTransform:"uppercase",letterSpacing:".1em",padding:"3px 8px",borderRadius:999,background:`${c}18`,border:`1px solid ${c}40`,color:c,flexShrink:0}}>{tier}</span>;
+}
+
+function DeltaBadge({delta,t,inverse=false}) {
+  const d=inverse?-delta:delta;
+  const c=d>=12?t.loss:d>=6?"#ffc800":t.textDim;
+  return <span style={{fontFamily:t.headingFont,fontSize:13,fontWeight:900,color:c}}>{d>0?`+${d}`:d}pp</span>;
+}
+
 function WinPlanTab({p1,p2,l1,l2,p2In,setP2In,loadP2,e2,months,t,onChangeP2}) {
   if (!p2 && !l2) return <div style={{display:"flex",flexDirection:"column",gap:16,animation:"fadeInUp .45s cubic-bezier(.22,1,.36,1) both"}}>
     <Card t={t} glow={true} hover={false} style={{textAlign:"center",padding:"34px 26px",position:"relative",overflow:"hidden"}}>
@@ -1844,7 +2188,7 @@ function WinPlanTab({p1,p2,l1,l2,p2In,setP2In,loadP2,e2,months,t,onChangeP2}) {
       <div style={{position:"relative"}}>
         <div style={{marginBottom:10,animation:"float 3s ease-in-out infinite",display:"inline-block"}}><Ico size={54}>🎯</Ico></div>
         <div style={{fontFamily:t.headingFont,fontSize:"clamp(32px,6vw,58px)",lineHeight:1.05,fontWeight:900,color:t.accent,letterSpacing:"-.035em",overflowWrap:"anywhere"}}>Calculate how to beat an opponent</div>
-        <div style={{fontSize:14,color:t.textMid,maxWidth:680,margin:"12px auto 0",lineHeight:1.65}}>Loads their Chess.com archive games, finds result patterns, and turns their likely weaknesses into a practical game plan.</div>
+        <div style={{fontSize:14,color:t.textMid,maxWidth:720,margin:"12px auto 0",lineHeight:1.65}}>Deep archive analysis with sample-size gates — openings, exact move orders, time controls, and session patterns. No "3 games = bad opening" noise.</div>
       </div>
     </Card>
     <Card t={t}><div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
@@ -1855,169 +2199,295 @@ function WinPlanTab({p1,p2,l1,l2,p2In,setP2In,loadP2,e2,months,t,onChangeP2}) {
     </Card>
   </div>;
 
-  if (l2 || (l1 && !p1)) return <div style={{display:"flex",flexDirection:"column",gap:12,animation:"fadeIn .2s ease both"}}><Sk h={170}/><Sk h={260}/><Sk h={220}/></div>;
+  if (l2 || (l1 && !p1)) return <div style={{display:"flex",flexDirection:"column",gap:12,animation:"fadeIn .2s ease both"}}><Sk h={170}/><Sk h={260}/><Sk h={220}/><Sk h={300}/></div>;
   if (!p2) return null;
   const plan=computeWinPlan(p1,p2,months);
   if (!plan) return <div style={{color:t.textDim}}>Not enough opponent games loaded.</div>;
 
-  const Pill=({label,value,color=t.accent,i=0})=><div style={{background:`${color}10`,border:`1px solid ${color}28`,borderRadius:14,padding:"12px 14px",minWidth:120,flex:"1 1 120px",animation:`popIn .4s ${.06+i*.05}s cubic-bezier(.22,1,.36,1) both`}}>
+  const Pill=({label,value,sub,color=t.accent,i=0})=><div style={{background:`${color}10`,border:`1px solid ${color}28`,borderRadius:14,padding:"12px 14px",minWidth:110,flex:"1 1 110px",animation:`popIn .4s ${.06+i*.05}s cubic-bezier(.22,1,.36,1) both`}}>
     <div style={{fontSize:10,color:t.textDim,textTransform:"uppercase",letterSpacing:".1em",fontWeight:700,marginBottom:5}}>{label}</div>
-    <div style={{fontFamily:t.headingFont,fontSize:24,lineHeight:1.1,color,overflowWrap:"anywhere",fontWeight:900}}>{value}</div>
+    <div style={{fontFamily:t.headingFont,fontSize:22,lineHeight:1.1,color,overflowWrap:"anywhere",fontWeight:900}}>{value}</div>
+    {sub&&<div style={{fontSize:10,color:t.textDim,marginTop:4}}>{sub}</div>}
   </div>;
   const confColor=plan.confidence>=70?t.win:plan.confidence>=45?"#ffc800":t.loss;
   const maxFlagScore=Math.max(1,...plan.riskFlags.map(f=>f.score));
   const oppTod=timeOfDayStats(p2.games);
+  const cov=openingCoverage(p2.games);
 
   const copyCheatSheet=()=>{
     const text=[`HOW TO BEAT ${plan.oppName.toUpperCase()} — cheat sheet (${plan.monthsLabel}, ${plan.total} games)`,
+      `Baseline: ${plan.winPct}% win · thresholds: ${plan.methodology.minOpening}+ games/opening`,
       ...plan.cheatSheet.map(([k,v],i)=>`${i+1}. ${k}: ${v}`)].join("\n");
     navigator.clipboard.writeText(text);
   };
 
+  const ExploitCard=({f,i})=><div key={f.id} className="dim-card" style={{background:`linear-gradient(145deg,${t.loss}08,${t.card})`,border:`1px solid ${t.loss}22`,borderRadius:16,padding:18,animation:`flipIn .5s ${.04+i*.06}s cubic-bezier(.22,1,.36,1) both`,display:"flex",flexDirection:"column",gap:10}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10}}>
+      <div style={{display:"flex",gap:12,alignItems:"flex-start",minWidth:0,flex:1}}>
+        <div style={{width:38,height:38,borderRadius:13,background:`${t.loss}14`,border:`1px solid ${t.loss}30`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{renderIcon(f.icon,18)}</div>
+        <div style={{minWidth:0}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:5}}>
+            <span style={{fontSize:9,color:t.textDim,textTransform:"uppercase",letterSpacing:".1em",fontWeight:800}}>{f.category}</span>
+            <ConfPill tier={f.confidence} color={f.confidenceColor} t={t}/>
+          </div>
+          <div style={{fontFamily:t.headingFont,fontSize:18,lineHeight:1.15,color:t.text,fontWeight:900,overflowWrap:"anywhere"}}>{f.label}</div>
+        </div>
+      </div>
+      <div style={{textAlign:"right",flexShrink:0}}>
+        <div style={{fontSize:10,color:t.textDim,fontWeight:700}}>n={f.games}</div>
+        {f.delta!=null&&<DeltaBadge delta={f.delta} t={t}/>}
+      </div>
+    </div>
+    <div style={{fontSize:13,color:t.loss,fontWeight:800,overflowWrap:"anywhere"}}>{f.value}</div>
+    <div style={{height:5,borderRadius:3,background:`${t.loss}14`,overflow:"hidden"}}>
+      <div className="bar-grow" style={{height:"100%",width:`${Math.round(f.score/maxFlagScore*100)}%`,background:`linear-gradient(90deg,#ffc800,${t.loss})`,borderRadius:3,animationDelay:`${.15+i*.07}s`}}/>
+    </div>
+    <div style={{fontSize:12,color:t.textMid,lineHeight:1.6}}>{f.detail}</div>
+  </div>;
+
   return <div style={{display:"flex",flexDirection:"column",gap:18,animation:"fadeInUp .45s cubic-bezier(.22,1,.36,1) both"}}>
+    {/* Hero */}
     <Card t={t} glow={true} hover={false} style={{padding:"30px 28px",position:"relative",overflow:"hidden"}} className="card-pad-sm">
       <div style={{position:"absolute",inset:-120,background:`radial-gradient(circle at 18% 12%,${t.loss}20,transparent 34%),radial-gradient(circle at 85% 10%,${t.accent}18,transparent 36%)`,animation:"auroraDrift 12s ease-in-out infinite",pointerEvents:"none"}}/>
       <div style={{position:"relative",display:"flex",justifyContent:"space-between",gap:18,alignItems:"flex-start",flexWrap:"wrap"}}>
         <div style={{flex:"1 1 380px",minWidth:0}}>
-          <div style={{fontSize:12,color:t.loss,textTransform:"uppercase",letterSpacing:".22em",fontWeight:900,marginBottom:8}}>Win plan</div>
+          <div style={{fontSize:12,color:t.loss,textTransform:"uppercase",letterSpacing:".22em",fontWeight:900,marginBottom:8}}>Evidence-based win plan</div>
           <div style={{fontFamily:t.headingFont,fontSize:"clamp(34px,7vw,74px)",lineHeight:1.02,fontWeight:900,color:t.text,letterSpacing:"-.045em",overflowWrap:"anywhere"}}>How to beat {plan.oppName}</div>
           <div style={{fontSize:14,color:t.textMid,lineHeight:1.65,maxWidth:760,marginTop:14}}>{plan.summary}</div>
-          <div style={{fontSize:11,color:t.textDim,lineHeight:1.5,marginTop:10}}>This is archive-pattern analysis, not engine evaluation. "Common mistakes" means repeated result leaks from their loaded Chess.com games.</div>
+          <div style={{fontSize:11,color:t.textDim,lineHeight:1.55,marginTop:10,maxWidth:700}}>{plan.methodology.note}</div>
         </div>
         <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:10}}>
-          <RingGauge value={plan.confidence} size={92} stroke={9} color={confColor} t={t} label="confidence"/>
-          <div style={{fontSize:11,color:confColor,fontWeight:800,textTransform:"uppercase",letterSpacing:".08em"}}>{plan.confidenceTier} signal</div>
+          <RingGauge value={plan.confidence} size={92} stroke={9} color={confColor} t={t} label="signal"/>
+          <div style={{fontSize:11,color:confColor,fontWeight:800,textTransform:"uppercase",letterSpacing:".08em"}}>{plan.confidenceTier} confidence</div>
           <button className="secondary" onClick={onChangeP2}>Change opponent</button>
         </div>
       </div>
       <div style={{position:"relative",display:"flex",gap:10,flexWrap:"wrap",marginTop:22}}>
-        <Pill label="Loaded games" value={plan.total} color={t.accent} i={0}/>
-        <Pill label="Opponent W/D/L" value={`${plan.winPct}/${plan.drawPct}/${plan.lossPct}%`} color={t.text} i={1}/>
-        <Pill label="Recent win%" value={`${plan.recentWinPct}%`} color={plan.recentWinPct<plan.winPct?t.loss:t.win} i={2}/>
-        {plan.tilt&&<Pill label="After-loss win%" value={`${plan.tilt.afterLossPct}%`} color={plan.tilt.tilt>=12?t.loss:t.text} i={3}/>}
-        {plan.lengths&&<Pill label="Avg game length" value={`${plan.lengths.avgMoves} moves`} color={t.hl} i={4}/>}
-        <Pill label="Range" value={plan.monthsLabel} color={t.hl} i={5}/>
+        <Pill label="Games analyzed" value={plan.total} sub={plan.monthsLabel} color={t.accent} i={0}/>
+        <Pill label="Their baseline" value={`${plan.winPct}%`} sub={`${plan.lossPct}% loss · ${plan.drawPct}% draw`} color={t.text} i={1}/>
+        <Pill label="Recent form" value={`${plan.recentWinPct}%`} sub={`last ${Math.min(20,plan.total)} games`} color={plan.recentWinPct<plan.winPct-8?t.loss:t.win} i={2}/>
+        <Pill label="Opening coverage" value={`${cov.pct}%`} sub={`${cov.named} named lines`} color={t.hl} i={3}/>
+        {plan.tilt&&<Pill label="Post-loss win%" value={`${plan.tilt.afterLossPct}%`} sub={`n=${plan.tilt.afterLossGames} same-session`} color={plan.tilt.tilt>=12?t.loss:t.textDim} i={4}/>}
+        {plan.lengths&&<Pill label="Avg length" value={`${plan.lengths.avgMoves}`} sub={`${plan.lengths.sample} with PGN moves`} color={t.hl} i={5}/>}
       </div>
     </Card>
 
-    {/* Threat matrix with severity meters */}
+    {/* Primary exploits */}
     <Reveal><Card t={t} hover={false}>
-      <SecTitle t={t} sub={`${plan.riskFlags.length} measurable leaks found, ranked by exploitability`}>Threat Matrix</SecTitle>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(230px,1fr))",gap:12}}>
-        {plan.riskFlags.map((f,i)=>(
-          <div key={f.id} className="dim-card" style={{background:`${t.loss}07`,border:`1px solid ${t.loss}22`,borderRadius:14,padding:16,animation:`flipIn .5s ${.05+i*.07}s cubic-bezier(.22,1,.36,1) both`}}>
-            <div style={{display:"flex",gap:12,alignItems:"flex-start"}}>
-              <div style={{width:34,height:34,borderRadius:12,background:`${t.loss}16`,border:`1px solid ${t.loss}35`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{renderIcon(f.icon,18)}</div>
-              <div style={{minWidth:0,flex:1}}>
-                <div style={{fontSize:10,color:t.textDim,textTransform:"uppercase",letterSpacing:".09em",fontWeight:800,marginBottom:4}}>Target #{i+1}</div>
-                <div style={{fontFamily:t.headingFont,fontSize:20,lineHeight:1.12,color:t.text,fontWeight:900,overflowWrap:"anywhere"}}>{f.label}</div>
-                <div style={{fontSize:13,color:t.loss,fontWeight:800,marginTop:5,overflowWrap:"anywhere"}}>{f.value}</div>
-              </div>
-            </div>
-            <div style={{display:"flex",alignItems:"center",gap:8,marginTop:10}}>
-              <span style={{fontSize:9,color:t.textDim,textTransform:"uppercase",letterSpacing:".08em",fontWeight:700,flexShrink:0}}>Severity</span>
-              <div style={{flex:1,height:5,borderRadius:3,background:`${t.loss}18`,overflow:"hidden"}}>
-                <div className="bar-grow" style={{height:"100%",width:`${Math.round(f.score/maxFlagScore*100)}%`,background:`linear-gradient(90deg,#ffc800,${t.loss})`,borderRadius:3,animationDelay:`${.2+i*.08}s`}}/>
-              </div>
-            </div>
-            <div style={{fontSize:12,color:t.textMid,lineHeight:1.55,marginTop:8}}>{f.detail}</div>
+      <SecTitle t={t} sub={`Ranked by effect size × sample size. Requires ≥6pp deviation from ${plan.winPct}% baseline.`}>Backed Exploits</SecTitle>
+      {plan.riskFlags.length
+        ? <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:14}}>
+            {plan.riskFlags.map((f,i)=><ExploitCard key={f.id} f={f} i={i}/>)}
           </div>
-        ))}
-      </div>
+        : <div style={{padding:"24px 18px",background:`${t.accent}06`,border:`1px dashed ${t.cardBorder}`,borderRadius:14,color:t.textMid,fontSize:14,lineHeight:1.6}}>
+            No pattern cleared our sample thresholds in this range. Try loading more months, or play solid chess — their baseline is {plan.winPct}% with no statistically loud leak yet.
+          </div>}
     </Card></Reveal>
 
-    {/* Cheat sheet + time-of-day */}
+    {/* Opening deep dive */}
+    <Reveal><div className="two-col-900" style={{display:"flex",gap:14,flexWrap:"wrap"}}>
+      <Card t={t} style={{flex:3,minWidth:300}}>
+        <SecTitle t={t} sub={`Exact 4-move starts · min ${plan.methodology.minSequence} games · vs ${plan.lossPct}% baseline loss rate`}>Move Order Intel</SecTitle>
+        {plan.sequences.length
+          ? <div style={{display:"flex",flexDirection:"column",gap:10}}>
+              {plan.sequences.map((s,i)=>{
+                const moves=s.sequence.split(" ");
+                return <div key={s.sequence} className="rival-row" style={{background:`${t.loss}08`,border:`1px solid ${i===0?`${t.loss}40`:`${t.loss}20`}`,borderRadius:14,padding:"14px 16px",animation:`slideUp .4s ${.05+i*.06}s cubic-bezier(.22,1,.36,1) both`}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,flexWrap:"wrap"}}>
+                    <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
+                      {moves.map((m,j)=><span key={j} style={{fontFamily:"'Space Grotesk',monospace",fontSize:13,fontWeight:700,background:`${t.accent}12`,border:`1px solid ${t.accent}28`,borderRadius:8,padding:"5px 10px",color:t.text}}>{j%2===0?`${Math.floor(j/2)+1}.`:""} {m}</span>)}
+                    </div>
+                    <div style={{textAlign:"right"}}>
+                      <div style={{fontFamily:t.headingFont,fontSize:26,fontWeight:900,color:t.loss}}>{s.lossPct}%</div>
+                      <div style={{fontSize:10,color:t.textDim}}>loss · n={s.games}</div>
+                    </div>
+                  </div>
+                  <div style={{display:"flex",gap:12,marginTop:10,fontSize:11,color:t.textDim,flexWrap:"wrap"}}>
+                    <span>+{s.delta}pp vs baseline</span>
+                    <ConfPill tier={s.confidence} color={s.confidenceColor} t={t}/>
+                    <span>Mostly as {s.dominantColor}</span>
+                    <span>Shrink: {s.shrunkRate}% loss</span>
+                  </div>
+                </div>;
+              })}
+            </div>
+          : <div style={{color:t.textDim,fontSize:13,lineHeight:1.6}}>Not enough games with parsed move text for sequence analysis. PGN movetext unlocks exact opening orders — {plan.lengths?.sample||0} games had move data in this load.</div>}
+      </Card>
+      <Card t={t} style={{flex:2,minWidth:260}}>
+        <SecTitle t={t} sub={`Named openings · min ${plan.methodology.minOpening} games each`}>Opening Leaks</SecTitle>
+        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          {plan.targetOpenings.length
+            ? plan.targetOpenings.slice(0,5).map((o,i)=>(
+              <div key={o.opening} style={{padding:"11px 12px",borderRadius:12,background:i===0?`${t.loss}10`:`${t.accent}05`,border:`1px solid ${i===0?`${t.loss}30`:t.cardBorder}`,animation:`fadeInUp .35s ${.04+i*.05}s cubic-bezier(.22,1,.36,1) both`}}>
+                <div style={{display:"flex",justifyContent:"space-between",gap:10,alignItems:"flex-start"}}>
+                  <a href={openingLink(o.opening,o.openingUrl)} target="_blank" rel="noopener noreferrer" style={{fontSize:13,fontWeight:700,color:t.text,textDecoration:"none",lineHeight:1.35,overflowWrap:"anywhere",flex:1}}>{o.opening}</a>
+                  <span style={{fontFamily:t.headingFont,fontSize:20,fontWeight:900,color:t.loss,flexShrink:0}}>{o.lossPct}%</span>
+                </div>
+                <div style={{display:"flex",gap:8,marginTop:6,fontSize:10,color:t.textDim,flexWrap:"wrap",alignItems:"center"}}>
+                  <span>n={o.games}</span>
+                  <DeltaBadge delta={o.delta} t={t}/>
+                  <ConfPill tier={o.confidence} color={o.confidenceColor} t={t}/>
+                  {o.eco!=="?"&&<span className="eco-badge" style={ecoBadgeStyle(o.ecoFamily,t)}>{o.eco}</span>}
+                </div>
+              </div>
+            ))
+            : <div style={{color:t.textDim,fontSize:13}}>No opening reached {plan.methodology.minOpening}+ games with a meaningful loss-rate spike.</div>}
+        </div>
+        {plan.ecoFamilies.length>0&&<>
+          <div style={{height:1,background:t.cardBorder,margin:"18px 0 14px"}}/>
+          <div style={{fontSize:11,color:t.textDim,textTransform:"uppercase",letterSpacing:".1em",fontWeight:800,marginBottom:10}}>ECO family leaks</div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+            {plan.ecoFamilies.slice(0,5).map(ef=>(
+              <div key={ef.family} style={{background:`${ECO_COLORS[ef.family]||t.accent}12`,border:`1px solid ${(ECO_COLORS[ef.family]||t.accent)}30`,borderRadius:10,padding:"8px 12px",minWidth:100}}>
+                <div style={{fontFamily:t.headingFont,fontSize:18,fontWeight:900,color:ECO_COLORS[ef.family]||t.accent}}>Vol {ef.family}</div>
+                <div style={{fontSize:11,color:t.textMid,marginTop:2}}>{ef.lossPct}% loss · n={ef.games}</div>
+                <div style={{fontSize:10,color:t.textDim}}>+{ef.delta}pp</div>
+              </div>
+            ))}
+          </div>
+        </>}
+      </Card>
+    </div></Reveal>
+
+    {/* Time control + habits */}
+    <Reveal><div className="two-col-900" style={{display:"flex",gap:14,flexWrap:"wrap"}}>
+      <Card t={t} style={{flex:3,minWidth:280}}>
+        <SecTitle t={t} sub={`Win% by format · min ${plan.methodology.minTC} games per bucket`}>Time Control Strategy</SecTitle>
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          {plan.tcRows.map((d,i)=>{
+            const isWeak=plan.weakTC&&plan.weakTC.tc===d.tc;
+            const isStrong=plan.strongTC&&plan.strongTC.tc===d.tc;
+            const barC=d.winPct>=55?t.win:d.winPct>=45?"#ffc800":t.loss;
+            const delta=plan.winPct-d.winPct;
+            return <div key={d.tc} style={{animation:`fadeInUp .4s ${.06+i*.07}s cubic-bezier(.22,1,.36,1) both`}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:6,gap:10,flexWrap:"wrap"}}>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <span style={{fontFamily:t.headingFont,fontSize:17,fontWeight:900,color:isWeak?t.loss:isStrong?t.win:t.text,textTransform:"capitalize"}}>{d.tc}</span>
+                  {isWeak&&<span style={{fontSize:9,fontWeight:800,color:t.loss,textTransform:"uppercase",letterSpacing:".08em",padding:"2px 7px",borderRadius:6,background:`${t.loss}15`,border:`1px solid ${t.loss}35`}}>Target format</span>}
+                  {isStrong&&<span style={{fontSize:9,fontWeight:800,color:t.win,textTransform:"uppercase",letterSpacing:".08em",padding:"2px 7px",borderRadius:6,background:`${t.win}12`,border:`1px solid ${t.win}35`}}>Their comfort</span>}
+                </div>
+                <div style={{textAlign:"right"}}>
+                  <span style={{fontFamily:t.headingFont,fontSize:22,fontWeight:900,color:barC}}>{d.winPct}%</span>
+                  <span style={{fontSize:11,color:t.textDim,marginLeft:8}}>{delta>0?`${delta}pp below baseline`:`${-delta}pp above`}</span>
+                </div>
+              </div>
+              <div style={{height:10,borderRadius:6,background:`${barC}14`,overflow:"hidden",position:"relative"}}>
+                <div className="bar-grow" style={{height:"100%",width:`${d.winPct}%`,background:`linear-gradient(90deg,${t.accent}55,${barC})`,borderRadius:6,animationDelay:`${.12+i*.08}s`}}/>
+                <div style={{position:"absolute",left:`${plan.winPct}%`,top:0,bottom:0,width:2,background:t.textDim,opacity:.5}} title="Baseline"/>
+              </div>
+              <div style={{fontSize:10,color:t.textDim,marginTop:4}}>{d.games} games ({d.share}% of archive) · {d.wins}W {d.losses}L {d.draws}D</div>
+            </div>;
+          })}
+        </div>
+        {plan.colorTC.length>0&&<>
+          <div style={{height:1,background:t.cardBorder,margin:"20px 0 14px"}}/>
+          <div style={{fontSize:11,color:t.textDim,textTransform:"uppercase",letterSpacing:".1em",fontWeight:800,marginBottom:10}}>Color × format soft spots</div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+            {plan.colorTC.slice(0,4).map(ct=>(
+              <div key={`${ct.color}-${ct.tc}`} style={{background:`${t.loss}08`,border:`1px solid ${t.loss}22`,borderRadius:12,padding:"10px 14px",flex:"1 1 140px"}}>
+                <div style={{display:"flex",alignItems:"center",gap:6,fontWeight:800,fontSize:13,color:t.text}}>{renderIcon(ct.icon,14)} {ct.color} · {ct.tc}</div>
+                <div style={{fontFamily:t.headingFont,fontSize:22,fontWeight:900,color:t.loss,marginTop:4}}>{ct.winPct}%</div>
+                <div style={{fontSize:10,color:t.textDim}}>n={ct.games} · {ct.delta}pp below baseline</div>
+              </div>
+            ))}
+          </div>
+        </>}
+      </Card>
+      <Card t={t} style={{flex:2,minWidth:240}}>
+        <SecTitle t={t} sub="High-frequency lines worth prepping — frequency ≠ weakness">Their Habits</SecTitle>
+        <div style={{display:"flex",flexDirection:"column",gap:9}}>
+          {plan.overusedOpenings.map((o,i)=>{
+            const leak=o.lossPct>=plan.lossPct+6;
+            return <div key={o.opening} className="cheat-row" style={{padding:"11px 12px",borderRadius:12,background:`${t.accent}05`,border:`1px solid ${t.cardBorder}`,animation:`fadeInUp .35s ${.04+i*.05}s cubic-bezier(.22,1,.36,1) both`}}>
+              <div style={{display:"flex",justifyContent:"space-between",gap:8,alignItems:"flex-start"}}>
+                <div style={{minWidth:0,flex:1}}>
+                  <div style={{color:t.text,fontWeight:700,fontSize:13,lineHeight:1.35,overflowWrap:"anywhere"}}>{o.opening}</div>
+                  <div style={{fontSize:11,color:t.textDim,marginTop:4}}>{o.share}% of games · {o.games} total · {o.winPct}% win</div>
+                </div>
+                <span className={`badge ${leak?"red":o.winPct>=55?"green":"yellow"}`}>{o.habit}</span>
+              </div>
+              {leak&&<div style={{fontSize:10,color:t.loss,marginTop:6,fontWeight:700}}>Also leaks +{o.lossPct-plan.lossPct}pp loss rate vs baseline — double-value prep</div>}
+            </div>;
+          })}
+        </div>
+        {plan.firstMoveLeaks.length>0&&<>
+          <div style={{height:1,background:t.cardBorder,margin:"18px 0 12px"}}/>
+          <div style={{fontSize:11,color:t.textDim,textTransform:"uppercase",letterSpacing:".1em",fontWeight:800,marginBottom:8}}>First-move responses</div>
+          {plan.firstMoveLeaks.slice(0,3).map(fm=>(
+            <div key={fm.move} style={{fontSize:12,color:t.textMid,marginBottom:6,display:"flex",justifyContent:"space-between"}}>
+              <span><strong style={{color:t.text}}>1.{fm.move}</strong> — {fm.winPct}% win</span>
+              <span style={{color:t.loss,fontWeight:700}}>n={fm.games} · {fm.delta}pp</span>
+            </div>
+          ))}
+        </>}
+      </Card>
+    </div></Reveal>
+
+    {/* Cheat sheet + psychology */}
     <Reveal><div className="two-col-900" style={{display:"flex",gap:14,flexWrap:"wrap"}}>
       <Card t={t} style={{flex:3,minWidth:280,position:"relative",overflow:"hidden"}}>
-        <div style={{position:"absolute",top:0,right:0,width:160,height:160,background:`radial-gradient(circle at 100% 0%,${t.accent}14,transparent 70%)`,pointerEvents:"none"}}/>
+        <div style={{position:"absolute",top:0,right:0,width:180,height:180,background:`radial-gradient(circle at 100% 0%,${t.accent}14,transparent 70%)`,pointerEvents:"none"}}/>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,flexWrap:"wrap"}}>
-          <SecTitle t={t} sub="The whole plan in 10 seconds — copy it before the match">Pocket Cheat Sheet</SecTitle>
+          <SecTitle t={t} sub="Only statistically backed bullets — copy before the match">Pocket Cheat Sheet</SecTitle>
           <CopyButton onCopy={copyCheatSheet} t={t}/>
         </div>
         <div style={{display:"flex",flexDirection:"column",gap:7}}>
           {plan.cheatSheet.map(([k,v],i)=>(
-            <div key={k} className="cheat-row" style={{display:"flex",gap:12,alignItems:"baseline",background:`${t.accent}06`,border:`1px solid ${t.cardBorder}`,borderRadius:10,padding:"10px 13px",animation:`slideInLeft .4s ${.06+i*.06}s cubic-bezier(.22,1,.36,1) both`}}>
-              <span style={{fontFamily:t.headingFont,fontSize:16,fontWeight:900,color:t.accent,flexShrink:0,width:20}}>{i+1}</span>
-              <span style={{fontSize:13,fontWeight:800,color:t.text,flexShrink:0}}>{k}</span>
-              <span style={{fontSize:13,color:t.textMid,lineHeight:1.5,overflowWrap:"anywhere"}}>{v}</span>
+            <div key={k} className="cheat-row" style={{display:"grid",gridTemplateColumns:"28px 130px 1fr",gap:10,alignItems:"baseline",background:`${t.accent}06`,border:`1px solid ${t.cardBorder}`,borderRadius:10,padding:"11px 13px",animation:`slideInLeft .4s ${.06+i*.06}s cubic-bezier(.22,1,.36,1) both`}}>
+              <span style={{fontFamily:t.headingFont,fontSize:16,fontWeight:900,color:t.accent}}>{i+1}</span>
+              <span style={{fontSize:12,fontWeight:800,color:t.text}}>{k}</span>
+              <span style={{fontSize:12,color:t.textMid,lineHeight:1.5,overflowWrap:"anywhere"}}>{v}</span>
             </div>
           ))}
         </div>
       </Card>
-      <Card t={t} style={{flex:2,minWidth:230}}>
-        <SecTitle t={t} sub="Their win rate by local time-of-day block">When They're Beatable</SecTitle>
-        {oppTod.length?<div style={{display:"flex",flexDirection:"column",gap:10}}>
-          {oppTod.map((d,i)=>{
-            const isWeak=plan.weakHour&&plan.weakHour.label===d.label;
-            const barC=d.winPct>=55?t.win:d.winPct>=45?"#ffc800":t.loss;
-            return <div key={d.label} style={{animation:`fadeInUp .4s ${.08+i*.07}s cubic-bezier(.22,1,.36,1) both`}}>
-              <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:4}}>
-                <span style={{color:isWeak?t.loss:t.textMid,fontWeight:isWeak?800:500,display:"inline-flex",alignItems:"center",gap:5}}>{renderIcon(d.icon,12)} {d.label}{isWeak&&" · strike window"}</span>
-                <span style={{color:barC,fontWeight:800}}>{d.winPct}%</span>
-              </div>
-              <div style={{height:8,borderRadius:4,background:`${barC}18`,overflow:"hidden"}}>
-                <div className="bar-grow" style={{height:"100%",width:`${d.winPct}%`,background:barC,borderRadius:4,animationDelay:`${.15+i*.08}s`,boxShadow:isWeak?`0 0 10px ${t.loss}60`:"none"}}/>
-              </div>
-              <div style={{fontSize:10,color:t.textDim,marginTop:2}}>{d.games} games · {d.wins}W {d.losses}L {d.draws}D</div>
-            </div>;
-          })}
-        </div>:<div style={{color:t.textDim,fontSize:13}}>No timestamped games to slice by hour.</div>}
+      <Card t={t} style={{flex:2,minWidth:240}}>
+        <SecTitle t={t} sub="Session & length patterns (not time-of-day trivia)">Behavioral Tells</SecTitle>
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          {plan.tilt&&<div style={{background:`${t.loss}08`,border:`1px solid ${t.loss}22`,borderRadius:12,padding:"12px 14px"}}>
+            <div style={{fontSize:10,color:t.loss,fontWeight:800,textTransform:"uppercase",letterSpacing:".08em",marginBottom:6}}>Same-session tilt</div>
+            <div style={{fontSize:13,color:t.text,lineHeight:1.5}}>After a loss: <strong>{plan.tilt.afterLossPct}%</strong> win (n={plan.tilt.afterLossGames}) vs after a win: <strong>{plan.tilt.afterWinPct}%</strong> (n={plan.tilt.afterWinGames})</div>
+          </div>}
+          {plan.grindWeak&&<div style={{background:`${t.accent}08`,border:`1px solid ${t.cardBorder}`,borderRadius:12,padding:"12px 14px"}}>
+            <div style={{fontSize:10,color:t.accent,fontWeight:800,textTransform:"uppercase",letterSpacing:".08em",marginBottom:6}}>Long game weakness</div>
+            <div style={{fontSize:13,color:t.textMid,lineHeight:1.5}}>40+ moves: {plan.grindWeak.longWinPct}% win (n={plan.grindWeak.longGames}, {plan.grindWeak.confidence} conf)</div>
+          </div>}
+          {plan.blitzWeak&&<div style={{background:`${t.accent}08`,border:`1px solid ${t.cardBorder}`,borderRadius:12,padding:"12px 14px"}}>
+            <div style={{fontSize:10,color:t.accent,fontWeight:800,textTransform:"uppercase",letterSpacing:".08em",marginBottom:6}}>Short game weakness</div>
+            <div style={{fontSize:13,color:t.textMid,lineHeight:1.5}}>≤20 moves: {plan.blitzWeak.shortWinPct}% win (n={plan.blitzWeak.shortGames})</div>
+          </div>}
+          {plan.streak.count>=3&&<div style={{background:`${t.hl}10`,border:`1px solid ${t.hl}25`,borderRadius:12,padding:"12px 14px"}}>
+            <div style={{fontSize:13,color:t.textMid}}>Current streak: <strong style={{color:plan.streak.type==="loss"?t.loss:t.win}}>{plan.streak.count} {plan.streak.type}s</strong></div>
+          </div>}
+          {plan.volatility!==null&&<div style={{fontSize:12,color:t.textDim,lineHeight:1.5}}>Session volatility: {plan.volatility}% day-to-day swing across heavy play days</div>}
+          {plan.weakHour&&<div style={{fontSize:11,color:t.textDim,lineHeight:1.5,padding:"10px 12px",background:`${t.cardBorder}20`,borderRadius:8,border:`1px dashed ${t.cardBorder}`}}>
+            <strong style={{color:t.textMid}}>Time-of-day (low priority):</strong> {plan.weakHour.label} games show {plan.weakHour.winPct}% win (n={plan.weakHour.games}). {plan.weakHour.note}
+          </div>}
+          {!plan.tilt&&!plan.grindWeak&&!plan.blitzWeak&&plan.streak.count<3&&<div style={{color:t.textDim,fontSize:13}}>No strong behavioral pattern in this sample yet.</div>}
+        </div>
       </Card>
     </div></Reveal>
 
     {/* Phase timeline */}
     <Reveal><Card t={t} hover={false}>
-      <SecTitle t={t} sub="A practical sequence for the game, phase by phase">Step-by-step Game Plan</SecTitle>
+      <SecTitle t={t} sub="Concrete sequence from pre-game through conversion">Step-by-step Game Plan</SecTitle>
       <div style={{position:"relative",paddingLeft:8}}>
         <div style={{position:"absolute",left:21,top:8,bottom:8,width:2,background:`linear-gradient(180deg,${t.accent},${t.accent}20)`,borderRadius:2,animation:"timelineDraw 1s cubic-bezier(.22,1,.36,1) both"}}/>
         {plan.planSteps.map((step,i)=>(
-          <div key={step.phase} style={{display:"flex",gap:16,alignItems:"flex-start",position:"relative",paddingBottom:i===plan.planSteps.length-1?0:22,animation:`slideInLeft .5s ${.15+i*.14}s cubic-bezier(.22,1,.36,1) both`}}>
-            <div style={{width:28,height:28,borderRadius:"50%",background:t.accent,color:t.bg,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontFamily:t.font,flexShrink:0,boxShadow:`0 0 14px ${t.glowC}`,zIndex:1}}>{step.icon}</div>
+          <div key={step.phase} style={{display:"flex",gap:16,alignItems:"flex-start",position:"relative",paddingBottom:i===plan.planSteps.length-1?0:22,animation:`slideInLeft .5s ${.12+i*.12}s cubic-bezier(.22,1,.36,1) both`}}>
+            <div style={{width:28,height:28,borderRadius:"50%",background:t.accent,color:t.bg,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontFamily:t.font,flexShrink:0,boxShadow:`0 0 14px ${t.glowC}`,zIndex:1,fontSize:step.icon==="0"?11:14}}>{step.icon}</div>
             <div style={{flex:1,minWidth:0,background:`${t.accent}07`,border:`1px solid ${t.cardBorder}`,borderRadius:14,padding:"14px 16px"}}>
               <div style={{fontSize:10,color:t.textDim,textTransform:"uppercase",letterSpacing:".1em",fontWeight:800,marginBottom:4}}>{step.phase}</div>
-              <div style={{fontFamily:t.headingFont,fontSize:21,lineHeight:1.15,color:t.accent,fontWeight:900,overflowWrap:"anywhere"}}>{step.title}</div>
-              <div style={{fontSize:13,color:t.textMid,lineHeight:1.6,marginTop:7}}>{step.text}</div>
+              <div style={{fontFamily:t.headingFont,fontSize:20,lineHeight:1.15,color:t.accent,fontWeight:900,overflowWrap:"anywhere"}}>{step.title}</div>
+              <div style={{fontSize:13,color:t.textMid,lineHeight:1.65,marginTop:7}}>{step.text}</div>
             </div>
           </div>
         ))}
       </div>
     </Card></Reveal>
 
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:14}}>
-      <Card t={t}>
-        <SecTitle t={t} sub="Highest loss rates with enough games">Opening traps to prepare</SecTitle>
-        <div style={{display:"flex",flexDirection:"column",gap:8}}>
-          {plan.targetOpenings.length?plan.targetOpenings.map((o,i)=>(
-            <div key={o.opening} className="rival-row" style={{background:`${t.loss}0d`,border:`1px solid ${t.loss}24`,borderRadius:12,padding:"11px 12px",display:"grid",gridTemplateColumns:"auto 1fr auto",gap:10,alignItems:"center",animation:`slideUp .35s ${.05+i*.06}s cubic-bezier(.22,1,.36,1) both`}}>
-              <div style={{width:24,height:24,borderRadius:"50%",background:i===0?t.loss:`${t.loss}20`,color:i===0?t.bg:t.loss,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:900}}>{i+1}</div>
-              <div style={{minWidth:0}}>
-                <a href={openingLink(o.opening,o.openingUrl)} target="_blank" rel="noopener noreferrer" style={{fontSize:13,color:t.text,fontWeight:700,textDecoration:"none",lineHeight:1.3,overflowWrap:"anywhere"}}>{o.opening}</a>
-                <div style={{fontSize:11,color:t.textDim,marginTop:2}}>{o.games} games · {o.wins}/{o.draws}/{o.losses} W/D/L</div>
-              </div>
-              <div style={{color:t.loss,fontWeight:900,fontFamily:t.headingFont,fontSize:20}}>{o.lossPct}%</div>
-            </div>
-          )):<div style={{color:t.textDim,fontSize:13}}>No repeated losing opening pattern found in this range.</div>}
-        </div>
-      </Card>
-
-      <Card t={t}>
-        <SecTitle t={t} sub="What they choose most often">Comfort zones to disrupt</SecTitle>
-        <div style={{display:"flex",flexDirection:"column",gap:9}}>
-          {plan.overusedOpenings.map((o,i)=>(
-            <div key={o.opening} className="cheat-row" style={{display:"grid",gridTemplateColumns:"1fr auto",gap:10,alignItems:"center",padding:"10px 0",borderBottom:`1px solid ${t.cardBorder}40`,animation:`fadeInUp .35s ${.04+i*.05}s cubic-bezier(.22,1,.36,1) both`}}>
-              <div style={{minWidth:0}}>
-                <div style={{color:t.text,fontWeight:700,fontSize:13,lineHeight:1.3,overflowWrap:"anywhere"}}>{o.opening}</div>
-                <div style={{fontSize:11,color:t.textDim}}>{o.games} games · {o.winPct}% win</div>
-              </div>
-              <span className={`badge ${o.winPct>=55?"green":o.winPct>=45?"yellow":"red"}`}>{weaknessLevel(o.winPct)}</span>
-            </div>
-          ))}
-        </div>
-      </Card>
-    </div>
-
-    {plan.matchupNotes.length?<Card t={t}>
-      <SecTitle t={t} sub="Combines your loaded profile with their weaknesses">Your matchup notes</SecTitle>
+    {plan.matchupNotes.length>0&&<Reveal><Card t={t}>
+      <SecTitle t={t} sub="Your loaded profile crossed with their backed weaknesses">Your Matchup Edge</SecTitle>
       <div style={{display:"flex",flexDirection:"column",gap:10}}>
         {plan.matchupNotes.map((note,i)=>(
           <div key={note} className="cheat-row" style={{display:"flex",gap:10,alignItems:"flex-start",background:`${t.win}0b`,border:`1px solid ${t.win}22`,borderRadius:12,padding:"12px 14px",animation:`slideInLeft .4s ${.06+i*.06}s cubic-bezier(.22,1,.36,1) both`}}>
@@ -2026,7 +2496,13 @@ function WinPlanTab({p1,p2,l1,l2,p2In,setP2In,loadP2,e2,months,t,onChangeP2}) {
           </div>
         ))}
       </div>
-    </Card>:null}
+    </Card></Reveal>}
+
+    <Reveal><Card t={t} hover={false} style={{padding:"16px 20px"}}>
+      <div style={{fontSize:11,color:t.textDim,lineHeight:1.65}}>
+        <strong style={{color:t.textMid}}>Methodology:</strong> Thresholds scale with archive size — openings need ~{plan.methodology.minOpening}+ games, sequences ~{plan.methodology.minSequence}+, time controls ~{plan.methodology.minTC}+. A pattern must beat baseline by ≥6 percentage points. Rates use Bayesian shrinkage toward overall win/loss %. Time-of-day is excluded from recommendations unless 20+ games per block with 12+pp spread. This is result-pattern analysis, not engine evaluation.
+      </div>
+    </Card></Reveal>
   </div>;
 }
 
