@@ -47,9 +47,7 @@ function ThemeBg({t}) {
 // ── Player comparison colors (theme-independent, always high contrast) ──────
 // P1 = vivid orange-amber, P2 = vivid violet — contrast on every theme
 const P1_COLOR = "#f97316";   // orange
-const P1_FILL  = "rgba(249,115,22,.18)";
 const P2_COLOR = "#a78bfa";   // violet
-const P2_FILL  = "rgba(167,139,250,.14)";
 
 // ── Global styles ─────────────────────────────────────────────────────────────
 const styleEl = document.createElement("style");
@@ -981,13 +979,6 @@ function worstByWinPct(items, minGames=4) {
   return [...items].filter(x=>x.games>=minGames).sort((a,b)=>a.winPct-b.winPct || b.games-a.games)[0] || null;
 }
 
-function weaknessLevel(winPct) {
-  if (winPct < 35) return "Attack immediately";
-  if (winPct < 45) return "Pressure often";
-  if (winPct < 52) return "Test this";
-  return "Secondary target";
-}
-
 // ── Win plan statistics (sample-size aware) ───────────────────────────────────
 function adaptiveMinGames(total, floor, pct = 0.05) {
   return Math.max(floor, Math.ceil(total * pct));
@@ -1435,7 +1426,6 @@ function computeWinPlan(player, opponent, months) {
     oppDna && `ChessDNA: ${oppDna.title} — expect ${oppDna.favTC} (${oppDna.timeMix[0]?.pct || 0}% of games) and ${oppDna.uniqueOpenings} distinct openings.`,
   ].filter(Boolean);
 
-  const primaryAngle = topExploit ? topExploit.category.toLowerCase() : "their repeated patterns";
   const summary = riskFlags.length
     ? `${oppName} wins ${baseline.winPct}% across ${total} games (${rangeLabel(months)}). Strongest backed angle: ${topExploit.label.toLowerCase()} — ${topExploit.games} game sample, ${topExploit.confidence} confidence.`
     : `${oppName} wins ${baseline.winPct}% across ${total} games — not enough repeated leaks at our thresholds yet. Play solid chess and widen the date range.`;
@@ -1513,7 +1503,7 @@ function AnimatedNumber({value, duration=800, style={}}) {
     };
     ref.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(ref.current);
-  }, [value]);
+  }, [value, duration]);
   return <span style={style}>{display}</span>;
 }
 
@@ -2258,7 +2248,6 @@ function WinPlanTab({p1,p2,l1,l2,p2In,setP2In,loadP2,e2,months,t,onChangeP2}) {
   </div>;
   const confColor=plan.confidence>=70?t.win:plan.confidence>=45?"#ffc800":t.loss;
   const maxFlagScore=Math.max(1,...plan.riskFlags.map(f=>f.score));
-  const oppTod=timeOfDayStats(p2.games);
   const cov=openingCoverage(p2.games);
 
   const copyCheatSheet=()=>{
@@ -2939,6 +2928,20 @@ export default function App() {
     else setHash(p1.profile.username);
   };
 
+  const handleTabListKeyDown = (e) => {
+    const navKeys = ["ArrowLeft", "ArrowRight", "Home", "End"];
+    if (!navKeys.includes(e.key)) return;
+    e.preventDefault();
+    const last = TABS.length - 1;
+    let next = tab;
+    if (e.key === "ArrowLeft") next = tab === 0 ? last : tab - 1;
+    else if (e.key === "ArrowRight") next = tab === last ? 0 : tab + 1;
+    else if (e.key === "Home") next = 0;
+    else if (e.key === "End") next = last;
+    if (next !== tab) handleTabChange(next);
+    document.getElementById(`tab-${next}`)?.focus();
+  };
+
   return <div style={{minHeight:"100vh",position:"relative"}}>
     {/* Background */}
     <div style={{position:"fixed",inset:0,zIndex:0,background:t.bg,pointerEvents:"none"}}/>
@@ -2994,7 +2997,7 @@ export default function App() {
       </Reveal>}
 
       {/* ── Tabs ── */}
-      {(p1||l1)&&<Reveal delay={0.03}><div ref={tabStripRef} className="tab-strip" role="tablist" aria-label="Analysis sections" style={{background:t.card,border:`1px solid ${t.cardBorder}`,borderRadius:10,padding:6,marginBottom:14,boxShadow:`0 4px 20px rgba(0,0,0,.25)`,scrollMarginTop:12}}>
+      {(p1||l1)&&<Reveal delay={0.03}><div ref={tabStripRef} className="tab-strip" role="tablist" aria-label="Analysis sections" onKeyDown={handleTabListKeyDown} style={{background:t.card,border:`1px solid ${t.cardBorder}`,borderRadius:10,padding:6,marginBottom:14,boxShadow:`0 4px 20px rgba(0,0,0,.25)`,scrollMarginTop:12}}>
         {TABS.map(([icon,name],i)=>(
           <button key={name} id={`tab-${i}`} role="tab" aria-selected={tab===i} aria-controls={`tabpanel-${i}`} tabIndex={tab===i?0:-1} className={`tab-btn ${tab===i?"active":""}`} onClick={()=>handleTabChange(i)} style={tab===i?{animation:"elasticIn .25s cubic-bezier(.22,1,.36,1) both"}:{}}><Ico size={14}>{icon}</Ico> {name}</button>
         ))}
