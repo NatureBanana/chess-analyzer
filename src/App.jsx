@@ -29,7 +29,7 @@ function ThemeBg({t}) {
   const a = t.accent;
   const patterns = {
     // Slate: simple subtle dot grid — very minimal, barely visible
-    grid: <svg style={{position:"fixed",inset:0,width:"100%",height:"100%",zIndex:0,pointerEvents:"none",opacity:.18,animation:"breathe 12s ease-in-out infinite"}} xmlns="http://www.w3.org/2000/svg">
+    grid: <svg style={{position:"fixed",inset:0,width:"100%",height:"100%",zIndex:0,pointerEvents:"none",opacity:.18}} xmlns="http://www.w3.org/2000/svg">
       <defs><pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
         <circle cx="16" cy="16" r=".7" fill={a}/>
       </pattern></defs>
@@ -180,11 +180,8 @@ function injectTheme(t) {
     .skel{background:linear-gradient(90deg,${t.skA} 25%,${t.skB} 50%,${t.skA} 75%);background-size:200% 100%;animation:shimmerMove 1.6s ease infinite;border-radius:8px}
 
     /* ── Cards ── */
-    .card-hover{transition:transform .38s cubic-bezier(.16,1,.3,1),box-shadow .38s ease,border-color .38s ease,background .38s ease;will-change:transform;position:relative;overflow:hidden}
-    .card-hover::before{content:"";position:absolute;inset:0;background:linear-gradient(105deg,transparent 40%,${t.accent}08 50%,transparent 60%);transform:translateX(-120%) skewX(-12deg);transition:none;pointer-events:none;z-index:0}
-    .card-hover:hover::before{animation:shineSweep .75s cubic-bezier(.4,0,.2,1) both}
-    .card-hover:hover{transform:translateY(-5px) scale(1.008);box-shadow:0 18px 58px rgba(0,0,0,.62),0 0 0 1px ${t.accent}22,0 0 40px ${t.glowC}!important}
-    .card-hover > *{position:relative;z-index:1}
+    .card-hover{transition:transform .38s cubic-bezier(.16,1,.3,1),box-shadow .38s ease,border-color .38s ease,background .38s ease;will-change:transform}
+    .card-hover:hover{transform:translateY(-4px) scale(1.006);box-shadow:0 14px 44px rgba(0,0,0,.55),0 0 0 1px ${t.accent}22!important}
 
     /* ── Tabs ── */
     .tab-btn{background:none;border:1px solid transparent;cursor:pointer;font-family:${t.font};font-size:13px;font-weight:500;padding:8px 15px;border-radius:6px;color:${t.textDim};white-space:normal;line-height:1.15;transition:color .18s cubic-bezier(.4,0,.2,1),background .18s cubic-bezier(.4,0,.2,1),border-color .18s cubic-bezier(.4,0,.2,1),transform .15s ease;position:relative}
@@ -195,8 +192,7 @@ function injectTheme(t) {
     .range-pill{transition:all .22s cubic-bezier(.22,1,.36,1);cursor:pointer;font-family:${t.font}}
     .range-pill:hover{transform:translateY(-2px) scale(1.05);box-shadow:0 4px 14px rgba(0,0,0,.25)}
     .range-pill.active{animation:elasticIn .3s cubic-bezier(.22,1,.36,1) both}
-    .search-wrap:focus-within input{animation:searchPulse 2s ease-in-out infinite}
-    .search-wrap:focus-within .search-icon{animation:iconBounce .6s cubic-bezier(.22,1,.36,1) both;color:${t.accent}!important}
+    .search-wrap:focus-within .search-icon{color:${t.accent}!important}
     .chart-tip-pop{animation:tipPop .22s cubic-bezier(.22,1,.36,1) both}
     .error-shake{animation:shake .45s cubic-bezier(.22,1,.36,1) both}
     .empty-piece{display:inline-block;animation:emptyFloat 4s ease-in-out infinite}
@@ -1142,9 +1138,8 @@ function Reveal({children, delay=0, style={}, className=""}) {
   },[]);
   return <div ref={ref} className={className} style={{
     opacity:show?1:0,
-    transform:show?"translateY(0) scale(1)":"translateY(32px) scale(.97)",
-    filter:show?"blur(0)":"blur(4px)",
-    transition:`opacity .7s cubic-bezier(.22,1,.36,1) ${delay}s,transform .7s cubic-bezier(.22,1,.36,1) ${delay}s,filter .7s cubic-bezier(.22,1,.36,1) ${delay}s`,
+    transform:show?"translateY(0)":"translateY(20px)",
+    transition:`opacity .6s cubic-bezier(.22,1,.36,1) ${delay}s,transform .6s cubic-bezier(.22,1,.36,1) ${delay}s`,
     ...style,
   }}>{children}</div>;
 }
@@ -1258,9 +1253,8 @@ function PageTransition({children, keyVal}) {
   }, [keyVal]);
   return <div style={{
     opacity: visible ? 1 : 0,
-    transform: visible ? "translateY(0) scale(1)" : "translateY(20px) scale(.985)",
-    filter: visible ? "blur(0)" : "blur(6px)",
-    transition: "opacity .42s cubic-bezier(.22,1,.36,1), transform .42s cubic-bezier(.22,1,.36,1), filter .42s cubic-bezier(.22,1,.36,1)",
+    transform: visible ? "translateY(0)" : "translateY(12px)",
+    transition: "opacity .35s cubic-bezier(.22,1,.36,1), transform .35s cubic-bezier(.22,1,.36,1)",
   }}>{children}</div>;
 }
 
@@ -1305,54 +1299,15 @@ function ScrollProgress({t}) {
   return <div style={{position:"fixed",top:3,left:0,height:2,zIndex:9998,width:`${pct}%`,background:`linear-gradient(90deg,${t.accent2},${t.accent})`,transition:"width .12s linear",boxShadow:`0 0 10px ${t.glowC}`,borderRadius:"0 2px 2px 0",pointerEvents:"none"}}/>;
 }
 
-// ── Cursor spotlight ──────────────────────────────────────────────────────────
-function CursorGlow({t}) {
-  const ref=useRef(null);
-  useEffect(()=>{
-    const el=ref.current;
-    if (!el||window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    let raf=0;
-    const move=(e)=>{
-      cancelAnimationFrame(raf);
-      raf=requestAnimationFrame(()=>{ el.style.transform=`translate(${e.clientX}px,${e.clientY}px)`; });
-    };
-    window.addEventListener("mousemove",move,{passive:true});
-    return ()=>{ window.removeEventListener("mousemove",move); cancelAnimationFrame(raf); };
-  },[]);
-  return <div ref={ref} style={{
-    position:"fixed",top:0,left:0,width:520,height:520,marginLeft:-260,marginTop:-260,
-    background:`radial-gradient(circle,${t.glowC} 0%,transparent 62%)`,
-    pointerEvents:"none",zIndex:0,opacity:.5,willChange:"transform",
-  }}/>;
-}
-
-// ── Hero ambient layer ────────────────────────────────────────────────────────
-function HeroAmbience({t}) {
-  const pieces=["♔","♕","♖","♗","♘","♙","♜","♞"];
-  return <div style={{position:"absolute",inset:0,overflow:"hidden",pointerEvents:"none",zIndex:0}}>
-    <div style={{position:"absolute",top:"8%",left:"8%",width:340,height:340,borderRadius:"50%",background:`radial-gradient(circle,${t.accent}16,transparent 68%)`,animation:"driftOrb 16s ease-in-out infinite"}}/>
-    <div style={{position:"absolute",bottom:"0%",right:"5%",width:280,height:280,borderRadius:"50%",background:`radial-gradient(circle,${t.accent2}12,transparent 68%)`,animation:"driftOrb 20s ease-in-out infinite reverse"}}/>
-    <div style={{position:"absolute",top:"35%",right:"18%",width:180,height:180,borderRadius:"50%",background:`radial-gradient(circle,${t.hl}10,transparent 70%)`,animation:"driftOrb 13s ease-in-out infinite",animationDelay:"-4s"}}/>
-    {pieces.map((p,i)=>(
-      <span key={i} style={{
-        position:"absolute",left:`${6+i*11}%`,top:`${14+(i%4)*16}%`,
-        fontSize:16+(i%4)*5,opacity:.07+(i%3)*.05,color:t.accent,
-        animation:`pieceFloat ${4.5+i*.6}s ease-in-out infinite`,animationDelay:`${i*.55}s`,
-        filter:`drop-shadow(0 0 8px ${t.glowC})`,
-      }}>{p}</span>
-    ))}
-  </div>;
-}
-
 // ── Theme picker ──────────────────────────────────────────────────────────────
 function ThemePicker({current,onChange}) {
   const [open,setOpen]=useState(false);
   const t=THEMES[current];
-  return <div style={{position:"relative"}}>
+  return <div style={{position:"relative",zIndex:200}}>
     <button onClick={()=>setOpen(o=>!o)} style={{background:"none",border:`1px solid ${t.cardBorder}`,borderRadius:8,color:t.text,cursor:"pointer",fontSize:13,fontFamily:t.font,padding:"6px 12px",display:"flex",alignItems:"center",gap:6,transition:"all .2s cubic-bezier(.22,1,.36,1)"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=`${t.accent}50`;e.currentTarget.style.transform="translateY(-1px)";e.currentTarget.style.boxShadow=`0 4px 16px rgba(0,0,0,.3)`;}} onMouseLeave={e=>{e.currentTarget.style.borderColor=t.cardBorder;e.currentTarget.style.transform="";e.currentTarget.style.boxShadow="";}}>
       {t.icon} {t.name} <span style={{opacity:.5,fontSize:10,transition:"transform .2s",transform:open?"rotate(180deg)":"none",display:"inline-block"}}>▼</span>
     </button>
-    {open && <div style={{position:"absolute",top:"110%",right:0,background:t.card,border:`1px solid ${t.cardBorder}`,borderRadius:10,padding:8,zIndex:99,minWidth:160,boxShadow:"0 8px 32px rgba(0,0,0,.6)",animation:"elasticIn .22s cubic-bezier(.22,1,.36,1) both",transformOrigin:"top right"}}>
+    {open && <div style={{position:"absolute",top:"110%",right:0,background:t.card,border:`1px solid ${t.cardBorder}`,borderRadius:10,padding:8,zIndex:201,minWidth:160,boxShadow:"0 8px 32px rgba(0,0,0,.6)",animation:"elasticIn .22s cubic-bezier(.22,1,.36,1) both",transformOrigin:"top right"}}>
       <div style={{fontSize:10,color:t.textDim,textTransform:"uppercase",letterSpacing:".08em",padding:"4px 8px 8px",fontFamily:t.font}}>Theme</div>
       {Object.entries(THEMES).map(([k,th],i)=>(
         <div key={k} onClick={()=>{onChange(k);setOpen(false);}} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",borderRadius:7,cursor:"pointer",background:current===k?`${th.accent}18`:"none",color:current===k?th.accent:t.textMid,fontSize:13,fontFamily:t.font,transition:"all .18s cubic-bezier(.22,1,.36,1)",animation:`fadeInUp .25s ${.03+i*.03}s cubic-bezier(.22,1,.36,1) both`}} onMouseEnter={e=>{if(current!==k){e.currentTarget.style.background=`${th.accent}10`;e.currentTarget.style.transform="translateX(3px)";}}} onMouseLeave={e=>{if(current!==k){e.currentTarget.style.background="none";e.currentTarget.style.transform="";}}}>
@@ -2926,16 +2881,14 @@ export default function App() {
     {/* Background */}
     <div style={{position:"fixed",inset:0,zIndex:0,background:t.bg,pointerEvents:"none"}}/>
     <ThemeBg t={t}/>
-    <CursorGlow t={t}/>
     <LoadingBar active={l1||l2} t={t}/>
     <ScrollProgress t={t}/>
 
-    <div style={{position:"relative",zIndex:1,maxWidth:1120,margin:"0 auto",padding:"0 16px 80px"}}>
+    <div style={{position:"relative",zIndex:1,isolation:"isolate",maxWidth:1120,margin:"0 auto",padding:"0 16px 80px"}}>
 
       {/* ── Hero section ── */}
-      <div className="hero-pad" style={{textAlign:"center",padding:"70px 0 46px",animation:"fadeInUp .6s ease both",position:"relative"}}>
-        <HeroAmbience t={t}/>
-        <div style={{position:"relative",zIndex:1}}>
+      <div className="hero-pad" style={{textAlign:"center",padding:"70px 0 46px",animation:"fadeInUp .6s ease both",position:"relative",overflow:"hidden"}}>
+        <div style={{position:"relative"}}>
         <div style={{display:"flex",justifyContent:"flex-end",marginBottom:16,animation:"fadeInDown .5s .1s cubic-bezier(.22,1,.36,1) both"}}>
           <ThemePicker current={themeKey} onChange={setThemeKey}/>
         </div>
