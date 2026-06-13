@@ -127,7 +127,6 @@ function injectTheme(t) {
     @keyframes drawStroke{from{stroke-dashoffset:1400}to{stroke-dashoffset:0}}
     @keyframes helixDrift{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
     @keyframes rungPulse{0%,100%{opacity:.55;transform:scaleY(.92)}50%{opacity:1;transform:scaleY(1.06)}}
-    @keyframes heatPop{0%{opacity:0;transform:scale(.3)}100%{opacity:1;transform:scale(1)}}
     @keyframes timelineDraw{from{height:0}to{height:100%}}
     @keyframes flipIn{0%{opacity:0;transform:perspective(700px) rotateX(-14deg) translateY(16px)}100%{opacity:1;transform:perspective(700px) rotateX(0) translateY(0)}}
     @keyframes gradientShift{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
@@ -242,8 +241,6 @@ function injectTheme(t) {
     /* ── Misc ── */
     .fi{animation:fadeInUp .4s cubic-bezier(.22,1,.36,1) both}
     .flip-in{animation:flipIn .55s cubic-bezier(.22,1,.36,1) both}
-    .heat-cell{animation:heatPop .3s cubic-bezier(.22,1,.36,1) both;transition:transform .15s ease,box-shadow .15s ease;cursor:default}
-    .heat-cell:hover{transform:scale(1.45);z-index:2;box-shadow:0 2px 10px rgba(0,0,0,.5)}
     .rival-row{transition:transform .2s cubic-bezier(.22,1,.36,1),background .2s ease}
     .rival-row:hover{transform:translateX(4px);background:${t.accent}0c!important}
     .dim-card{transition:transform .3s cubic-bezier(.16,1,.3,1),box-shadow .3s ease,border-color .3s ease}
@@ -260,7 +257,6 @@ function injectTheme(t) {
       .grid-2-900{grid-template-columns:1fr!important}
     }
     @media(max-width:700px){
-      .three-col{flex-direction:column!important}
       .hide-mobile{display:none!important}
       .tab-strip{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
       .tab-strip::-webkit-scrollbar{display:none}
@@ -555,17 +551,6 @@ function timeOfDayStats(games) {
   return HOUR_BLOCKS.filter(([,label])=>m[label]).map(([icon,label])=>({icon,...m[label],winPct:percent(m[label].wins,m[label].games)}));
 }
 
-function dayOfWeekStats(games) {
-  const names=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
-  const m=names.map(day=>({day,games:0,wins:0}));
-  for (const g of games) {
-    if (!g.endTime) continue;
-    const e=m[new Date(g.endTime*1000).getDay()];
-    e.games++; if (g.result==="win")e.wins++;
-  }
-  return m.map(e=>({...e,winPct:percent(e.wins,e.games)}));
-}
-
 // Tilt: how does the very next game (same session, <3h gap) go after a loss vs after a win?
 function tiltStats(games) {
   const seq=[...games].filter(g=>g.endTime).sort((a,b)=>a.endTime-b.endTime);
@@ -579,44 +564,6 @@ function tiltStats(games) {
   if (afterLoss.t<8 || afterWin.t<8) return null;
   const afterLossPct=percent(afterLoss.w,afterLoss.t), afterWinPct=percent(afterWin.w,afterWin.t);
   return { afterLossPct, afterWinPct, afterLossGames:afterLoss.t, afterWinGames:afterWin.t, tilt:afterWinPct-afterLossPct };
-}
-
-// Most-faced opponents with head-to-head record
-function rivalStats(games, limit=5) {
-  const m={};
-  for (const g of games) {
-    if (!g.opponent) continue;
-    const k=g.opponent.toLowerCase();
-    if (!m[k]) m[k]={opponent:g.opponent,games:0,wins:0,losses:0,draws:0,lastElo:null};
-    m[k].games++;
-    if (g.result==="win")m[k].wins++; else if (g.result==="loss")m[k].losses++; else m[k].draws++;
-    if (g.oppElo && !m[k].lastElo) m[k].lastElo=g.oppElo;
-  }
-  return Object.values(m).filter(r=>r.games>=2).sort((a,b)=>b.games-a.games).slice(0,limit).map(r=>({...r,winPct:percent(r.wins,r.games)}));
-}
-
-// GitHub-style daily activity grid for the last N weeks
-function activityCalendar(games, weeks=16) {
-  const byDay={};
-  for (const g of games) {
-    if (!g.endTime) continue;
-    const d=new Date(g.endTime*1000);
-    const key=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
-    if (!byDay[key]) byDay[key]={games:0,wins:0};
-    byDay[key].games++; if (g.result==="win")byDay[key].wins++;
-  }
-  const today=new Date(); today.setHours(0,0,0,0);
-  const end=new Date(today); end.setDate(end.getDate()+(6-end.getDay()));
-  const cells=[];
-  for (let i=weeks*7-1;i>=0;i--) {
-    const d=new Date(end); d.setDate(end.getDate()-i);
-    const key=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
-    const e=byDay[key];
-    cells.push({key,date:d,games:e?.games||0,winPct:e?percent(e.wins,e.games):0,future:d>today});
-  }
-  const max=Math.max(1,...cells.map(c=>c.games));
-  const active=cells.filter(c=>c.games>0).length;
-  return {cells,max,active};
 }
 
 // Per-month volume + win% + avg opponent for the loaded range
@@ -935,19 +882,6 @@ function dimensionTier(v) {
   return {tier:"Emerging",color:"#fb923c"};
 }
 
-// Playful style-twin mapping from tempo + top dimension
-function styleTwin(p) {
-  if (p.favTC==="bullet" && p.dimensions[0].key==="pressure") return {name:"Hikaru Nakamura", why:"relentless speed plus constant pressure"};
-  if (p.favTC==="bullet") return {name:"Andrew Tang", why:"pure bullet instincts and flag wizardry"};
-  if (p.breadth==="explorer" && p.aggression==="high") return {name:"Magnus Carlsen", why:"plays everything, squeezes everywhere"};
-  if (p.breadth==="explorer") return {name:"Richard Rapport", why:"wide, creative opening map"};
-  if (p.aggression==="high" && p.favTC==="blitz") return {name:"Alireza Firouzja", why:"sharp blitz aggression"};
-  if (p.dimensions[0].key==="resilience") return {name:"Sergey Karjakin", why:"defensive resilience and half-point saves"};
-  if (p.dimensions[0].key==="consistency") return {name:"Fabiano Caruana", why:"steady, prepared, low-variance chess"};
-  if (p.breadth==="specialist") return {name:"Mikhail Botvinnik", why:"deep systems over wide repertoires"};
-  return {name:"Anish Giri", why:"balanced, solid all-round profile"};
-}
-
 // Compare oldest half vs newest half of loaded games per dimension
 function dnaEvolution(games, stats, profile) {
   if (!games || games.length<40) return null;
@@ -1162,39 +1096,6 @@ function RingGauge({value, size=84, stroke=8, color, t, label, delay=0, suffix="
   </div>;
 }
 
-// ── Daily activity heatmap (GitHub-style) ─────────────────────────────────────
-function ActivityHeatmap({games,t}) {
-  const {cells,max,active}=useMemo(()=>activityCalendar(games,16),[games]);
-  if (!active) return <div style={{color:t.textDim,fontSize:13}}>No timestamped games in the last 16 weeks.</div>;
-  const cellColor=c=>{
-    if (!c.games) return `${t.accent}0a`;
-    const base=c.winPct>=55?t.win:c.winPct>=45?"#ffc800":t.loss;
-    const alpha=[0.35,0.55,0.75,1][Math.min(3,Math.floor(c.games/max*3.99))];
-    return base+Math.round(alpha*255).toString(16).padStart(2,"0");
-  };
-  const monthLabels=[];
-  cells.forEach((c,i)=>{
-    if (i%7===0 && c.date.getDate()<=7) monthLabels.push({week:Math.floor(i/7),label:c.date.toLocaleString("en",{month:"short"})});
-  });
-  return <div>
-    <div style={{position:"relative",height:14,marginLeft:0}}>
-      {monthLabels.map(m=><span key={m.week} style={{position:"absolute",left:m.week*15,fontSize:9,color:t.textDim,fontWeight:600}}>{m.label}</span>)}
-    </div>
-    <div style={{display:"grid",gridTemplateRows:"repeat(7,11px)",gridAutoFlow:"column",gap:4,overflowX:"auto",paddingBottom:4}}>
-      {cells.map((c,i)=>(
-        <div key={c.key} className="heat-cell" title={c.future?"":`${c.key} · ${c.games} game${c.games===1?"":"s"}${c.games?` · ${c.winPct}% win`:""}`}
-          style={{width:11,height:11,borderRadius:3,background:c.future?"transparent":cellColor(c),border:c.future?"none":`1px solid ${t.cardBorder}30`,animationDelay:`${Math.min(i*.004,.45)}s`}}/>
-      ))}
-    </div>
-    <div style={{display:"flex",gap:14,alignItems:"center",marginTop:8,fontSize:10,color:t.textDim,flexWrap:"wrap"}}>
-      <span>{active} active days in last 16 weeks</span>
-      <span style={{display:"inline-flex",alignItems:"center",gap:4}}><span style={{width:9,height:9,borderRadius:2,background:t.win}}/>winning day</span>
-      <span style={{display:"inline-flex",alignItems:"center",gap:4}}><span style={{width:9,height:9,borderRadius:2,background:"#ffc800"}}/>even day</span>
-      <span style={{display:"inline-flex",alignItems:"center",gap:4}}><span style={{width:9,height:9,borderRadius:2,background:t.loss}}/>losing day</span>
-    </div>
-  </div>;
-}
-
 // ── Playstyle wheel — one glance at your 7 dimensions ─────────────────────────
 function PlaystyleWheel({dimensions, p, c, t, size=220}) {
   const data=dimensions.map(d=>({name:d.label,value:d.value,color:dimensionTier(d.value).color,key:d.key}));
@@ -1336,141 +1237,6 @@ function WDLBar({wins,draws,losses,t}) {
 }
 
 // ── Trading Card ──────────────────────────────────────────────────────────────
-function TradingCard({p,profile,t}) {
-  const [copied,setCopied]=useState(false);
-  const [hovered,setHovered]=useState(false);
-  if (!p) return null;
-  const share = () => {
-    const url = window.location.origin + window.location.pathname + `#/${profile.username}`;
-    navigator.clipboard.writeText(url).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2000);});
-  };
-  const c = p.titleColor;
-  const tags = p.traitChips || [];
-  return (
-    <div style={{maxWidth:760,margin:"0 auto",animation:"revealCard .6s ease both"}}>
-      <div
-        onMouseEnter={()=>setHovered(true)}
-        onMouseLeave={()=>setHovered(false)}
-        style={{
-          position:"relative",overflow:"hidden",borderRadius:22,
-          background:`radial-gradient(circle at 18% 12%,${c}34,transparent 34%),linear-gradient(150deg,${c}28 0%,${t.bg}d8 42%,${t.bg}f4 100%)`,
-          border:`1.5px solid ${c}55`,
-          boxShadow:hovered?`0 0 0 1px ${c}2a inset,0 42px 100px rgba(0,0,0,.72),0 0 120px ${c}28`:`0 0 0 1px ${c}18 inset,0 32px 80px rgba(0,0,0,.65),0 0 80px ${c}18`,
-          transform:hovered?"translateY(-6px) scale(1.012)":"translateY(0) scale(1)",
-          transition:"transform .45s cubic-bezier(.16,1,.3,1),box-shadow .45s ease",
-        }}>
-
-        {/* Top shine streak */}
-        <div style={{position:"absolute",top:0,left:0,right:0,height:1,background:`linear-gradient(90deg,transparent,${c}60,transparent)`,pointerEvents:"none"}}/>
-
-        {/* Radial glow blobs */}
-        <div style={{position:"absolute",top:-90,right:-70,width:280,height:280,borderRadius:"50%",background:`radial-gradient(circle,${c}24,transparent 65%)`,pointerEvents:"none",animation:"auroraDrift 9s ease-in-out infinite"}}/>
-        <div style={{position:"absolute",bottom:-70,left:-60,width:230,height:230,borderRadius:"50%",background:`radial-gradient(circle,${c}14,transparent 65%)`,pointerEvents:"none",animation:"auroraDrift 11s ease-in-out infinite reverse"}}/>
-
-        {/* Diagonal shimmer lines */}
-        <div style={{position:"absolute",inset:0,backgroundImage:`repeating-linear-gradient(120deg,${c}06 0px,${c}06 1px,transparent 1px,transparent 28px)`,pointerEvents:"none"}}/>
-        <div style={{position:"absolute",inset:"-30%",background:`linear-gradient(115deg,transparent 35%,rgba(255,255,255,.08) 48%,transparent 61%)`,transform:hovered?"translateX(38%)":"translateX(-38%)",transition:"transform .9s cubic-bezier(.16,1,.3,1)",pointerEvents:"none"}}/>
-
-        <div style={{position:"relative",padding:"42px 36px 32px"}}>
-
-          {/* Header row */}
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:24}}>
-            <div>
-              <div style={{fontSize:12,fontWeight:800,letterSpacing:".26em",textTransform:"uppercase",color:c,opacity:.85,fontFamily:t.font,marginBottom:4}}>ChessDNA</div>
-              <div style={{fontSize:10,fontWeight:600,letterSpacing:".16em",textTransform:"uppercase",color:t.textDim,fontFamily:t.font}}>Measured player profile</div>
-            </div>
-            <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:t.textDim,fontFamily:t.font,textAlign:"right"}}>
-              <div style={{color:c,opacity:.85}}>♟ {profile.username||"—"}</div>
-              <div style={{marginTop:4}}>DNA {p.dnaCode}</div>
-            </div>
-          </div>
-
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:26,alignItems:"center"}}>
-            {/* Icon + Title */}
-            <div style={{textAlign:"left"}}>
-              <div style={{fontSize:88,lineHeight:1,marginBottom:14,filter:`drop-shadow(0 0 26px ${c}70)`,animation:"float 3s ease-in-out infinite",display:"inline-block"}}>{p.icon}</div>
-              <div style={{fontFamily:t.headingFont,fontSize:"clamp(40px,6.5vw,64px)",fontWeight:900,color:c,lineHeight:1.04,letterSpacing:"-.035em",marginBottom:12,animation:"glow 3s ease-in-out infinite",overflowWrap:"anywhere",paddingBottom:4}}>{p.title}</div>
-              <div style={{display:"inline-flex",alignItems:"center",gap:8,background:`${c}16`,border:`1px solid ${c}40`,borderRadius:999,padding:"7px 16px"}}>
-                <div style={{width:6,height:6,borderRadius:"50%",background:c,boxShadow:`0 0 12px ${c}`}}/>
-                <span style={{fontSize:12,color:c,fontWeight:800,letterSpacing:".08em",fontFamily:t.font,textTransform:"uppercase"}}>{p.archetype}</span>
-              </div>
-              <div style={{fontSize:14,color:t.textMid,lineHeight:1.65,marginTop:18,fontFamily:t.font}}>{p.desc}</div>
-            </div>
-
-            <div style={{background:`${t.bg}66`,border:`1px solid ${c}22`,borderRadius:20,padding:"18px 18px 16px",boxShadow:`inset 0 1px 0 ${c}12`}}>
-              <div style={{fontSize:11,color:t.textDim,textTransform:"uppercase",letterSpacing:".14em",fontWeight:700,marginBottom:10}}>Top signals</div>
-              <StatSheet dimensions={p.dimensions} t={t} compact={true} limit={4}/>
-            </div>
-          </div>
-
-          {/* Divider */}
-          <div style={{height:1,background:`linear-gradient(90deg,transparent,${c}30,transparent)`,margin:"26px 0 20px"}}/>
-
-          {/* Stats row */}
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:10,marginBottom:20}}>
-            {[["Wins",p.wins,p.winPct,t.win],["Draws",p.draws,p.drawPct,t.draw],["Losses",p.losses,p.lossPct,t.loss]].map(([label,val,pct,col])=>(
-              <div key={label} style={{background:`${col}0e`,border:`1px solid ${col}25`,borderRadius:12,padding:"12px 8px",textAlign:"center"}}>
-                <div style={{fontSize:9,color:col,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",fontFamily:t.font,marginBottom:6,opacity:.8}}>{label}</div>
-                <div style={{fontSize:32,fontWeight:800,color:col,fontFamily:t.headingFont,lineHeight:1}}>{val}</div>
-                <div style={{fontSize:11,color:col,opacity:.6,marginTop:3,fontFamily:t.font}}>{pct}%</div>
-              </div>
-            ))}
-          </div>
-
-          {/* WDL bar */}
-          <div style={{height:6,borderRadius:6,overflow:"hidden",display:"flex",gap:2,marginBottom:16}}>
-            <div style={{flex:p.winPct,background:t.win,borderRadius:4,transition:"flex .6s ease"}}/>
-            <div style={{flex:p.drawPct,background:t.draw,borderRadius:4,transition:"flex .6s ease"}}/>
-            <div style={{flex:p.lossPct,background:t.loss,borderRadius:4,transition:"flex .6s ease"}}/>
-          </div>
-
-          {/* Extra stats */}
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:8,marginBottom:20}}>
-            {[
-              ["Fav. Format",p.favTC],
-              ["Avg Opponent",p.avgOpp||"—"],
-              ["Best Win Elo",p.bestWin||"—"],
-              ["Openings",p.uniqueOpenings],
-              ["Recent Win%",`${p.recentWinPct}%`],
-              ["Color Gap",`${p.colorGap}%`],
-            ].map(([label,val])=>(
-              <div key={label} style={{background:`${c}08`,borderRadius:10,padding:"10px 12px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                <span style={{fontSize:11,color:t.textDim,fontFamily:t.font}}>{label}</span>
-                <span style={{fontSize:13,fontWeight:700,color:t.text,fontFamily:t.headingFont,textTransform:"capitalize"}}>{val}</span>
-              </div>
-            ))}
-          </div>
-
-          {/* Style tags */}
-          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:22,justifyContent:"center"}}>
-            {tags.map(tag=>(
-              <span key={tag} style={{background:`${c}12`,border:`1px solid ${c}28`,borderRadius:20,padding:"5px 13px",fontSize:11,color:c,fontWeight:600,fontFamily:t.font,letterSpacing:".02em"}}>{tag}</span>
-            ))}
-          </div>
-
-          <div style={{fontSize:11,color:t.textDim,textAlign:"center",lineHeight:1.5,marginBottom:16}}>Every number here is calculated from loaded Chess.com archive games except official ratings, which come from Chess.com /stats.</div>
-
-          {/* Divider */}
-          <div style={{height:1,background:`linear-gradient(90deg,transparent,${c}20,transparent)`,marginBottom:18}}/>
-
-          {/* Share button */}
-          <button onClick={share} style={{
-            width:"100%",padding:"12px",borderRadius:12,border:`1px solid ${c}40`,
-            background:copied?`${c}25`:`${c}14`,
-            color:copied?c:t.textMid,cursor:"pointer",fontFamily:t.font,fontSize:13,fontWeight:600,
-            transition:"all .2s",letterSpacing:".02em",
-            display:"flex",alignItems:"center",justifyContent:"center",gap:8,
-          }}>
-            {copied
-              ? <><span style={{color:c}}>✓</span> Link copied!</>
-              : <><span style={{opacity:.6}}>🔗</span> Share this card</>}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ── Hero Player Card ──────────────────────────────────────────────────────────
 function PlayerHeroCard({data,loading,t}) {
   if (loading) return <Card t={t} style={{display:"flex",gap:20,alignItems:"center"}}><Sk w={88} h={88} style={{borderRadius:"50%",flexShrink:0}}/><div style={{flex:1,display:"flex",flexDirection:"column",gap:10}}><Sk w="50%" h={24}/><Sk w="70%" h={15}/><Sk w="60%" h={12}/></div></Card>;
@@ -1541,109 +1307,37 @@ function PlayerHeroCard({data,loading,t}) {
 
 function DataTruthStrip({data,months,t}) {
   if (!data) return null;
-  const ratings=getAllRatings(data.stats).length;
   const cov=openingCoverage(data.games);
-  const items=[
-    ["Profile",data.profile.username,"Chess.com /player"],
-    ["Official ratings",ratings?`${ratings} formats`:"None listed","Chess.com /stats"],
-    ["Archive games",data.games.length.toLocaleString(),`${data.monthsLoaded} archive${data.monthsLoaded===1?"":"s"} · ${rangeLabel(months)}`],
-    ["Opening coverage",`${cov.pct}% identified`,`${cov.named}/${cov.total} games · ${uniqueNamedOpenings(data.games)} unique openings`],
-    ["Derived stats","W/D/L · DNA · insights","Calculated from loaded archives"],
-  ];
-  return <Card t={t} hover={false} style={{padding:"14px 16px",marginBottom:20,animation:"fadeInUp .35s .08s cubic-bezier(.22,1,.36,1) both"}}>
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:10}}>
-      {items.map(([label,value,source],i)=>(
-        <div key={label} className="stat-pulse" style={{background:`${t.accent}08`,border:`1px solid ${t.cardBorder}`,borderRadius:12,padding:"10px 12px",animation:`fadeInUp .35s ${.05+i*.04}s cubic-bezier(.22,1,.36,1) both`,transition:"transform .2s ease,box-shadow .2s ease"}} onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow=`0 6px 20px rgba(0,0,0,.3)`;}} onMouseLeave={e=>{e.currentTarget.style.transform="";e.currentTarget.style.boxShadow="";}}>
-          <div style={{fontSize:10,color:t.textDim,textTransform:"uppercase",letterSpacing:".1em",fontWeight:700,marginBottom:4}}>{label}</div>
-          <div className="stat-value" style={{fontFamily:t.headingFont,fontSize:18,color:label==="Opening coverage"&&cov.pct>=90?t.win:label==="Opening coverage"&&cov.pct<70?t.loss:t.text,fontWeight:800,lineHeight:1.05}}>{value}</div>
-          <div style={{fontSize:11,color:t.textDim,marginTop:4}}>{source}</div>
-        </div>
-      ))}
-    </div>
-  </Card>;
-}
-
-// ── Opening DNA Column ────────────────────────────────────────────────────────
-function OpeningDNA({games,loading,t,tc="all"}) {
-  if (loading) return <div style={{display:"flex",flexDirection:"column",gap:8}}>{[...Array(5)].map((_,i)=><Sk key={i} h={44}/>)}</div>;
-  if (!games?.length) return <div style={{color:t.textDim,fontSize:13}}>No games loaded.</div>;
-  const top5=aggOpenings(games,tc).filter(o=>o.games>=2).sort((a,b)=>b.games-a.games).slice(0,5);
-  const maxGames=top5[0]?.games||1;
-  return <div style={{display:"flex",flexDirection:"column",gap:8}}>
-    {top5.map((o,i)=>(
-      <div key={o.opening} className="opening-row" style={{background:`${t.accent}06`,border:`1px solid ${t.cardBorder}`,borderRadius:10,padding:"10px 12px",display:"flex",alignItems:"center",gap:10,animation:`fadeInUp .4s ${.05+i*.06}s cubic-bezier(.22,1,.36,1) both`}}>
-        <div className="ring-pop" style={{width:22,height:22,borderRadius:"50%",background:i===0?t.accent:`${t.accent}20`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:i===0?t.bg:t.textDim,flexShrink:0,fontFamily:t.font,animationDelay:`${.1+i*.05}s`}}>{i+1}</div>
-        <div style={{flex:1,minWidth:0}}>
-          <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:3}}>
-            {o.ecoFamily&&o.eco!=="?"&&<span className="eco-badge" style={ecoBadgeStyle(o.ecoFamily,t)}>{o.eco}</span>}
-            <a href={openingLink(o.opening,o.openingUrl)} target="_blank" rel="noopener noreferrer" style={{fontSize:12,color:t.text,fontWeight:500,textDecoration:"none",display:"block",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",transition:"color .15s",flex:1}} onMouseEnter={e=>e.target.style.color=t.accent} onMouseLeave={e=>e.target.style.color=t.text}>{o.opening.length>24?o.opening.slice(0,22)+"…":o.opening}</a>
-          </div>
-          <div style={{height:4,borderRadius:2,background:`${t.accent}15`,overflow:"hidden"}}>
-            <div className="bar-grow" style={{height:"100%",width:`${Math.round(o.games/maxGames*100)}%`,background:`linear-gradient(90deg,${t.accent2},${t.accent})`,borderRadius:2,animationDelay:`${.15+i*.06}s`}}/>
-          </div>
-          <div style={{fontSize:11,color:t.textDim,marginTop:3}}>{o.games} games · {o.winPct}% win</div>
-        </div>
-        <span className={`badge ${o.winPct>=55?"green":o.winPct>=45?"yellow":"red"}`}>{o.winPct}%</span>
-      </div>
-    ))}
-    {!top5.length&&<div style={{color:t.textDim,fontSize:13}}>Play more games to see opening patterns.</div>}
+  return <div style={{display:"flex",flexWrap:"wrap",gap:8,alignItems:"center",justifyContent:"center",fontSize:11,color:t.textDim,marginBottom:16,padding:"10px 14px",background:`${t.accent}06`,border:`1px solid ${t.cardBorder}`,borderRadius:10,animation:"fadeInUp .35s .08s cubic-bezier(.22,1,.36,1) both"}}>
+    <span><strong style={{color:t.text}}>{data.games.length.toLocaleString()}</strong> archive games</span>
+    <span style={{opacity:.35}}>·</span>
+    <span>{rangeLabel(months)}</span>
+    <span style={{opacity:.35}}>·</span>
+    <span style={{color:cov.pct>=90?t.win:cov.pct<70?t.loss:t.textMid}}>{cov.pct}% openings identified</span>
+    <span style={{opacity:.35}}>·</span>
+    <span>ratings from Chess.com</span>
   </div>;
-}
-
-// ── Performance Chart ─────────────────────────────────────────────────────────
-function PerformanceChart({games,loading,t}) {
-  const tip=(props)=><ChartTip {...props} t={t}/>;
-  if (loading) return <Sk h={180}/>;
-
-  let chartData = [];
-  if (games?.length) {
-    const byDate={};
-    [...games].reverse().forEach(g=>{
-      if (g.date && g.date!=="?") {
-        if (!byDate[g.date]) byDate[g.date]=[];
-        byDate[g.date].push(g);
-      }
-    });
-    chartData = Object.keys(byDate).sort().slice(-15).map(date=>{
-      const gs=byDate[date];
-      const wins=gs.filter(g=>g.result==="win").length;
-      return {date:date.slice(5), winPct:Math.round(wins/gs.length*100), games:gs.length};
-    });
-  }
-
-  if (!chartData.length) {
-    return <div style={{color:t.textDim,fontSize:13,padding:"40px 0",textAlign:"center"}}>Not enough dated games for a trend.</div>;
-  }
-
-  return <ResponsiveContainer width="100%" height={170}>
-    <LineChart data={chartData} margin={{top:5,right:5,left:0,bottom:0}}>
-      <CartesianGrid stroke={`${t.accent}10`} strokeDasharray="3 3"/>
-      <XAxis dataKey="date" tick={{fill:t.textDim,fontSize:10}} axisLine={false} tickLine={false}/>
-      <YAxis tick={{fill:t.textDim,fontSize:10}} axisLine={false} tickLine={false} domain={[0,100]} width={36}/>
-      <Tooltip content={tip}/>
-      <Line type="monotone" dataKey="winPct" stroke={t.accent} strokeWidth={2} dot={{r:3,fill:t.accent}} activeDot={{r:5}} name="Win%" isAnimationActive animationDuration={900}/>
-    </LineChart>
-  </ResponsiveContainer>;
 }
 
 // ── Insights Column ───────────────────────────────────────────────────────────
 function InsightCard({item,t}) {
-  return <div style={{background:`${t.accent}06`,border:`1px solid ${t.cardBorder}`,borderRadius:10,padding:"12px 14px",display:"flex",gap:12,alignItems:"flex-start"}}>
+  return <div style={{background:`${t.accent}06`,border:`1px solid ${t.cardBorder}`,borderRadius:10,padding:"14px 16px",display:"flex",gap:12,alignItems:"flex-start",height:"100%"}}>
     <span style={{fontSize:22,flexShrink:0}}>{item.icon}</span>
     <div style={{flex:1,minWidth:0}}>
       <div style={{fontSize:10,color:t.textDim,textTransform:"uppercase",letterSpacing:".07em",marginBottom:3,fontFamily:t.font}}>{item.label}</div>
       <div style={{fontSize:14,fontWeight:600,color:item.color||t.text,overflowWrap:"anywhere"}}>{item.value}</div>
       {item.sub&&<div style={{fontSize:11,color:t.textDim,marginTop:2}}>{item.sub}</div>}
+      {item.detail&&<div style={{fontSize:12,color:t.textMid,marginTop:8,lineHeight:1.5}}>{item.detail}</div>}
     </div>
   </div>;
 }
 
 function InsightsColumn({games,loading,t}) {
-  if (loading) return <div style={{display:"flex",flexDirection:"column",gap:10}}>{[...Array(3)].map((_,i)=><Sk key={i} h={70}/>)}</div>;
+  if (loading) return <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:10}}>{[...Array(3)].map((_,i)=><Sk key={i} h={110}/>)}</div>;
   if (!games?.length) return <div style={{color:t.textDim,fontSize:13}}>No games loaded.</div>;
   const items = computeInsights(games);
   if (!items.length) return <div style={{color:t.textDim,fontSize:13}}>Not enough game data for insights.</div>;
-  return <div style={{display:"flex",flexDirection:"column",gap:10}}>
+  return <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:10}}>
     {items.map((item,i)=><div key={item.id} style={{animation:`fadeInUp .4s ${.05+i*.06}s cubic-bezier(.22,1,.36,1) both`}}><InsightCard item={item} t={t}/></div>)}
   </div>;
 }
@@ -2320,15 +2014,15 @@ function DnaTab({games,stats,loading,t,profile}) {
   if (loading) return <Sk h={300}/>;
   if (!p) return <div style={{color:t.textDim,textAlign:"center",padding:40,fontSize:14}}>Load a player to reveal their Chess DNA.</div>;
   const c=p.titleColor;
-  const twin=styleTwin(p);
   const top=p.dimensions[0], weak=p.dimensions[p.dimensions.length-1];
+  const shareUrl=()=>window.location.origin+window.location.pathname+`#/${profile?.username||""}/card`;
 
   return <div style={{display:"flex",flexDirection:"column",gap:20}}>
 
     {/* Personality banner */}
     <Card t={t} glow={true} hover={false} style={{position:"relative",overflow:"hidden",padding:"28px 26px",animation:"fadeInUp .45s cubic-bezier(.22,1,.36,1) both"}} className="card-pad-sm">
       <div style={{position:"absolute",inset:-120,background:`radial-gradient(circle at 22% 20%,${c}24,transparent 32%),radial-gradient(circle at 78% 18%,${t.accent}16,transparent 30%)`,animation:"auroraDrift 12s ease-in-out infinite",pointerEvents:"none"}}/>
-      <div style={{position:"relative",display:"flex",gap:24,alignItems:"center",flexWrap:"wrap"}}>
+      <div style={{position:"relative",display:"flex",gap:24,alignItems:"flex-start",flexWrap:"wrap"}}>
         <div style={{fontSize:72,lineHeight:1,filter:`drop-shadow(0 0 24px ${c}70)`,animation:"float 3s ease-in-out infinite"}}>{p.icon}</div>
         <div style={{flex:1,minWidth:200}}>
           <div style={{fontSize:11,color:c,textTransform:"uppercase",letterSpacing:".2em",fontWeight:800,marginBottom:6}}>ChessDNA · {p.dnaCode}</div>
@@ -2339,13 +2033,16 @@ function DnaTab({games,stats,loading,t,profile}) {
           </div>
           <div style={{fontSize:14,color:t.textMid,lineHeight:1.6,marginTop:14,maxWidth:560}}>{p.desc}</div>
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:8,minWidth:180}}>
-          {[["Win rate",`${p.winPct}%`,t.win],["Format",p.favTC,t.accent],["Openings",p.uniqueOpenings,t.hl],["Recent",`${p.recentWinPct}%`,p.recentWinPct>=p.winPct?t.win:t.loss]].map(([label,val,col])=>(
-            <div key={label} style={{background:`${col}0c`,border:`1px solid ${col}22`,borderRadius:12,padding:"10px 12px",textAlign:"center"}}>
-              <div style={{fontSize:9,color:t.textDim,textTransform:"uppercase",letterSpacing:".08em",fontWeight:700}}>{label}</div>
-              <div style={{fontFamily:t.headingFont,fontSize:22,fontWeight:900,color:col,marginTop:4,textTransform:"capitalize"}}>{val}</div>
-            </div>
-          ))}
+        <div style={{display:"flex",flexDirection:"column",gap:10,minWidth:180,alignItems:"stretch"}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:8}}>
+            {[["Win rate",`${p.winPct}%`,t.win],["Format",p.favTC,t.accent],["Openings",p.uniqueOpenings,t.hl],["Recent",`${p.recentWinPct}%`,p.recentWinPct>=p.winPct?t.win:t.loss]].map(([label,val,col])=>(
+              <div key={label} style={{background:`${col}0c`,border:`1px solid ${col}22`,borderRadius:12,padding:"10px 12px",textAlign:"center"}}>
+                <div style={{fontSize:9,color:t.textDim,textTransform:"uppercase",letterSpacing:".08em",fontWeight:700}}>{label}</div>
+                <div style={{fontFamily:t.headingFont,fontSize:22,fontWeight:900,color:col,marginTop:4,textTransform:"capitalize"}}>{val}</div>
+              </div>
+            ))}
+          </div>
+          <CopyButton onCopy={()=>navigator.clipboard.writeText(shareUrl())} t={t} label="Share profile"/>
         </div>
       </div>
     </Card>
@@ -2363,8 +2060,8 @@ function DnaTab({games,stats,loading,t,profile}) {
       </div>
     </Card></Reveal>
 
-    {/* Quick read — 3 cards */}
-    <Reveal><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:14}}>
+    {/* Quick read — strengths & gaps */}
+    <Reveal><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))",gap:14}}>
       <Card t={t} style={{padding:18,animation:"slideInLeft .5s cubic-bezier(.22,1,.36,1) both"}}>
         <div style={{fontSize:11,color:t.win,textTransform:"uppercase",letterSpacing:".12em",fontWeight:800,marginBottom:10}}>⭐ Your superpower</div>
         <div style={{fontFamily:t.headingFont,fontSize:22,fontWeight:900,color:t.text}}>{DIMENSION_META[top.key]?.icon} {top.label}</div>
@@ -2376,15 +2073,6 @@ function DnaTab({games,stats,loading,t,profile}) {
         <div style={{fontFamily:t.headingFont,fontSize:22,fontWeight:900,color:t.text}}>{DIMENSION_META[weak.key]?.icon} {weak.label}</div>
         <div style={{fontSize:28,fontWeight:900,color:"#fb923c",fontFamily:t.headingFont,marginTop:4}}>{weak.value}<span style={{fontSize:14,color:t.textDim}}>/100</span></div>
         <div style={{fontSize:13,color:t.textMid,lineHeight:1.55,marginTop:10}}>{DIMENSION_META[weak.key]?.low}</div>
-      </Card>
-      <Card t={t} style={{padding:18,textAlign:"center",position:"relative",overflow:"hidden",animation:"slideInRight .5s .12s cubic-bezier(.22,1,.36,1) both"}}>
-        <div style={{position:"absolute",inset:-40,background:`radial-gradient(circle at 50% 0%,${c}15,transparent 65%)`,pointerEvents:"none"}}/>
-        <div style={{position:"relative"}}>
-          <div style={{fontSize:11,color:t.textDim,textTransform:"uppercase",letterSpacing:".14em",fontWeight:800,marginBottom:8}}>Style twin</div>
-          <div style={{fontSize:36,marginBottom:6}}>👑</div>
-          <div style={{fontFamily:t.headingFont,fontSize:22,fontWeight:900,color:c}}>{twin.name}</div>
-          <div style={{fontSize:12,color:t.textMid,lineHeight:1.55,marginTop:8}}>Rhymes with <span style={{color:c,fontWeight:600}}>{twin.why}</span></div>
-        </div>
       </Card>
     </div></Reveal>
 
@@ -2405,16 +2093,35 @@ function DnaTab({games,stats,loading,t,profile}) {
       </div>
     </Card></Reveal>}
 
-    <Reveal><TradingCard p={p} profile={profile||{username:""}} t={t}/></Reveal>
   </div>;
 }
 
-// ── Overview Tab (rich dashboard) ────────────────────────────────────────────
-function OverviewTab({data,loading,t}) {
+// ── Tab shortcuts for deeper dives ────────────────────────────────────────────
+function TabQuickLinks({t,onSelect}) {
+  const links=[
+    [1,"♟","Openings","Repertoire & leaks"],
+    [2,"🎨","Color Stats","White vs Black"],
+    [3,"📈","Elo Breakdown","By opponent rating"],
+    [6,"🧬","Chess DNA","Playstyle profile"],
+  ];
+  return <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:10}}>
+    {links.map(([idx,icon,label,sub])=>(
+      <button key={idx} onClick={()=>onSelect(idx)} style={{background:`${t.accent}06`,border:`1px solid ${t.cardBorder}`,borderRadius:12,padding:"14px 16px",textAlign:"left",cursor:"pointer",fontFamily:t.font,transition:"all .2s cubic-bezier(.22,1,.36,1)",color:t.text}}
+        onMouseEnter={e=>{e.currentTarget.style.borderColor=`${t.accent}50`;e.currentTarget.style.transform="translateY(-2px)";}}
+        onMouseLeave={e=>{e.currentTarget.style.borderColor=t.cardBorder;e.currentTarget.style.transform="";}}>
+        <div style={{fontSize:15,fontWeight:700,marginBottom:4}}>{icon} {label}</div>
+        <div style={{fontSize:11,color:t.textDim}}>{sub} →</div>
+      </button>
+    ))}
+  </div>;
+}
+
+// ── Overview Tab ──────────────────────────────────────────────────────────────
+function OverviewTab({data,loading,t,onGoTab}) {
   const tip=(props)=><ChartTip {...props} t={t}/>;
-  if (loading) return <div style={{display:"flex",flexDirection:"column",gap:14}}>{[...Array(4)].map((_,i)=><Sk key={i} h={90}/>)}</div>;
+  if (loading) return <div style={{display:"flex",flexDirection:"column",gap:14}}>{[...Array(3)].map((_,i)=><Sk key={i} h={90}/>)}</div>;
   if (!data) return null;
-  const {games,stats}=data;
+  const {games}=data;
   const total=games.length;
   const wins=games.filter(g=>g.result==="win").length;
   const losses=games.filter(g=>g.result==="loss").length;
@@ -2423,48 +2130,23 @@ function OverviewTab({data,loading,t}) {
   const lossPct=total?Math.round(losses/total*100):0;
   const drawPct=total?Math.round(draws/total*100):0;
 
-  // Per-opening data for mini chart
-  const openings=aggOpenings(games).sort((a,b)=>b.games-a.games).slice(0,6);
-
-  // Color stats
-  const wG=games.filter(g=>g.color==="white"), bG=games.filter(g=>g.color==="black");
-  const wW=wG.filter(g=>g.result==="win").length, bW=bG.filter(g=>g.result==="win").length;
-  const wWp=wG.length?Math.round(wW/wG.length*100):0, bWp=bG.length?Math.round(bW/bG.length*100):0;
-
-  // Rating bar data
-  const rBar=["rapid","blitz","bullet","daily"].map(tc=>({name:tc,rating:getRating(stats,tc).last,best:getRating(stats,tc).best})).filter(d=>d.rating);
-
-  // Time control data
-  const tcMap={}; games.forEach(g=>{tcMap[g.timeControl]=(tcMap[g.timeControl]||0)+1;});
-  const tcData=Object.entries(tcMap).filter(([k])=>k!=="other").map(([name,value])=>({name,value}));
-
-  // Elo brackets mini
-  const brackets=eloBrackets(games).slice(0,5);
-
-  // Recent form (last 20 games)
   const recent=games.slice(0,20);
   const recentWins=recent.filter(g=>g.result==="win").length;
   const recentForm=Math.round(recentWins/Math.max(recent.length,1)*100);
   const formTrend=recentForm>winPct?"↑ Better than avg":recentForm<winPct-5?"↓ Below avg":"→ On pace";
   const formColor=recentForm>winPct?t.win:recentForm<winPct-5?t.loss:t.textMid;
 
-  // Avg opponent
   const elos=games.filter(g=>g.oppElo).map(g=>g.oppElo);
   const avgOpp=elos.length?Math.round(elos.reduce((a,b)=>a+b,0)/elos.length):null;
   const bestWin=games.filter(g=>g.result==="win"&&g.oppElo).sort((a,b)=>b.oppElo-a.oppElo)[0];
-
-  // Opening diversity
   const uniqueO=uniqueNamedOpenings(games);
-
-  // New derived slices
   const records=streakRecords(games);
   const streak=computeStreak(games);
-  const tod=timeOfDayStats(games);
-  const dow=dayOfWeekStats(games).filter(d=>d.games>0);
-  const tilt=tiltStats(games);
-  const rivals=rivalStats(games,5);
-  const lengths=gameLengthStats(games);
   const monthly=monthlyTrend(games);
+  const tcMap={};
+  games.forEach(g=>{tcMap[g.timeControl]=(tcMap[g.timeControl]||0)+1;});
+  const tcData=Object.entries(tcMap).filter(([k])=>k!=="other").map(([name,value])=>({name,value})).sort((a,b)=>b.value-a.value);
+  const tcTotal=tcData.reduce((a,d)=>a+d.value,0)||1;
 
   const StatCard=({label,value,color,sub,i})=>(
     <Card t={t} className={`stagger-${i+1} stat-pulse`} style={{padding:"16px 18px",textAlign:"center",minWidth:100,transition:"transform .2s ease"}} onMouseEnter={e=>e.currentTarget.style.transform="translateY(-3px) scale(1.02)"} onMouseLeave={e=>e.currentTarget.style.transform=""}>
@@ -2476,249 +2158,88 @@ function OverviewTab({data,loading,t}) {
 
   return <div style={{display:"flex",flexDirection:"column",gap:16}}>
 
-    {/* Row 1 — 6 key stats */}
     <div className="stat-grid" style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(100px,1fr))",gap:10}}>
-      <StatCard i={1} label="Loaded Games" value={total} color={t.accent}/>
-      <StatCard i={2} label="Wins" value={wins} color={t.win} sub={winPct+"%"}/>
-      <StatCard i={3} label="Losses" value={losses} color={t.loss} sub={lossPct+"%"}/>
-      <StatCard i={4} label="Draws" value={draws} color={t.draw} sub={drawPct+"%"}/>
-      <StatCard i={5} label="Avg Opponent" value={avgOpp||"—"} color={t.textMid}/>
-      <StatCard i={6} label="Openings Used" value={uniqueO} color={t.hl} sub={`${openingCoverage(games).pct}% identified`}/>
+      <StatCard i={1} label="Games" value={total} color={t.accent}/>
+      <StatCard i={2} label="Win Rate" value={winPct} color={t.win} sub={`${wins}W · ${losses}L · ${draws}D`}/>
+      <StatCard i={3} label="Avg Opponent" value={avgOpp||"—"} color={t.textMid}/>
+      <StatCard i={4} label="Openings" value={uniqueO} color={t.hl} sub={`${openingCoverage(games).pct}% identified`}/>
+      <StatCard i={5} label="Current Streak" value={streak.count} color={streak.type==="win"?t.win:streak.type==="loss"?t.loss:t.draw} sub={streak.type==="none"?"—":`${streak.type}s`}/>
+      <StatCard i={6} label="Best Streak" value={records.bestWin} color={t.win} sub="wins in a row"/>
     </div>
 
-    {/* Row 1b — streak & length records */}
-    <div className="stat-grid" style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(100px,1fr))",gap:10}}>
-      <StatCard i={1} label="Best Win Streak" value={records.bestWin} color={t.win} sub="in this range"/>
-      <StatCard i={2} label="Worst Skid" value={records.bestLoss} color={t.loss} sub="losses in a row"/>
-      <StatCard i={3} label="Current Streak" value={streak.count} color={streak.type==="win"?t.win:streak.type==="loss"?t.loss:t.draw} sub={streak.type==="none"?"—":streak.type+"s"}/>
-      {lengths&&<StatCard i={4} label="Avg Game Length" value={lengths.avgMoves} color={t.accent} sub="moves"/>}
-      {lengths&&<StatCard i={5} label="Quick Wins" value={lengths.quickWins} color={t.hl} sub="≤20 moves"/>}
-      {lengths&&<StatCard i={6} label="Marathons" value={lengths.marathons} color={t.textMid} sub="60+ moves"/>}
-    </div>
-
-    {/* Row 2 — WDL bar + recent form + best win */}
-    <div style={{display:"flex",gap:14,flexWrap:"wrap"}}>
-      <Card t={t} style={{flex:2,minWidth:220}}>
-        <SecTitle t={t} sub="All loaded archive games in selected range">Win / Draw / Loss</SecTitle>
-        <div style={{display:"flex",height:14,borderRadius:8,overflow:"hidden",gap:2,marginBottom:10}}>
-          <div className="bar-grow" style={{width:`${winPct}%`,background:t.win,transition:"width .8s cubic-bezier(.4,0,.2,1)"}}/>
-          <div className="bar-grow" style={{width:`${drawPct}%`,background:t.draw,transition:"width .8s cubic-bezier(.4,0,.2,1)",animationDelay:".08s"}}/>
-          <div className="bar-grow" style={{width:`${lossPct}%`,background:t.loss,transition:"width .8s cubic-bezier(.4,0,.2,1)",animationDelay:".16s"}}/>
-        </div>
-        <div style={{display:"flex",gap:20,fontSize:13}}>
-          {[["W",winPct,t.win],["D",drawPct,t.draw],["L",lossPct,t.loss]].map(([l,v,c])=>(
-            <div key={l} style={{display:"flex",alignItems:"center",gap:6}}>
-              <div style={{width:8,height:8,borderRadius:2,background:c}}/>
-              <span style={{color:t.textDim}}>{l}</span>
-              <span style={{color:c,fontWeight:700}}>{v}%</span>
-            </div>
-          ))}
-        </div>
-        <div style={{marginTop:16,paddingTop:14,borderTop:`1px solid ${t.cardBorder}40`}}>
-          <div style={{fontSize:11,color:t.textDim,textTransform:"uppercase",letterSpacing:".07em",marginBottom:8}}>Recent form (last 20)</div>
-          <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
-            {recent.map((g,i)=>(
-              <div key={i} className="pop-in" style={{width:16,height:16,borderRadius:3,background:g.result==="win"?t.win:g.result==="loss"?t.loss:t.draw,opacity:.85,title:`${g.result} · ${g.opening||"—"}`,animationDelay:`${i*.03}s`,transition:"transform .15s ease"}} onMouseEnter={e=>e.target.style.transform="scale(1.3)"} onMouseLeave={e=>e.target.style.transform="scale(1)"}/>
-            ))}
+    <Card t={t}>
+      <SecTitle t={t} sub="All loaded archive games in selected range">Win / Draw / Loss</SecTitle>
+      <div style={{display:"flex",height:14,borderRadius:8,overflow:"hidden",gap:2,marginBottom:10}}>
+        <div className="bar-grow" style={{width:`${winPct}%`,background:t.win,transition:"width .8s cubic-bezier(.4,0,.2,1)"}}/>
+        <div className="bar-grow" style={{width:`${drawPct}%`,background:t.draw,transition:"width .8s cubic-bezier(.4,0,.2,1)",animationDelay:".08s"}}/>
+        <div className="bar-grow" style={{width:`${lossPct}%`,background:t.loss,transition:"width .8s cubic-bezier(.4,0,.2,1)",animationDelay:".16s"}}/>
+      </div>
+      <div style={{display:"flex",gap:20,fontSize:13,flexWrap:"wrap"}}>
+        {[["W",winPct,t.win],["D",drawPct,t.draw],["L",lossPct,t.loss]].map(([l,v,c])=>(
+          <div key={l} style={{display:"flex",alignItems:"center",gap:6}}>
+            <div style={{width:8,height:8,borderRadius:2,background:c}}/>
+            <span style={{color:t.textDim}}>{l}</span>
+            <span style={{color:c,fontWeight:700}}>{v}%</span>
           </div>
-          <div style={{fontSize:12,color:formColor,marginTop:8,fontWeight:600}}>{formTrend} · {recentForm}% last 20 games</div>
-        </div>
-      </Card>
-      <Card t={t} style={{flex:1,minWidth:180}}>
-        <SecTitle t={t} sub="Color performance">White vs Black</SecTitle>
-        <div style={{display:"flex",flexDirection:"column",gap:10}}>
-          {[["♙ White",wWp,wG.length,"#f8c840"],["♟ Black",bWp,bG.length,"#6e7ff3"]].map(([l,wp,g,c])=>(
-            <div key={l}>
-              <div style={{display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:5}}>
-                <span style={{color:t.textMid}}>{l}</span>
-                <span style={{color:c,fontWeight:700}}>{wp}%</span>
-              </div>
-              <div style={{height:8,borderRadius:4,background:`${c}20`,overflow:"hidden"}}>
-                <div style={{height:"100%",width:`${wp}%`,background:c,borderRadius:4,transition:"width .7s ease"}}/>
-              </div>
-              <div style={{fontSize:11,color:t.textDim,marginTop:3}}>{g} games</div>
-            </div>
+        ))}
+      </div>
+      <div style={{marginTop:16,paddingTop:14,borderTop:`1px solid ${t.cardBorder}40`}}>
+        <div style={{fontSize:11,color:t.textDim,textTransform:"uppercase",letterSpacing:".07em",marginBottom:8}}>Recent form (last 20)</div>
+        <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+          {recent.map((g,i)=>(
+            <div key={i} className="pop-in" style={{width:16,height:16,borderRadius:3,background:g.result==="win"?t.win:g.result==="loss"?t.loss:t.draw,opacity:.85,title:`${g.result} · ${g.opening||"—"}`,animationDelay:`${i*.03}s`,transition:"transform .15s ease"}} onMouseEnter={e=>e.target.style.transform="scale(1.3)"} onMouseLeave={e=>e.target.style.transform="scale(1)"}/>
           ))}
         </div>
-        {bestWin&&<div style={{marginTop:14,paddingTop:12,borderTop:`1px solid ${t.cardBorder}40`,fontSize:12}}>
-          <span style={{color:t.textDim}}>Best win: </span>
-          <span style={{color:t.win,fontWeight:600}}>{bestWin.opponent}</span>
-          <span style={{color:t.textDim}}> ({bestWin.oppElo})</span>
-        </div>}
-      </Card>
-    </div>
-
-    {/* Row 3 — Ratings + Time Controls */}
-    <div style={{display:"flex",gap:14,flexWrap:"wrap"}}>
-      <Card t={t} style={{flex:2,minWidth:220}}>
-        <SecTitle t={t} sub="Current · Peak">Ratings</SecTitle>
-        <ResponsiveContainer width="100%" height={130}>
-          <BarChart data={rBar} barCategoryGap="30%">
-            <XAxis dataKey="name" tick={{fill:t.textDim,fontSize:12}} axisLine={false} tickLine={false}/>
-            <YAxis tick={{fill:t.textDim,fontSize:10}} axisLine={false} tickLine={false} domain={["auto","auto"]}/>
-            <Tooltip content={tip}/>
-            <Bar dataKey="rating" name="Current" fill={t.accent} radius={[5,5,0,0]} isAnimationActive animationDuration={800}/>
-          </BarChart>
-        </ResponsiveContainer>
-        <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:8}}>
-          {rBar.map(r=><div key={r.name} style={{background:`${t.accent}0e`,border:`1px solid ${t.accent}20`,borderRadius:7,padding:"5px 12px",textAlign:"center"}}>
-            <div style={{fontSize:9,color:t.textDim,textTransform:"uppercase"}}>{r.name}</div>
-            <div style={{fontSize:18,fontWeight:700,color:t.accent,fontFamily:t.headingFont}}>{r.rating}</div>
-            {r.best&&r.best>r.rating&&<div style={{fontSize:9,color:t.textDim}}>↑{r.best}</div>}
-          </div>)}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8,marginTop:8}}>
+          <div style={{fontSize:12,color:formColor,fontWeight:600}}>{formTrend} · {recentForm}% last 20 games</div>
+          {bestWin&&<div style={{fontSize:12}}>
+            <span style={{color:t.textDim}}>Best win: </span>
+            <span style={{color:t.win,fontWeight:600}}>{bestWin.opponent}</span>
+            <span style={{color:t.textDim}}> ({bestWin.oppElo})</span>
+          </div>}
         </div>
-      </Card>
-      <Card t={t} style={{flex:1,minWidth:180}}>
-        <SecTitle t={t} sub="Game distribution">Time Controls</SecTitle>
-        <ResponsiveContainer width="100%" height={120}>
-          <PieChart>
-            <Pie data={tcData} cx="50%" cy="50%" outerRadius={52} dataKey="value" paddingAngle={2}>
-              {tcData.map((_,i)=><Cell key={i} fill={[t.accent,t.accent2,t.hl,t.textMid][i%4]}/>)}
-            </Pie>
+      </div>
+    </Card>
+
+    <div style={{display:"flex",gap:14,flexWrap:"wrap"}}>
+      {monthly.length>=2&&<Card t={t} style={{flex:2,minWidth:260}} hover={false}>
+        <SecTitle t={t} sub="Volume and win rate per month">Monthly Trajectory</SecTitle>
+        <ResponsiveContainer width="100%" height={200}>
+          <ComposedChart data={monthly} margin={{top:5,right:8,left:0,bottom:0}}>
+            <CartesianGrid stroke={`${t.accent}10`} strokeDasharray="3 3"/>
+            <XAxis dataKey="month" tick={{fill:t.textDim,fontSize:10}} axisLine={false} tickLine={false}/>
+            <YAxis yAxisId="pct" domain={[0,100]} tick={{fill:t.textDim,fontSize:10}} axisLine={false} tickLine={false} width={32}/>
+            <YAxis yAxisId="vol" orientation="right" tick={{fill:t.textDim,fontSize:10}} axisLine={false} tickLine={false} width={32}/>
             <Tooltip content={tip}/>
-          </PieChart>
+            <Bar yAxisId="vol" dataKey="games" name="Games" fill={`${t.accent}30`} radius={[4,4,0,0]} isAnimationActive animationDuration={700}/>
+            <Line yAxisId="pct" type="monotone" dataKey="winPct" name="Win%" stroke={t.accent} strokeWidth={2.5} dot={{r:3,fill:t.accent}} activeDot={{r:5}} isAnimationActive animationDuration={1000}/>
+          </ComposedChart>
         </ResponsiveContainer>
-        <div style={{display:"flex",flexDirection:"column",gap:4,marginTop:4}}>
+      </Card>}
+      {tcData.length>0&&<Card t={t} style={{flex:1,minWidth:200}}>
+        <SecTitle t={t} sub="How you split your games">Time Controls</SecTitle>
+        <div style={{display:"flex",height:10,borderRadius:6,overflow:"hidden",gap:2,marginBottom:12}}>
           {tcData.map((d,i)=>(
-            <div key={d.name} style={{display:"flex",justifyContent:"space-between",fontSize:12}}>
-              <span style={{display:"flex",alignItems:"center",gap:6}}>
-                <div style={{width:8,height:8,borderRadius:2,background:[t.accent,t.accent2,t.hl,t.textMid][i%4]}}/>
-                <span style={{color:t.textDim,textTransform:"capitalize"}}>{d.name}</span>
+            <div key={d.name} title={`${d.name}: ${d.value}`} style={{width:`${d.value/tcTotal*100}%`,background:[t.accent,t.accent2,t.hl,t.textMid][i%4],transition:"width .7s ease"}}/>
+          ))}
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          {tcData.map((d,i)=>(
+            <div key={d.name} style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:13}}>
+              <span style={{display:"flex",alignItems:"center",gap:8,color:t.textMid,textTransform:"capitalize"}}>
+                <span style={{width:8,height:8,borderRadius:2,background:[t.accent,t.accent2,t.hl,t.textMid][i%4]}}/>{d.name}
               </span>
-              <span style={{color:t.text,fontWeight:600}}>{d.value}</span>
-            </div>
-          ))}
-        </div>
-      </Card>
-    </div>
-
-    {/* Row 4 — Top openings mini + Elo brackets */}
-    <div style={{display:"flex",gap:14,flexWrap:"wrap"}}>
-      <Card t={t} style={{flex:2,minWidth:220}}>
-        <SecTitle t={t} sub="Top 6 by games played">Opening Performance</SecTitle>
-        <ResponsiveContainer width="100%" height={Math.max(160,openings.length*30)}>
-          <BarChart data={openings} layout="vertical" margin={{left:150}}>
-            <XAxis type="number" domain={[0,100]} tick={{fill:t.textDim,fontSize:10}} axisLine={false} tickLine={false}/>
-            <YAxis type="category" dataKey="opening" tick={{fill:t.textMid,fontSize:10}} width={145} axisLine={false} tickLine={false} tickFormatter={v=>v.length>22?v.slice(0,20)+"…":v}/>
-            <Tooltip content={tip}/>
-            <Bar dataKey="winPct" name="Win%" stackId="a" fill={t.win} isAnimationActive animationDuration={700}/>
-            <Bar dataKey="drawPct" name="Draw%" stackId="a" fill={t.draw} isAnimationActive animationDuration={700} animationBegin={100}/>
-            <Bar dataKey="lossPct" name="Loss%" stackId="a" fill={t.loss} radius={[0,4,4,0]} isAnimationActive animationDuration={700} animationBegin={200}/>
-          </BarChart>
-        </ResponsiveContainer>
-      </Card>
-      <Card t={t} style={{flex:1,minWidth:180}}>
-        <SecTitle t={t} sub="Win% by opponent strength">Elo Breakdown</SecTitle>
-        {brackets.length?<ResponsiveContainer width="100%" height={160}>
-          <BarChart data={brackets} barCategoryGap="20%">
-            <XAxis dataKey="label" tick={{fill:t.textDim,fontSize:9}} axisLine={false} tickLine={false}/>
-            <YAxis domain={[0,100]} tick={{fill:t.textDim,fontSize:9}} axisLine={false} tickLine={false}/>
-            <Tooltip content={tip}/>
-            <Bar dataKey="winPct" name="Win%" radius={[4,4,0,0]}>
-              {brackets.map((e,i)=><Cell key={i} fill={e.winPct>=55?t.win:e.winPct>=45?"#ffc800":t.loss}/>)}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>:<div style={{color:t.textDim,fontSize:12,padding:"20px 0"}}>Not enough rated games</div>}
-      </Card>
-    </div>
-
-    {/* Row 5 — Activity heatmap */}
-    <Reveal><Card t={t} hover={false}>
-      <SecTitle t={t} sub="Daily games over the last 16 weeks, colored by how the day went">Activity Heatmap</SecTitle>
-      <ActivityHeatmap games={games} t={t}/>
-    </Card></Reveal>
-
-    {/* Row 6 — Body clock: time-of-day + day-of-week */}
-    {(tod.length>0||dow.length>0)&&<Reveal><div className="two-col-900" style={{display:"flex",gap:14,flexWrap:"wrap"}}>
-      {tod.length>0&&<Card t={t} style={{flex:1,minWidth:240}}>
-        <SecTitle t={t} sub="Win rate by local time of day">Body Clock</SecTitle>
-        <div style={{display:"flex",flexDirection:"column",gap:10}}>
-          {tod.map((d,i)=>{
-            const barC=d.winPct>=55?t.win:d.winPct>=45?"#ffc800":t.loss;
-            return <div key={d.label} style={{animation:`fadeInUp .4s ${.06+i*.07}s cubic-bezier(.22,1,.36,1) both`}}>
-              <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:4}}>
-                <span style={{color:t.textMid}}>{d.icon} {d.label}</span>
-                <span style={{color:barC,fontWeight:800}}>{d.winPct}% · {d.games} games</span>
-              </div>
-              <div style={{height:8,borderRadius:4,background:`${barC}18`,overflow:"hidden"}}>
-                <div className="bar-grow" style={{height:"100%",width:`${d.winPct}%`,background:barC,borderRadius:4,animationDelay:`${.12+i*.07}s`}}/>
-              </div>
-            </div>;
-          })}
-        </div>
-        {tod.length>=2&&(()=>{ const sorted=[...tod].filter(d=>d.games>=5).sort((a,b)=>b.winPct-a.winPct); if(sorted.length<2||sorted[0].winPct-sorted[sorted.length-1].winPct<8)return null;
-          return <div style={{fontSize:12,color:t.accent,marginTop:12,fontWeight:600}}>💡 You score {sorted[0].winPct-sorted[sorted.length-1].winPct}% better in the {sorted[0].label.toLowerCase()} than the {sorted[sorted.length-1].label.toLowerCase()} — queue accordingly.</div>;})()}
-      </Card>}
-      {dow.length>0&&<Card t={t} style={{flex:1,minWidth:240}}>
-        <SecTitle t={t} sub="Win rate by weekday">Weekly Rhythm</SecTitle>
-        <ResponsiveContainer width="100%" height={170}>
-          <BarChart data={dow} barCategoryGap="22%">
-            <XAxis dataKey="day" tick={{fill:t.textDim,fontSize:11}} axisLine={false} tickLine={false}/>
-            <YAxis domain={[0,100]} tick={{fill:t.textDim,fontSize:10}} axisLine={false} tickLine={false} width={30}/>
-            <Tooltip content={tip}/>
-            <Bar dataKey="winPct" name="Win%" radius={[4,4,0,0]} isAnimationActive animationDuration={800}>
-              {dow.map((e,i)=><Cell key={i} fill={e.winPct>=55?t.win:e.winPct>=45?"#ffc800":t.loss} opacity={Math.max(.45,Math.min(1,e.games/Math.max(...dow.map(x=>x.games))))}/>)}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
-        <div style={{fontSize:10,color:t.textDim,marginTop:4}}>Bar opacity = how much you play that day</div>
-      </Card>}
-    </div></Reveal>}
-
-    {/* Row 7 — Tilt meter + rivals */}
-    <Reveal><div className="two-col-900" style={{display:"flex",gap:14,flexWrap:"wrap"}}>
-      {tilt&&<Card t={t} style={{flex:1,minWidth:240}}>
-        <SecTitle t={t} sub="Same-session games: how the next game goes after a result">Tilt Meter</SecTitle>
-        <div style={{display:"flex",gap:18,justifyContent:"center",flexWrap:"wrap",marginBottom:14}}>
-          <div style={{textAlign:"center"}}>
-            <RingGauge value={tilt.afterWinPct} size={84} stroke={8} color={t.win} t={t} label="after a win"/>
-            <div style={{fontSize:10,color:t.textDim,marginTop:6}}>{tilt.afterWinGames} games</div>
-          </div>
-          <div style={{textAlign:"center"}}>
-            <RingGauge value={tilt.afterLossPct} size={84} stroke={8} color={tilt.tilt>=12?t.loss:"#ffc800"} t={t} label="after a loss" delay={.15}/>
-            <div style={{fontSize:10,color:t.textDim,marginTop:6}}>{tilt.afterLossGames} games</div>
-          </div>
-        </div>
-        <div style={{fontSize:13,color:t.textMid,lineHeight:1.6,textAlign:"center"}}>
-          {tilt.tilt>=15?<><span style={{color:t.loss,fontWeight:800}}>Tilt detected.</span> You score {tilt.tilt}% worse right after losing. One loss? Stand up, breathe, then queue.</>:
-           tilt.tilt>=6?<>Mild tilt: a {tilt.tilt}% dip after losses. A 2-minute break between games would likely pay rating.</>:
-           tilt.tilt<=-6?<><span style={{color:t.win,fontWeight:800}}>Revenge gene.</span> You actually play {Math.abs(tilt.tilt)}% better after a loss. Losing wakes you up.</>:
-           <><span style={{color:t.win,fontWeight:700}}>Ice in your veins</span> — results barely change after a loss. That's rare discipline.</>}
-        </div>
-      </Card>}
-      {rivals.length>0&&<Card t={t} style={{flex:1,minWidth:240}}>
-        <SecTitle t={t} sub="Most-faced opponents in this range">Rivals</SecTitle>
-        <div style={{display:"flex",flexDirection:"column",gap:7}}>
-          {rivals.map((r,i)=>(
-            <div key={r.opponent} className="rival-row" style={{display:"grid",gridTemplateColumns:"auto 1fr auto auto",gap:10,alignItems:"center",background:`${t.accent}06`,border:`1px solid ${t.cardBorder}`,borderRadius:10,padding:"9px 12px",animation:`slideUp .35s ${.05+i*.06}s cubic-bezier(.22,1,.36,1) both`}}>
-              <div style={{width:24,height:24,borderRadius:"50%",background:i===0?t.accent:`${t.accent}20`,color:i===0?t.bg:t.textDim,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:900}}>{i+1}</div>
-              <div style={{minWidth:0}}>
-                <a href={`https://www.chess.com/member/${r.opponent}`} target="_blank" rel="noopener noreferrer" style={{fontSize:13,color:t.text,fontWeight:700,textDecoration:"none",overflowWrap:"anywhere"}}>{r.opponent}</a>
-                <div style={{fontSize:10,color:t.textDim}}>{r.games} games{r.lastElo?` · ~${r.lastElo}`:""}</div>
-              </div>
-              <span style={{fontSize:12,color:t.textMid,fontWeight:600,whiteSpace:"nowrap"}}>{r.wins}-{r.losses}-{r.draws}</span>
-              <span className={`badge ${r.winPct>=55?"green":r.winPct>=45?"yellow":"red"}`}>{r.winPct}%</span>
+              <span style={{color:t.text,fontWeight:700}}>{d.value} <span style={{color:t.textDim,fontWeight:400}}>({Math.round(d.value/tcTotal*100)}%)</span></span>
             </div>
           ))}
         </div>
       </Card>}
-    </div></Reveal>
+    </div>
 
-    {/* Row 8 — Monthly trend */}
-    {monthly.length>=2&&<Reveal><Card t={t} hover={false}>
-      <SecTitle t={t} sub="Volume and win rate per month across the loaded range">Monthly Trajectory</SecTitle>
-      <ResponsiveContainer width="100%" height={200}>
-        <ComposedChart data={monthly} margin={{top:5,right:8,left:0,bottom:0}}>
-          <CartesianGrid stroke={`${t.accent}10`} strokeDasharray="3 3"/>
-          <XAxis dataKey="month" tick={{fill:t.textDim,fontSize:10}} axisLine={false} tickLine={false}/>
-          <YAxis yAxisId="pct" domain={[0,100]} tick={{fill:t.textDim,fontSize:10}} axisLine={false} tickLine={false} width={32}/>
-          <YAxis yAxisId="vol" orientation="right" tick={{fill:t.textDim,fontSize:10}} axisLine={false} tickLine={false} width={32}/>
-          <Tooltip content={tip}/>
-          <Bar yAxisId="vol" dataKey="games" name="Games" fill={`${t.accent}30`} radius={[4,4,0,0]} isAnimationActive animationDuration={700}/>
-          <Line yAxisId="pct" type="monotone" dataKey="winPct" name="Win%" stroke={t.accent} strokeWidth={2.5} dot={{r:3,fill:t.accent}} activeDot={{r:5}} isAnimationActive animationDuration={1000}/>
-        </ComposedChart>
-      </ResponsiveContainer>
-    </Card></Reveal>}
+    {onGoTab&&<Card t={t} hover={false}>
+      <SecTitle t={t} sub="Full breakdowns live in dedicated tabs">Explore Further</SecTitle>
+      <TabQuickLinks t={t} onSelect={onGoTab}/>
+    </Card>}
 
   </div>;
 }
@@ -2913,38 +2434,12 @@ export default function App() {
       {(p1||l1)&&<Reveal><div style={{marginBottom:20}}><PlayerHeroCard data={p1} loading={l1} t={t}/></div></Reveal>}
       {p1&&!l1&&<Reveal delay={0.05}><DataTruthStrip data={p1} months={months} t={t}/></Reveal>}
 
-      {/* ── Stats Dashboard — 3 columns ── */}
-      {p1&&!l1&&<div className="three-col" style={{display:"flex",gap:16,marginBottom:20}}>
-        <Reveal delay={0.02} style={{flex:1,minWidth:220}}>
-        <Card t={t} className="stagger-1" style={{height:"100%"}}>
-          <SecTitle t={t} sub="Top openings by games played">Opening DNA</SecTitle>
-          <OpeningDNA games={p1.games} loading={l1} t={t}/>
-        </Card>
-        </Reveal>
-
-        <Reveal delay={0.08} style={{flex:1,minWidth:220}}>
-        <Card t={t} className="stagger-2" style={{height:"100%"}}>
-          <SecTitle t={t} sub="Daily win rate from loaded archives">Performance</SecTitle>
-          <PerformanceChart games={p1.games} loading={l1} t={t}/>
-          <div style={{marginTop:12}}>
-            <div style={{fontSize:11,color:t.textDim,textTransform:"uppercase",letterSpacing:".07em",marginBottom:6,fontFamily:t.font}}>Official Current Ratings</div>
-            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-              {["rapid","blitz","bullet"].map((tc,i)=>{const r=getRating(p1.stats,tc);return r.last?<div key={tc} className="rating-pill" style={{background:`${t.accent}0e`,border:`1px solid ${t.accent}20`,borderRadius:7,padding:"5px 10px",textAlign:"center",animation:`scaleIn .35s ${.1+i*.06}s cubic-bezier(.22,1,.36,1) both`}}>
-                <div style={{fontSize:9,color:t.textDim,textTransform:"uppercase"}}>{tc}</div>
-                <div style={{fontSize:16,fontWeight:700,color:t.accent,fontFamily:t.headingFont}}><AnimatedNumber value={r.last} duration={800}/></div>
-              </div>:null;})}
-            </div>
-          </div>
-        </Card>
-        </Reveal>
-
-        <Reveal delay={0.14} style={{flex:1,minWidth:220}}>
-        <Card t={t} className="stagger-3" style={{height:"100%"}}>
-          <SecTitle t={t} sub="Based on your recent games">Insights</SecTitle>
+      {p1&&!l1&&<Reveal delay={0.08}>
+        <Card t={t} style={{marginBottom:20}}>
+          <SecTitle t={t} sub="Actionable patterns from your loaded games">Key Insights</SecTitle>
           <InsightsColumn games={p1.games} loading={l1} t={t}/>
         </Card>
-        </Reveal>
-      </div>}
+      </Reveal>}
 
       {/* ── Tabs ── */}
       {(p1||l1)&&<Reveal delay={0.03}><div className="tab-strip" style={{background:t.card,border:`1px solid ${t.cardBorder}`,borderRadius:10,padding:6,marginBottom:14,boxShadow:`0 4px 20px rgba(0,0,0,.25)`}}>
@@ -2955,7 +2450,7 @@ export default function App() {
 
       {/* ── Tab Content ── */}
       {(p1||l1)&&<PageTransition keyVal={tab}>
-        {tab===0&&<OverviewTab data={p1} loading={l1} t={t}/>}
+        {tab===0&&<OverviewTab data={p1} loading={l1} t={t} onGoTab={handleTabChange}/>}
         {tab===1&&<OpeningsTab games={p1?.games} loading={l1} t={t}/>}
         {tab===2&&<ColorTab games={p1?.games} loading={l1} t={t}/>}
         {tab===3&&<EloTab games={p1?.games} loading={l1} t={t}/>}
@@ -2968,7 +2463,7 @@ export default function App() {
       {!p1&&!l1&&!e1&&<div style={{textAlign:"center",padding:"40px 0 60px",animation:"fadeInUp .5s .2s ease both"}}>
         <div style={{fontSize:64,opacity:.15,marginBottom:20}}>♜</div>
         <div style={{fontFamily:t.headingFont,fontSize:20,color:t.textMid}}>Enter a username to reveal your Chess DNA</div>
-        <div style={{fontSize:13,color:t.textDim,marginTop:8}}>Openings · Color stats · Elo breakdown · Win plan · Personality · Compare · Trading card</div>
+        <div style={{fontSize:13,color:t.textDim,marginTop:8,maxWidth:420,margin:"8px auto 0"}}>Win rates, openings, color splits, opponent breakdowns, matchup plans, and a playstyle profile — all from public Chess.com data.</div>
       </div>}
 
       <div style={{textAlign:"center",marginTop:48,fontSize:11,color:t.textDim,opacity:.8,animation:"fadeIn 1s .8s ease both"}}>Chess DNA · Data from Chess.com Public API · No data stored</div>
