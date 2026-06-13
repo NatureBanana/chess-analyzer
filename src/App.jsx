@@ -1219,26 +1219,6 @@ function ScrollProgress({t}) {
   return <div style={{position:"fixed",top:3,left:0,height:2,zIndex:9998,width:`${pct}%`,background:`linear-gradient(90deg,${t.accent2},${t.accent})`,transition:"width .12s linear",boxShadow:`0 0 10px ${t.glowC}`,borderRadius:"0 2px 2px 0",pointerEvents:"none"}}/>;
 }
 
-// ── Theme picker ──────────────────────────────────────────────────────────────
-function ThemePicker({current,onChange}) {
-  const [open,setOpen]=useState(false);
-  const t=THEMES[current];
-  return <div style={{position:"relative",zIndex:200}}>
-    <button onClick={()=>setOpen(o=>!o)} style={{background:"none",border:`1px solid ${t.cardBorder}`,borderRadius:8,color:t.text,cursor:"pointer",fontSize:13,fontFamily:t.font,padding:"6px 12px",display:"flex",alignItems:"center",gap:6,transition:"all .2s cubic-bezier(.22,1,.36,1)"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=`${t.accent}50`;e.currentTarget.style.transform="translateY(-1px)";e.currentTarget.style.boxShadow=`0 4px 16px rgba(0,0,0,.3)`;}} onMouseLeave={e=>{e.currentTarget.style.borderColor=t.cardBorder;e.currentTarget.style.transform="";e.currentTarget.style.boxShadow="";}}>
-      <Ico size={14}>{t.icon}</Ico> {t.name} <span style={{opacity:.5,fontSize:10,transition:"transform .2s",transform:open?"rotate(180deg)":"none",display:"inline-block"}}>▼</span>
-    </button>
-    {open && <div style={{position:"absolute",top:"110%",right:0,background:t.card,border:`1px solid ${t.cardBorder}`,borderRadius:10,padding:8,zIndex:201,minWidth:160,boxShadow:"0 8px 32px rgba(0,0,0,.6)",animation:"elasticIn .22s cubic-bezier(.22,1,.36,1) both",transformOrigin:"top right"}}>
-      <div style={{fontSize:10,color:t.textDim,textTransform:"uppercase",letterSpacing:".08em",padding:"4px 8px 8px",fontFamily:t.font}}>Theme</div>
-      {Object.entries(THEMES).map(([k,th],i)=>(
-        <div key={k} onClick={()=>{onChange(k);setOpen(false);}} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",borderRadius:7,cursor:"pointer",background:current===k?`${th.accent}18`:"none",color:current===k?th.accent:t.textMid,fontSize:13,fontFamily:t.font,transition:"all .18s cubic-bezier(.22,1,.36,1)",animation:`fadeInUp .25s ${.03+i*.03}s cubic-bezier(.22,1,.36,1) both`}} onMouseEnter={e=>{if(current!==k){e.currentTarget.style.background=`${th.accent}10`;e.currentTarget.style.transform="translateX(3px)";}}} onMouseLeave={e=>{if(current!==k){e.currentTarget.style.background="none";e.currentTarget.style.transform="";}}}>
-          <Ico size={14}>{th.icon}</Ico> <span style={{fontWeight:current===k?600:400}}>{th.name}</span>
-          <span style={{marginLeft:"auto",width:10,height:10,borderRadius:"50%",background:th.accent,boxShadow:current===k?`0 0 8px ${th.accent}`:"none",transition:"box-shadow .2s"}}/>
-        </div>
-      ))}
-    </div>}
-  </div>;
-}
-
 // ── Win/Draw/Loss Bar ─────────────────────────────────────────────────────────
 function WDLBar({wins,draws,losses,t}) {
   const total = wins+draws+losses||1;
@@ -1283,7 +1263,10 @@ function PlayerHeroCard({data,loading,t}) {
 
       {/* Info */}
       <div style={{flex:1,minWidth:180}}>
-        <div style={{fontFamily:t.headingFont,fontSize:24,fontWeight:700,color:t.text,lineHeight:1.1}}>{profile.username}</div>
+        <div style={{display:"flex",alignItems:"baseline",gap:8,flexWrap:"wrap"}}>
+          <div style={{fontFamily:t.headingFont,fontSize:24,fontWeight:700,color:t.text,lineHeight:1.1}}>{profile.username}</div>
+          {profile.username?.toLowerCase()==="naturebanana"&&<span style={{fontSize:9,fontWeight:600,letterSpacing:".14em",textTransform:"uppercase",color:t.accent,opacity:.5}}>creator</span>}
+        </div>
         <div style={{fontSize:13,color:t.textDim,marginTop:3,display:"flex",gap:10,flexWrap:"wrap"}}>
           {profile.name&&<span style={{color:t.textMid}}>{profile.name}</span>}
           {profile.league&&<span style={{color:t.accent,fontWeight:600,display:"inline-flex",alignItems:"center",gap:4}}><Ico size={12}>🏆</Ico> {profile.league}</span>}
@@ -2293,9 +2276,8 @@ function setHash(user, sub, other) {
 }
 
 export default function App() {
-  const [themeKey,setThemeKey]=useState(()=>localStorage.getItem("chessdna-theme")||"slate");
-  const t=THEMES[themeKey];
-  useEffect(()=>{ injectTheme(t); document.body.style.background=t.bg; localStorage.setItem("chessdna-theme",themeKey); },[t]);
+  const t=THEMES.slate;
+  useEffect(()=>{ injectTheme(t); document.body.style.background=t.bg; },[]);
 
   const [tab,setTab]=useState(0);
   const [p1In,setP1In]=useState("");
@@ -2424,9 +2406,6 @@ export default function App() {
       {/* ── Hero section ── */}
       <div className="hero-pad" style={{textAlign:"center",padding:"70px 0 46px",animation:"fadeInUp .6s ease both",position:"relative",overflow:"hidden"}}>
         <div style={{position:"relative"}}>
-        <div style={{display:"flex",justifyContent:"flex-end",marginBottom:16,animation:"fadeInDown .5s .1s cubic-bezier(.22,1,.36,1) both"}}>
-          <ThemePicker current={themeKey} onChange={setThemeKey}/>
-        </div>
         <div className="hero-emoji" style={{fontSize:76,marginBottom:12,animation:"heroChess 4s ease-in-out infinite",display:"inline-block",filter:`drop-shadow(0 0 34px ${t.glowC})`}}><ChessIco size={76}>♟</ChessIco></div>
         <h1 style={{fontFamily:t.headingFont,fontSize:"clamp(52px,11vw,112px)",fontWeight:900,color:t.accent,letterSpacing:"-.055em",lineHeight:1.02,animation:"glow 3s ease-in-out infinite, scaleIn .6s cubic-bezier(.22,1,.36,1) both",paddingBottom:4}}>ChessDNA</h1>
         <p style={{fontSize:20,color:t.textMid,marginTop:16,fontFamily:t.font,animation:"fadeInDown .7s .2s cubic-bezier(.22,1,.36,1) both"}}>A measured identity from real Chess.com games</p>
