@@ -1155,44 +1155,49 @@ function ActivityHeatmap({games,t}) {
   </div>;
 }
 
-// ── Animated DNA double helix ─────────────────────────────────────────────────
-function DnaHelix({segments, c, t, height=170}) {
-  if (!segments?.length) return null;
-  const n=segments.length;
-  const w=640, h=height, amp=h*0.3, mid=h/2, pad=26;
-  const xAt=i=>pad+(w-pad*2)*i/(n-1);
-  const phaseAt=i=>i/(n-1)*Math.PI*3;
-  const samples=72;
-  const strand=offset=>[...Array(samples+1)].map((_,s)=>{
-    const f=s/samples;
-    const x=pad+(w-pad*2)*f, y=mid+Math.sin(f*Math.PI*3+offset)*amp;
-    return `${s?"L":"M"}${x.toFixed(1)},${y.toFixed(1)}`;
-  }).join(" ");
-  return <div style={{overflowX:"auto"}}>
-    <svg viewBox={`0 0 ${w} ${h}`} style={{width:"100%",minWidth:420,height:"auto",display:"block",animation:"helixDrift 5s ease-in-out infinite"}}>
-      <defs>
-        <linearGradient id="helixGradA" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stopColor={c}/><stop offset="100%" stopColor={t.accent}/>
-        </linearGradient>
-        <linearGradient id="helixGradB" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stopColor={t.accent}/><stop offset="100%" stopColor={c}/>
-        </linearGradient>
-      </defs>
-      {segments.map((seg,i)=>{
-        const x=xAt(i), p=phaseAt(i);
-        const y1=mid+Math.sin(p)*amp, y2=mid+Math.sin(p+Math.PI)*amp;
-        return <g key={i}>
-          <line x1={x} y1={y1} x2={x} y2={y2} stroke={seg.tone} strokeWidth={3.4} strokeLinecap="round" opacity={.8}
-            style={{animation:`rungPulse ${2+i*.13}s ease-in-out infinite`,animationDelay:`${i*.08}s`,transformOrigin:`${x}px ${mid}px`}}/>
-          <circle cx={x} cy={y1} r={4.6} fill={seg.tone} style={{filter:`drop-shadow(0 0 5px ${seg.tone})`}}/>
-          <circle cx={x} cy={y2} r={4.6} fill={seg.tone} opacity={.75}/>
-        </g>;
-      })}
-      <path d={strand(0)} fill="none" stroke="url(#helixGradA)" strokeWidth={3} strokeLinecap="round"
-        strokeDasharray={1400} style={{animation:"drawStroke 1.6s cubic-bezier(.22,1,.36,1) both",filter:`drop-shadow(0 0 8px ${c}40)`}}/>
-      <path d={strand(Math.PI)} fill="none" stroke="url(#helixGradB)" strokeWidth={3} strokeLinecap="round" opacity={.85}
-        strokeDasharray={1400} style={{animation:"drawStroke 1.6s .15s cubic-bezier(.22,1,.36,1) both"}}/>
-    </svg>
+// ── Playstyle wheel — one glance at your 7 dimensions ─────────────────────────
+function PlaystyleWheel({dimensions, p, c, t, size=220}) {
+  const data=dimensions.map(d=>({name:d.label,value:d.value,color:dimensionTier(d.value).color,key:d.key}));
+  return <div style={{position:"relative",width:size,height:size,flexShrink:0}}>
+    <PieChart width={size} height={size}>
+      <Pie data={data} cx="50%" cy="50%" innerRadius={size*.36} outerRadius={size*.46} dataKey="value" paddingAngle={2} stroke="none" isAnimationActive animationDuration={900}>
+        {data.map(d=><Cell key={d.key} fill={d.color} style={{filter:`drop-shadow(0 0 6px ${d.color}40)`}}/>)}
+      </Pie>
+    </PieChart>
+    <div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center",padding:size*.22,pointerEvents:"none"}}>
+      <div style={{fontSize:size*.2,lineHeight:1,filter:`drop-shadow(0 0 12px ${c}60)`}}>{p.icon}</div>
+      <div style={{fontFamily:t.headingFont,fontSize:size*.09,fontWeight:900,color:c,lineHeight:1.1,marginTop:6,overflowWrap:"anywhere"}}>{p.title}</div>
+      <div style={{fontSize:9,color:t.textDim,marginTop:4,fontWeight:700,letterSpacing:".06em"}}>{p.dnaCode}</div>
+    </div>
+    <div style={{display:"flex",flexWrap:"wrap",gap:5,justifyContent:"center",marginTop:8}}>
+      {data.map(d=>(
+        <span key={d.key} title={`${d.name}: ${d.value}`} style={{fontSize:9,fontWeight:700,color:d.color,background:`${d.color}14`,border:`1px solid ${d.color}30`,borderRadius:999,padding:"2px 7px"}}>{DIMENSION_META[d.key]?.icon||"•"} {d.value}</span>
+      ))}
+    </div>
+  </div>;
+}
+
+// ── RPG-style stat bars — simple, scannable ───────────────────────────────────
+function StatSheet({dimensions,t,compact=false,limit=7}) {
+  const rows=dimensions.slice(0,limit);
+  return <div style={{display:"flex",flexDirection:"column",gap:compact?7:10}}>
+    {rows.map((d,i)=>{
+      const meta=DIMENSION_META[d.key]||{};
+      const tier=dimensionTier(d.value);
+      return <div key={d.key} style={{animation:`fadeInUp .4s ${.04+i*.05}s cubic-bezier(.22,1,.36,1) both`}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:compact?3:5}}>
+          <span style={{fontSize:compact?12:13,fontWeight:600,color:t.text,display:"flex",alignItems:"center",gap:6}}>
+            <span>{meta.icon}</span>{d.label}
+            {!compact&&<span className="badge" style={{background:`${tier.color}14`,color:tier.color,border:`1px solid ${tier.color}35`,fontSize:9,padding:"1px 6px"}}>{tier.tier}</span>}
+          </span>
+          <span style={{fontFamily:t.headingFont,fontSize:compact?16:20,fontWeight:900,color:tier.color}}>{d.value}</span>
+        </div>
+        <div style={{height:compact?5:7,borderRadius:4,background:`${tier.color}12`,overflow:"hidden"}}>
+          <div className="bar-grow" style={{height:"100%",width:`${d.value}%`,background:`linear-gradient(90deg,${tier.color}88,${tier.color})`,borderRadius:4,boxShadow:`0 0 10px ${tier.color}35`,animationDelay:`${.1+i*.06}s`}}/>
+        </div>
+        {!compact&&<div style={{fontSize:11,color:t.textDim,marginTop:4}}>{d.detail}</div>}
+      </div>;
+    })}
   </div>;
 }
 
@@ -1262,18 +1267,7 @@ function WDLBar({wins,draws,losses,t}) {
   </div>;
 }
 
-// ── Trading Card Badge ────────────────────────────────────────────────────────
-function DnaStrand({segments,t,c,large=false}) {
-  if (!segments?.length) return null;
-  return <div style={{display:"grid",gridTemplateColumns:`repeat(${segments.length},1fr)`,gap:large?8:5,alignItems:"end",height:large?110:70,padding:large?"14px 4px":"8px 2px"}}>
-    {segments.map((seg,i)=>(
-      <div key={i} style={{height:`${Math.max(18,seg.value)}%`,minHeight:large?24:16,borderRadius:999,background:`linear-gradient(180deg,${seg.tone},${c}55)`,boxShadow:`0 0 ${large?22:14}px ${seg.tone}45`,animation:`strandPulse ${1.8+i*.09}s ease-in-out infinite`,animationDelay:`${i*.05}s`,position:"relative",overflow:"hidden"}}>
-        <div style={{position:"absolute",inset:0,background:`linear-gradient(180deg,rgba(255,255,255,.38),transparent 38%,${t.bg}22)`,opacity:.6}}/>
-      </div>
-    ))}
-  </div>;
-}
-
+// ── Trading Card ──────────────────────────────────────────────────────────────
 function TradingCard({p,profile,t}) {
   const [copied,setCopied]=useState(false);
   const [hovered,setHovered]=useState(false);
@@ -1336,22 +1330,8 @@ function TradingCard({p,profile,t}) {
             </div>
 
             <div style={{background:`${t.bg}66`,border:`1px solid ${c}22`,borderRadius:20,padding:"18px 18px 16px",boxShadow:`inset 0 1px 0 ${c}12`}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,marginBottom:8}}>
-                <div style={{fontSize:11,color:t.textDim,textTransform:"uppercase",letterSpacing:".14em",fontWeight:700}}>DNA Strand</div>
-                <div style={{fontFamily:t.headingFont,fontSize:18,color:c,fontWeight:800}}>{p.dnaCode}</div>
-              </div>
-              <DnaStrand segments={p.dnaSegments} t={t} c={c} large={true}/>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:6}}>
-                {p.dimensions.slice(0,4).map(d=>(
-                  <div key={d.key} style={{background:`${c}0c`,border:`1px solid ${c}20`,borderRadius:12,padding:"9px 10px"}}>
-                    <div style={{display:"flex",justifyContent:"space-between",gap:8,alignItems:"baseline"}}>
-                      <span style={{fontSize:10,color:t.textDim,textTransform:"uppercase",letterSpacing:".08em",fontWeight:700}}>{d.label}</span>
-                      <span style={{fontFamily:t.headingFont,fontSize:20,color:c,fontWeight:800}}>{d.value}</span>
-                    </div>
-                    <div style={{fontSize:11,color:t.textDim,marginTop:2,lineHeight:1.4,overflowWrap:"anywhere"}}>{d.detail}</div>
-                  </div>
-                ))}
-              </div>
+              <div style={{fontSize:11,color:t.textDim,textTransform:"uppercase",letterSpacing:".14em",fontWeight:700,marginBottom:10}}>Top signals</div>
+              <StatSheet dimensions={p.dimensions} t={t} compact={true} limit={4}/>
             </div>
           </div>
 
@@ -2273,160 +2253,97 @@ function WinPlanTab({p1,p2,l1,l2,p2In,setP2In,loadP2,e2,months,t,onChangeP2}) {
 
 // ── DNA Tab ───────────────────────────────────────────────────────────────────
 function DnaTab({games,stats,loading,t,profile}) {
-  const tip=(props)=><ChartTip {...props} t={t}/>;
   const p=useMemo(()=>loading?null:computePersonality(games,stats,profile),[games,stats,profile,loading]);
   const evolution=useMemo(()=>loading?null:dnaEvolution(games,stats,profile),[games,stats,profile,loading]);
-  const [activeSeg,setActiveSeg]=useState(null);
   if (loading) return <Sk h={300}/>;
   if (!p) return <div style={{color:t.textDim,textAlign:"center",padding:40,fontSize:14}}>Load a player to reveal their Chess DNA.</div>;
   const c=p.titleColor;
   const twin=styleTwin(p);
-  const strengths=p.dimensions.slice(0,2), growth=p.dimensions.slice(-2).reverse();
+  const top=p.dimensions[0], weak=p.dimensions[p.dimensions.length-1];
 
   return <div style={{display:"flex",flexDirection:"column",gap:20}}>
 
-    {/* Hero */}
-    <Card t={t} glow={true} hover={false} style={{position:"relative",overflow:"hidden",padding:"30px 28px",animation:"fadeInUp .45s cubic-bezier(.22,1,.36,1) both"}} className="card-pad-sm">
+    {/* Personality banner */}
+    <Card t={t} glow={true} hover={false} style={{position:"relative",overflow:"hidden",padding:"28px 26px",animation:"fadeInUp .45s cubic-bezier(.22,1,.36,1) both"}} className="card-pad-sm">
       <div style={{position:"absolute",inset:-120,background:`radial-gradient(circle at 22% 20%,${c}24,transparent 32%),radial-gradient(circle at 78% 18%,${t.accent}16,transparent 30%)`,animation:"auroraDrift 12s ease-in-out infinite",pointerEvents:"none"}}/>
-      <div className="two-col-900" style={{position:"relative",display:"flex",justifyContent:"space-between",gap:22,alignItems:"center",flexWrap:"wrap"}}>
-        <div style={{flex:"1 1 360px"}}>
-          <div style={{fontSize:12,color:c,textTransform:"uppercase",letterSpacing:".24em",fontWeight:800,marginBottom:8}}>ChessDNA focus mode</div>
-          <div style={{fontFamily:t.headingFont,fontSize:"clamp(38px,7.5vw,78px)",fontWeight:900,lineHeight:1.03,letterSpacing:"-.04em",color:t.text,overflowWrap:"anywhere",paddingBottom:4}}>Your measurable chess identity</div>
-          <div style={{fontSize:14,color:t.textMid,lineHeight:1.65,maxWidth:620,marginTop:16}}>Built from {p.total} loaded Chess.com archive games. Every helix rung below is a real measured signal — hover them to decode your sequence.</div>
-        </div>
-        <div style={{flex:"0 1 300px",width:"100%",background:`${t.bg}80`,border:`1px solid ${c}25`,borderRadius:22,padding:18}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-            <span style={{fontSize:11,color:t.textDim,textTransform:"uppercase",letterSpacing:".12em",fontWeight:700}}>Signature</span>
-            <span style={{fontFamily:t.headingFont,fontSize:24,color:c,fontWeight:900}}>{p.dnaCode}</span>
+      <div style={{position:"relative",display:"flex",gap:24,alignItems:"center",flexWrap:"wrap"}}>
+        <div style={{fontSize:72,lineHeight:1,filter:`drop-shadow(0 0 24px ${c}70)`,animation:"float 3s ease-in-out infinite"}}>{p.icon}</div>
+        <div style={{flex:1,minWidth:200}}>
+          <div style={{fontSize:11,color:c,textTransform:"uppercase",letterSpacing:".2em",fontWeight:800,marginBottom:6}}>ChessDNA · {p.dnaCode}</div>
+          <div style={{fontFamily:t.headingFont,fontSize:"clamp(32px,6vw,52px)",fontWeight:900,color:c,lineHeight:1.05,letterSpacing:"-.03em"}}>{p.title}</div>
+          <div style={{display:"inline-flex",alignItems:"center",gap:8,background:`${c}14`,border:`1px solid ${c}35`,borderRadius:999,padding:"5px 14px",marginTop:10}}>
+            <span style={{width:6,height:6,borderRadius:"50%",background:c,boxShadow:`0 0 10px ${c}`}}/>
+            <span style={{fontSize:11,color:c,fontWeight:800,letterSpacing:".08em",textTransform:"uppercase"}}>{p.archetype}</span>
           </div>
-          <DnaStrand segments={p.dnaSegments} t={t} c={c} large={false}/>
+          <div style={{fontSize:14,color:t.textMid,lineHeight:1.6,marginTop:14,maxWidth:560}}>{p.desc}</div>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:8,minWidth:180}}>
+          {[["Win rate",`${p.winPct}%`,t.win],["Format",p.favTC,t.accent],["Openings",p.uniqueOpenings,t.hl],["Recent",`${p.recentWinPct}%`,p.recentWinPct>=p.winPct?t.win:t.loss]].map(([label,val,col])=>(
+            <div key={label} style={{background:`${col}0c`,border:`1px solid ${col}22`,borderRadius:12,padding:"10px 12px",textAlign:"center"}}>
+              <div style={{fontSize:9,color:t.textDim,textTransform:"uppercase",letterSpacing:".08em",fontWeight:700}}>{label}</div>
+              <div style={{fontFamily:t.headingFont,fontSize:22,fontWeight:900,color:col,marginTop:4,textTransform:"capitalize"}}>{val}</div>
+            </div>
+          ))}
         </div>
       </div>
     </Card>
 
-    {/* Helix sequencer */}
-    <Reveal><Card t={t} hover={false} style={{position:"relative",overflow:"hidden"}}>
-      <div style={{position:"absolute",inset:0,background:`radial-gradient(ellipse at 50% 120%,${c}12,transparent 55%)`,pointerEvents:"none"}}/>
-      <SecTitle t={t} sub="Two strands, twelve measured rungs — hover a rung to decode it">DNA Helix Sequencer</SecTitle>
-      <DnaHelix segments={p.dnaSegments} c={c} t={t}/>
-      <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:12,justifyContent:"center"}}>
-        {p.dnaSegments.map((seg,i)=>(
-          <div key={i} onMouseEnter={()=>setActiveSeg(i)} onMouseLeave={()=>setActiveSeg(null)}
-            style={{display:"flex",alignItems:"center",gap:6,background:activeSeg===i?`${seg.tone}1e`:`${t.accent}07`,border:`1px solid ${activeSeg===i?seg.tone+"60":t.cardBorder}`,borderRadius:999,padding:"4px 11px",cursor:"default",transition:"all .2s ease",transform:activeSeg===i?"translateY(-2px)":"none"}}>
-            <span style={{width:8,height:8,borderRadius:"50%",background:seg.tone,boxShadow:`0 0 8px ${seg.tone}80`}}/>
-            <span style={{fontSize:11,color:activeSeg===i?seg.tone:t.textMid,fontWeight:600}}>{seg.label}</span>
-            <span style={{fontSize:11,color:seg.tone,fontWeight:800,fontFamily:t.headingFont}}>{seg.value}</span>
-          </div>
-        ))}
-      </div>
-    </Card></Reveal>
-
-    {/* Dimension breakdown */}
+    {/* Wheel + stat sheet — the main read */}
     <Reveal><Card t={t} hover={false}>
-      <SecTitle t={t} sub="Each score is normalized 0–100 from loaded games; hover a card for coaching notes">The 7 Dimensions</SecTitle>
-      <div className="grid-2-900" style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(265px,1fr))",gap:12}}>
-        {p.dimensions.map((d,i)=>{
-          const meta=DIMENSION_META[d.key]||{};
-          const tier=dimensionTier(d.value);
-          return <div key={d.key} className="dim-card" style={{background:`${t.accent}06`,border:`1px solid ${t.cardBorder}`,borderRadius:16,padding:16,animation:`flipIn .5s ${.06+i*.07}s cubic-bezier(.22,1,.36,1) both`}}>
-            <div style={{display:"flex",gap:14,alignItems:"center"}}>
-              <RingGauge value={d.value} size={72} stroke={7} color={tier.color} t={t} delay={i*.08}/>
-              <div style={{minWidth:0,flex:1}}>
-                <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-                  <span style={{fontSize:16}}>{meta.icon}</span>
-                  <span style={{fontFamily:t.headingFont,fontSize:17,fontWeight:800,color:t.text}}>{d.label}</span>
-                  <span className="badge" style={{background:`${tier.color}16`,color:tier.color,border:`1px solid ${tier.color}40`}}>{tier.tier}</span>
-                </div>
-                <div style={{fontSize:11,color:t.textDim,marginTop:4}}>{d.detail}</div>
-              </div>
-            </div>
-            <div style={{fontSize:12,color:t.textMid,lineHeight:1.55,marginTop:10}}>{meta.what}</div>
-            <div style={{fontSize:12,color:d.value>=62?t.win:"#fb923c",lineHeight:1.5,marginTop:6,fontWeight:500}}>{d.value>=62?meta.high:meta.low}</div>
-          </div>;
-        })}
+      <SecTitle t={t} sub="Seven scores from your loaded games — bigger bar = stronger signal">Your Playstyle Profile</SecTitle>
+      <div className="two-col-900" style={{display:"flex",gap:28,alignItems:"flex-start",flexWrap:"wrap"}}>
+        <div style={{flex:"0 0 auto",display:"flex",justifyContent:"center",padding:"8px 0"}}>
+          <PlaystyleWheel dimensions={p.dimensions} p={p} c={c} t={t} size={240}/>
+        </div>
+        <div style={{flex:1,minWidth:260}}>
+          <StatSheet dimensions={p.dimensions} t={t}/>
+        </div>
       </div>
     </Card></Reveal>
 
-    {/* Strengths vs growth + style twin */}
-    <Reveal><div className="two-col-900" style={{display:"flex",gap:14,flexWrap:"wrap"}}>
-      <Card t={t} style={{flex:2,minWidth:260}}>
-        <SecTitle t={t} sub="Your two strongest and two most improvable signals">Strengths & Growth Edges</SecTitle>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:14}}>
-          <div>
-            <div style={{fontSize:11,color:t.win,textTransform:"uppercase",letterSpacing:".12em",fontWeight:800,marginBottom:10}}>▲ Carry you</div>
-            {strengths.map((d,i)=>(
-              <div key={d.key} style={{background:`${t.win}0b`,border:`1px solid ${t.win}22`,borderRadius:12,padding:"11px 13px",marginBottom:8,animation:`slideInLeft .45s ${.1+i*.1}s cubic-bezier(.22,1,.36,1) both`}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline"}}>
-                  <span style={{fontWeight:700,color:t.text,fontSize:14}}>{DIMENSION_META[d.key]?.icon} {d.label}</span>
-                  <span style={{fontFamily:t.headingFont,fontSize:22,fontWeight:900,color:t.win}}>{d.value}</span>
-                </div>
-                <div style={{fontSize:12,color:t.textMid,marginTop:4,lineHeight:1.5}}>{DIMENSION_META[d.key]?.high}</div>
-              </div>
-            ))}
-          </div>
-          <div>
-            <div style={{fontSize:11,color:"#fb923c",textTransform:"uppercase",letterSpacing:".12em",fontWeight:800,marginBottom:10}}>▼ Hold you back</div>
-            {growth.map((d,i)=>(
-              <div key={d.key} style={{background:"rgba(251,146,60,.06)",border:"1px solid rgba(251,146,60,.22)",borderRadius:12,padding:"11px 13px",marginBottom:8,animation:`slideInRight .45s ${.1+i*.1}s cubic-bezier(.22,1,.36,1) both`}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline"}}>
-                  <span style={{fontWeight:700,color:t.text,fontSize:14}}>{DIMENSION_META[d.key]?.icon} {d.label}</span>
-                  <span style={{fontFamily:t.headingFont,fontSize:22,fontWeight:900,color:"#fb923c"}}>{d.value}</span>
-                </div>
-                <div style={{fontSize:12,color:t.textMid,marginTop:4,lineHeight:1.5}}>{DIMENSION_META[d.key]?.low}</div>
-              </div>
-            ))}
-          </div>
-        </div>
+    {/* Quick read — 3 cards */}
+    <Reveal><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:14}}>
+      <Card t={t} style={{padding:18,animation:"slideInLeft .5s cubic-bezier(.22,1,.36,1) both"}}>
+        <div style={{fontSize:11,color:t.win,textTransform:"uppercase",letterSpacing:".12em",fontWeight:800,marginBottom:10}}>⭐ Your superpower</div>
+        <div style={{fontFamily:t.headingFont,fontSize:22,fontWeight:900,color:t.text}}>{DIMENSION_META[top.key]?.icon} {top.label}</div>
+        <div style={{fontSize:28,fontWeight:900,color:t.win,fontFamily:t.headingFont,marginTop:4}}>{top.value}<span style={{fontSize:14,color:t.textDim}}>/100</span></div>
+        <div style={{fontSize:13,color:t.textMid,lineHeight:1.55,marginTop:10}}>{DIMENSION_META[top.key]?.high}</div>
       </Card>
-      <Card t={t} style={{flex:1,minWidth:220,position:"relative",overflow:"hidden",display:"flex",flexDirection:"column",justifyContent:"center",textAlign:"center"}}>
-        <div style={{position:"absolute",inset:-60,background:`radial-gradient(circle at 50% 0%,${c}18,transparent 60%)`,pointerEvents:"none"}}/>
+      <Card t={t} style={{padding:18,animation:"fadeInUp .5s .08s cubic-bezier(.22,1,.36,1) both"}}>
+        <div style={{fontSize:11,color:"#fb923c",textTransform:"uppercase",letterSpacing:".12em",fontWeight:800,marginBottom:10}}>🎯 Room to grow</div>
+        <div style={{fontFamily:t.headingFont,fontSize:22,fontWeight:900,color:t.text}}>{DIMENSION_META[weak.key]?.icon} {weak.label}</div>
+        <div style={{fontSize:28,fontWeight:900,color:"#fb923c",fontFamily:t.headingFont,marginTop:4}}>{weak.value}<span style={{fontSize:14,color:t.textDim}}>/100</span></div>
+        <div style={{fontSize:13,color:t.textMid,lineHeight:1.55,marginTop:10}}>{DIMENSION_META[weak.key]?.low}</div>
+      </Card>
+      <Card t={t} style={{padding:18,textAlign:"center",position:"relative",overflow:"hidden",animation:"slideInRight .5s .12s cubic-bezier(.22,1,.36,1) both"}}>
+        <div style={{position:"absolute",inset:-40,background:`radial-gradient(circle at 50% 0%,${c}15,transparent 65%)`,pointerEvents:"none"}}/>
         <div style={{position:"relative"}}>
-          <div style={{fontSize:11,color:t.textDim,textTransform:"uppercase",letterSpacing:".16em",fontWeight:800,marginBottom:10}}>Style Twin</div>
-          <div style={{fontSize:44,marginBottom:8,animation:"breathe 3.4s ease-in-out infinite",display:"inline-block"}}>👑</div>
-          <div style={{fontFamily:t.headingFont,fontSize:26,fontWeight:900,color:c,lineHeight:1.1}}>{twin.name}</div>
-          <div style={{fontSize:13,color:t.textMid,lineHeight:1.6,marginTop:10}}>Your measured profile rhymes with <span style={{color:c,fontWeight:600}}>{twin.why}</span>.</div>
-          <div style={{fontSize:10,color:t.textDim,marginTop:12}}>A playful mapping from your tempo, breadth and top dimension — not an engine verdict.</div>
+          <div style={{fontSize:11,color:t.textDim,textTransform:"uppercase",letterSpacing:".14em",fontWeight:800,marginBottom:8}}>Style twin</div>
+          <div style={{fontSize:36,marginBottom:6}}>👑</div>
+          <div style={{fontFamily:t.headingFont,fontSize:22,fontWeight:900,color:c}}>{twin.name}</div>
+          <div style={{fontSize:12,color:t.textMid,lineHeight:1.55,marginTop:8}}>Rhymes with <span style={{color:c,fontWeight:600}}>{twin.why}</span></div>
         </div>
       </Card>
     </div></Reveal>
 
-    {/* Evolution */}
+    {/* Evolution — compact chips */}
     {evolution&&<Reveal><Card t={t} hover={false}>
-      <SecTitle t={t} sub="Oldest half vs newest half of the loaded range — is your DNA mutating?">DNA Evolution</SecTitle>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(210px,1fr))",gap:10}}>
-        {evolution.map((e,i)=>{
-          const up=e.delta>0, flat=e.delta===0;
-          const dc=flat?t.textDim:up?t.win:t.loss;
-          return <div key={e.key} style={{background:`${t.accent}06`,border:`1px solid ${t.cardBorder}`,borderRadius:12,padding:"12px 14px",animation:`fadeInUp .4s ${.05+i*.05}s cubic-bezier(.22,1,.36,1) both`}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-              <span style={{fontSize:12,fontWeight:700,color:t.text}}>{DIMENSION_META[e.key]?.icon} {e.label}</span>
-              <span style={{fontSize:13,fontWeight:900,color:dc,fontFamily:t.headingFont}}>{flat?"=":(up?"▲":"▼")} {flat?"even":Math.abs(e.delta)}</span>
-            </div>
-            <div style={{display:"flex",alignItems:"center",gap:8}}>
-              <span style={{fontSize:10,color:t.textDim,width:30}}>then</span>
-              <div style={{flex:1,height:5,borderRadius:3,background:`${t.textDim}20`,overflow:"hidden"}}><div className="bar-grow" style={{height:"100%",width:`${e.before}%`,background:t.textDim,animationDelay:`${.15+i*.05}s`}}/></div>
-              <span style={{fontSize:11,color:t.textDim,width:22,textAlign:"right",fontWeight:700}}>{e.before}</span>
-            </div>
-            <div style={{display:"flex",alignItems:"center",gap:8,marginTop:5}}>
-              <span style={{fontSize:10,color:dc,width:30}}>now</span>
-              <div style={{flex:1,height:5,borderRadius:3,background:`${dc}20`,overflow:"hidden"}}><div className="bar-grow" style={{height:"100%",width:`${e.now}%`,background:dc,animationDelay:`${.25+i*.05}s`}}/></div>
-              <span style={{fontSize:11,color:dc,width:22,textAlign:"right",fontWeight:700}}>{e.now}</span>
-            </div>
+      <SecTitle t={t} sub="Oldest half vs newest half of loaded games">Are you improving?</SecTitle>
+      <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+        {evolution.filter(e=>e.delta!==0).slice(0,7).map((e,i)=>{
+          const up=e.delta>0, dc=up?t.win:t.loss;
+          return <div key={e.key} style={{display:"flex",alignItems:"center",gap:8,background:`${dc}0c`,border:`1px solid ${dc}28`,borderRadius:999,padding:"8px 14px",animation:`popIn .35s ${.04+i*.05}s cubic-bezier(.22,1,.36,1) both`}}>
+            <span>{DIMENSION_META[e.key]?.icon}</span>
+            <span style={{fontSize:12,fontWeight:700,color:t.text}}>{e.label}</span>
+            <span style={{fontSize:12,fontWeight:900,color:dc,fontFamily:t.headingFont}}>{up?"▲":"▼"}{Math.abs(e.delta)}</span>
+            <span style={{fontSize:10,color:t.textDim}}>{e.before}→{e.now}</span>
           </div>;
         })}
+        {evolution.every(e=>e.delta===0)&&<div style={{fontSize:13,color:t.textMid}}>Stable across the range — no big shifts detected.</div>}
       </div>
     </Card></Reveal>}
 
     <Reveal><TradingCard p={p} profile={profile||{username:""}} t={t}/></Reveal>
-
-    <Reveal><Card t={t}><SecTitle t={t} sub="Scores are normalized from loaded games and official ratings where noted">Playstyle DNA Radar</SecTitle>
-      <ResponsiveContainer width="100%" height={300}>
-        <RadarChart data={p.axes} cx="50%" cy="50%">
-          <PolarGrid stroke={`${c}20`}/><PolarAngleAxis dataKey="subject" tick={{fill:t.textMid,fontSize:12}}/><PolarRadiusAxis tick={false} axisLine={false} domain={[0,100]}/>
-          <Radar dataKey="value" stroke={c} fill={c} fillOpacity={.24} animationDuration={900}/><Tooltip content={tip}/>
-        </RadarChart>
-      </ResponsiveContainer>
-    </Card></Reveal>
   </div>;
 }
 
