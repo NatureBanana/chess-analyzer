@@ -1466,9 +1466,7 @@ function OpeningsTab({games,loading,t}) {
           <thead><tr>{[["opening","Opening"],["eco","ECO"],["games","Games"],["winPct","Win%"],["lossPct","Loss%"],["drawPct","Draw%"],["avgOpp","Avg Opp"]].map(([k,l])=><th key={k} onClick={()=>toggleSort(k)}>{l}{sort.key===k?sort.dir===1?" ↑":" ↓":""}</th>)}</tr></thead>
           <tbody>{sorted.map((o,i)=>(
             <tr key={o.opening} className="opening-row" style={{animation:`slideUp .3s ${Math.min(i*.02,.4)}s cubic-bezier(.22,1,.36,1) both`}}>
-              <td style={{maxWidth:240,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                <a href={openingLink(o.opening,o.openingUrl)} target="_blank" rel="noopener noreferrer" style={{color:t.text,textDecoration:"none",transition:"color .15s"}} onMouseEnter={e=>e.target.style.color=t.accent} onMouseLeave={e=>e.target.style.color=t.text}>{o.opening} ↗</a>
-              </td>
+              <td style={{color:t.text,maxWidth:240,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{o.opening}</td>
               <td>{o.eco&&o.eco!=="?"?<span className="eco-badge" style={ecoBadgeStyle(o.ecoFamily,t)}>{o.eco}</span>:<span style={{color:t.textDim,fontSize:11}}>—</span>}</td>
               <td style={{fontWeight:600,color:t.text}}>{o.games}</td>
               <td><span style={{color:t.win,fontWeight:700}}>{o.winPct}%</span></td>
