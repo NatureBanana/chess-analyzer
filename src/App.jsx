@@ -685,24 +685,39 @@ function computeInsights(games) {
       score: streak.type==="win"?streak.count*14:streak.type==="loss"?streak.count*9:2 });
   }
 
-  // 2. Nemesis opening — highest loss% with min 4 games (ECO always present)
-  const nemesis = openings.filter(o=>o.games>=4).sort((a,b)=>b.lossPct-a.lossPct)[0];
-  if (nemesis && nemesis.lossPct >= 45) {
-    all.push({ id:"nemesis", icon:"💀", label:"Nemesis opening",
-      value:nemesis.opening.length>26?nemesis.opening.slice(0,24)+"…":nemesis.opening,
-      sub:`${nemesis.losses} losses in ${nemesis.games} games (${nemesis.lossPct}%)`, color:"#f85149",
-      detail:`You lose ${nemesis.lossPct}% of games in ${nemesis.opening} — ${nemesis.losses} losses over ${nemesis.games} games. ${nemesis.eco!=="?"?`ECO: ${nemesis.eco}. `:""}${nemesis.lossPct>65?"This line is actively hurting your rating. Study it or sidestep it.":"Worth spending some time on this one."}`,
-      score: nemesis.lossPct + nemesis.games });
+  const baseline = { winPct: percent(games.filter(g=>g.result==="win").length, total), lossPct: percent(games.filter(g=>g.result==="loss").length, total) };
+  const minOpening = adaptiveMinGames(total, 8, 0.05);
+
+  // 2. Tough opening line — loss rate beats baseline with enough games
+  const nemesis = openings
+    .map(o => segmentWeakness(o, baseline, minOpening, "loss"))
+    .filter(Boolean)
+    .sort((a,b) => b.score - a.score)[0];
+  if (nemesis) {
+    const openingLabel = nemesis.opening.length > 26 ? nemesis.opening.slice(0, 24) + "…" : nemesis.opening;
+    const delta = nemesis.lossPct - baseline.lossPct;
+    all.push({ id:"nemesis", icon:"💀", label:"Tough opening line",
+      value: openingLabel,
+      sub: formatRateSummary(nemesis, "loss", total),
+      color:"#f85149",
+      detail:`${nemesis.opening} runs ${delta}pp worse than your ${baseline.lossPct}% overall loss rate (${nemesis.confidence} confidence, ${nemesis.games} games). ${nemesis.eco!=="?"?`ECO: ${nemesis.eco}. `:""}${nemesis.games >= 12 && nemesis.lossPct > 55 ? "Worth studying or sidestepping." : "Keep tracking — more games will confirm if this is a real leak."}`,
+      score: nemesis.score });
   }
 
-  // 3. Signature opening — best win rate, min 5 games
-  const signature = openings.filter(o=>o.games>=5).sort((a,b)=>b.winPct-a.winPct)[0];
-  if (signature && signature.winPct >= 50) {
+  // 3. Signature opening — win rate beats baseline with enough games
+  const signature = openings
+    .map(o => segmentStrength(o, baseline, minOpening))
+    .filter(Boolean)
+    .sort((a,b) => b.score - a.score)[0];
+  if (signature) {
+    const openingLabel = signature.opening.length > 26 ? signature.opening.slice(0, 24) + "…" : signature.opening;
+    const delta = signature.winPct - baseline.winPct;
     all.push({ id:"signature", icon:"⭐", label:"Signature opening",
-      value:signature.opening.length>26?signature.opening.slice(0,24)+"…":signature.opening,
-      sub:`${signature.winPct}% win rate · ${signature.games} games`, color:"#f8c840",
-      detail:`${signature.opening} is your strongest weapon — ${signature.winPct}% win rate over ${signature.games} games. ${signature.winPct>=70?"You clearly know this deeply. This is your go-to.":"Solid choice. Keep refining it."} Avg opponent rating: ${signature.avgOpp||"unknown"}.`,
-      score: signature.winPct + signature.games*0.5 });
+      value: openingLabel,
+      sub: formatRateSummary(signature, "win", total),
+      color:"#f8c840",
+      detail:`${signature.opening} runs ${delta}pp above your ${baseline.winPct}% overall win rate (${signature.confidence} confidence, ${signature.games} games). ${signature.winPct >= 60 && signature.games >= 12 ? "A reliable weapon — keep it in rotation." : "Promising line — more reps will tell if it's a true strength."} Avg opponent: ${signature.avgOpp || "unknown"}.`,
+      score: signature.score });
   }
 
   // 4. Color gap — always in PGN (White/Black tags)
@@ -984,6 +999,57 @@ function segmentWeakness(segment, baseline, minGames, mode = "loss") {
     shrunkRate: shrunk,
     score: delta * Math.sqrt(n) * (0.45 + conf.level * 0.28),
   };
+}
+
+function segmentStrength(segment, baseline, minGames) {
+  const n = segment.games;
+  if (n < minGames) return null;
+  const segRate = segment.winPct;
+  const baseRate = baseline.winPct;
+  const delta = segRate - baseRate;
+  if (delta < 6) return null;
+  const conf = confidenceTierFor(n, Math.abs(delta));
+  if (conf.level === 0) return null;
+  const shrunk = shrunkRate(segment.wins ?? Math.round(segRate * n / 100), n, baseRate);
+  return {
+    ...segment,
+    delta,
+    confidence: conf.tier,
+    confidenceLevel: conf.level,
+    confidenceColor: conf.color,
+    shrunkRate: shrunk,
+    score: delta * Math.sqrt(n) * (0.45 + conf.level * 0.28),
+  };
+}
+
+function formatRecord(wins, losses, draws) {
+  const parts = [];
+  if (wins) parts.push(`${wins}W`);
+  if (losses) parts.push(`${losses}L`);
+  if (draws) parts.push(`${draws}D`);
+  return parts.length ? parts.join(" · ") : "0W";
+}
+
+function formatRateSummary(segment, mode = "win", archiveGames) {
+  const { wins = 0, losses = 0, draws = 0, games } = segment;
+  const record = formatRecord(wins, losses, draws);
+  const minG = archiveGames ? adaptiveMinGames(archiveGames, 8, 0.05) : 8;
+  if (games < minG) {
+    return `${record} in ${games} ${games === 1 ? "game" : "games"} — small sample`;
+  }
+  const pct = mode === "loss" ? percent(losses, games) : percent(wins, games);
+  const rateLabel = mode === "loss" ? "loss rate" : "win rate";
+  return `${pct}% ${rateLabel} (${record} in ${games})`;
+}
+
+function formatRateValue(segment, mode = "win", archiveGames) {
+  const { wins = 0, losses = 0, games } = segment;
+  const minG = archiveGames ? adaptiveMinGames(archiveGames, 8, 0.05) : 8;
+  if (games < minG) {
+    return formatRecord(wins, losses, segment.draws || 0);
+  }
+  const pct = mode === "loss" ? percent(losses, games) : percent(wins, games);
+  return `${pct}%`;
 }
 
 function aggregateSequences(games) {
@@ -1470,18 +1536,22 @@ function RingGauge({value, size=84, stroke=8, color, t, label, delay=0, suffix="
 // ── Playstyle wheel — one glance at your 7 dimensions ─────────────────────────
 function PlaystyleWheel({dimensions, p, c, t, size=220}) {
   const data=dimensions.map(d=>({name:d.label,value:d.value,color:dimensionTier(d.value).color,key:d.key}));
-  return <div style={{position:"relative",width:size,height:size,flexShrink:0}}>
-    <PieChart width={size} height={size}>
-      <Pie data={data} cx="50%" cy="50%" innerRadius={size*.36} outerRadius={size*.46} dataKey="value" paddingAngle={2} stroke="none" isAnimationActive animationDuration={900}>
-        {data.map(d=><Cell key={d.key} fill={d.color} style={{filter:`drop-shadow(0 0 6px ${d.color}40)`}}/>)}
-      </Pie>
-    </PieChart>
-    <div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center",padding:size*.22,pointerEvents:"none"}}>
-      <div style={{fontSize:size*.2,lineHeight:1,filter:`drop-shadow(0 0 12px ${c}60)`}}><Ico size={size*.2}>{p.icon}</Ico></div>
-      <div style={{fontFamily:t.headingFont,fontSize:size*.09,fontWeight:900,color:c,lineHeight:1.1,marginTop:6,overflowWrap:"anywhere"}}>{p.title}</div>
-      <div style={{fontSize:9,color:t.textDim,marginTop:4,fontWeight:700,letterSpacing:".06em"}}>{p.dnaCode}</div>
+  return <div style={{display:"flex",flexDirection:"column",alignItems:"center",flexShrink:0}}>
+    <div style={{position:"relative",width:size,height:size}}>
+      <PieChart width={size} height={size}>
+        <Pie data={data} cx="50%" cy="50%" innerRadius={size*.36} outerRadius={size*.46} dataKey="value" paddingAngle={2} stroke="none" isAnimationActive animationDuration={900}>
+          {data.map(d=><Cell key={d.key} fill={d.color} style={{filter:`drop-shadow(0 0 6px ${d.color}40)`}}/>)}
+        </Pie>
+      </PieChart>
+      <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",pointerEvents:"none"}}>
+        <div style={{filter:`drop-shadow(0 0 12px ${c}60)`}}><Ico size={size*.22}>{p.icon}</Ico></div>
+      </div>
     </div>
-    <div style={{display:"flex",flexWrap:"wrap",gap:5,justifyContent:"center",marginTop:8}}>
+    <div style={{textAlign:"center",maxWidth:size+48,marginTop:10,padding:"0 4px"}}>
+      <div style={{fontFamily:t.headingFont,fontSize:15,fontWeight:900,color:c,lineHeight:1.2,overflowWrap:"anywhere"}}>{p.title}</div>
+      <div style={{fontSize:9,color:t.textDim,marginTop:5,fontWeight:700,letterSpacing:".04em",overflowWrap:"anywhere"}}>{p.dnaCode}</div>
+    </div>
+    <div style={{display:"flex",flexWrap:"wrap",gap:5,justifyContent:"center",marginTop:10}}>
       {data.map(d=>(
         <span key={d.key} title={`${d.name}: ${d.value}`} style={{fontSize:9,fontWeight:700,color:d.color,background:`${d.color}14`,border:`1px solid ${d.color}30`,borderRadius:999,padding:"2px 7px",display:"inline-flex",alignItems:"center",gap:3}}><Ico size={9}>{DIMENSION_META[d.key]?.icon||"•"}</Ico> {d.value}</span>
       ))}
@@ -1497,10 +1567,10 @@ function StatSheet({dimensions,t,compact=false,limit=7}) {
       const meta=DIMENSION_META[d.key]||{};
       const tier=dimensionTier(d.value);
       return <div key={d.key} style={{animation:`fadeInUp .4s ${.04+i*.05}s cubic-bezier(.22,1,.36,1) both`}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:compact?3:5}}>
-            <span style={{fontSize:13,fontWeight:600,color:t.text,display:"flex",alignItems:"center",gap:6}}>
-            <Ico size={compact?12:14}>{meta.icon}</Ico>{d.label}
-            {!compact&&<span className="badge" style={{background:`${tier.color}14`,color:tier.color,border:`1px solid ${tier.color}35`,fontSize:9,padding:"1px 6px"}}>{tier.tier}</span>}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:compact?3:5,gap:8}}>
+            <span style={{fontSize:13,fontWeight:600,color:t.text,display:"flex",alignItems:"center",gap:6,minWidth:0,flex:1,overflowWrap:"anywhere"}}>
+            <Ico size={compact?12:14} style={{flexShrink:0}}>{meta.icon}</Ico>{d.label}
+            {!compact&&<span className="badge" style={{background:`${tier.color}14`,color:tier.color,border:`1px solid ${tier.color}35`,fontSize:9,padding:"1px 6px",flexShrink:0}}>{tier.tier}</span>}
           </span>
           <span style={{fontFamily:t.headingFont,fontSize:compact?16:20,fontWeight:900,color:tier.color}}>{d.value}</span>
         </div>
@@ -1630,7 +1700,7 @@ function PlayerHeroCard({data,loading,t}) {
           <Ico size={20}>{p.icon}</Ico>
           <div>
             <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:p.titleColor,opacity:.8,fontFamily:t.font}}>Chess Personality</div>
-            <div style={{fontFamily:t.headingFont,fontSize:16,fontWeight:700,color:p.titleColor,animation:"glow 3s ease-in-out infinite"}}>{p.title}</div>
+            <div style={{fontFamily:t.headingFont,fontSize:16,fontWeight:700,color:p.titleColor,animation:"glow 3s ease-in-out infinite",overflowWrap:"anywhere",lineHeight:1.2}}>{p.title}</div>
           </div>
         </div>}
 
@@ -1710,8 +1780,22 @@ function OpeningsTab({games,loading,t}) {
   const sorted=useMemo(()=>[...data].sort((a,b)=>sort.dir*((a[sort.key]??"")<(b[sort.key]??"")? -1:1)),[data,sort]);
   const top10=useMemo(()=>[...data].sort((a,b)=>b.games-a.games).slice(0,10),[data]);
   const cov=useMemo(()=>games?.length?openingCoverage(games):{total:0,named:0,pct:0},[games]);
-  const best=useMemo(()=>[...data].filter(o=>o.games>=3).sort((a,b)=>b.winPct-a.winPct)[0],[data]);
-  const worst=useMemo(()=>[...data].filter(o=>o.games>=3).sort((a,b)=>b.lossPct-a.lossPct)[0],[data]);
+  const minInsight=useMemo(()=>games?.length?adaptiveMinGames(games.length,8,0.05):8,[games]);
+  const baseline=useMemo(()=>{
+    if (!games?.length) return null;
+    const w=games.filter(g=>g.result==="win").length, l=games.filter(g=>g.result==="loss").length;
+    return { winPct:percent(w,games.length), lossPct:percent(l,games.length) };
+  },[games]);
+  const best=useMemo(()=>{
+    if (!data.length||!baseline) return null;
+    const sig=data.map(o=>segmentStrength(o,baseline,minInsight)).filter(Boolean).sort((a,b)=>b.score-a.score);
+    if (sig[0]) return sig[0];
+    return [...data].filter(o=>o.games>=minInsight).sort((a,b)=>b.winPct-a.winPct||b.games-a.games)[0]||null;
+  },[data,baseline,minInsight]);
+  const worst=useMemo(()=>{
+    if (!data.length||!baseline) return null;
+    return data.map(o=>segmentWeakness(o,baseline,minInsight,"loss")).filter(Boolean).sort((a,b)=>b.score-a.score)[0]||null;
+  },[data,baseline,minInsight]);
   const ecoBreakdown=useMemo(()=>{
     const m={}; data.forEach(o=>{const f=o.ecoFamily||"?"; m[f]=(m[f]||0)+o.games;});
     return Object.entries(m).sort((a,b)=>b[1]-a[1]).map(([family,games])=>({family,games}));
@@ -1732,13 +1816,13 @@ function OpeningsTab({games,loading,t}) {
       {[
         ["Total Openings",data.length,t.accent],
         ["Games Covered",`${cov.pct}%`,cov.pct>=90?t.win:cov.pct>=70?t.hl:t.loss],
-        ["Best Line",best?`${best.winPct}%`:"—",t.win,best?.opening],
-        ["Toughest Line",worst?`${worst.lossPct}% loss`:"—",t.loss,worst?.opening],
+        ["Best Line",best?formatRateValue(best,"win",games.length):"—",t.win,best?`${best.opening}${best.games<minInsight?` · ${formatRateSummary(best,"win",games.length)}`:""}`:null],
+        ["Toughest Line",worst?formatRateValue(worst,"loss",games.length):"—",t.loss,worst?`${worst.opening}${worst.games<minInsight?` · ${formatRateSummary(worst,"loss",games.length)}`:""}`:null],
       ].map(([label,val,color,sub],i)=>(
         <Card key={label} t={t} hover={true} style={{padding:"14px 16px",animation:`popIn .4s ${.04+i*.05}s cubic-bezier(.22,1,.36,1) both`}}>
           <div style={{fontSize:10,color:t.textDim,textTransform:"uppercase",letterSpacing:".08em",fontWeight:700,marginBottom:6}}>{label}</div>
           <div style={{fontFamily:t.headingFont,fontSize:26,fontWeight:900,color,lineHeight:1}}>{val}</div>
-          {sub&&<div style={{fontSize:11,color:t.textDim,marginTop:4,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{sub}</div>}
+          {sub&&<div style={{fontSize:11,color:t.textMid,marginTop:4,overflowWrap:"anywhere",lineHeight:1.35}}>{sub}</div>}
         </Card>
       ))}
     </div>
@@ -1868,12 +1952,13 @@ function ColorTab({games,loading,t}) {
   };
   const wWp=percent(white.wins,white.total), bWp=percent(black.wins,black.total);
   const gap=Math.abs(wWp-bWp);
+  const minInsight=adaptiveMinGames(games.length,8,0.05);
+  const baseline={ winPct:percent(games.filter(g=>g.result==="win").length,games.length), lossPct:percent(games.filter(g=>g.result==="loss").length,games.length) };
   const colorOpenings=color=>{
-    const ops=aggOpenings(games.filter(g=>g.color===color)).filter(o=>o.games>=3);
-    return {
-      best:[...ops].sort((a,b)=>b.winPct-a.winPct||b.games-a.games)[0]||null,
-      worst:[...ops].sort((a,b)=>b.lossPct-a.lossPct||b.games-a.games)[0]||null,
-    };
+    const ops=aggOpenings(games.filter(g=>g.color===color));
+    const strengths=ops.map(o=>segmentStrength(o,baseline,minInsight)).filter(Boolean).sort((a,b)=>b.score-a.score);
+    const weaknesses=ops.map(o=>segmentWeakness(o,baseline,minInsight,"loss")).filter(Boolean).sort((a,b)=>b.score-a.score);
+    return { best:strengths[0]||null, worst:weaknesses[0]||null };
   };
   const wOps=colorOpenings("white"), bOps=colorOpenings("black");
   const tcColor=["bullet","blitz","rapid","daily"].map(tc=>{
@@ -1902,17 +1987,17 @@ function ColorTab({games,loading,t}) {
     <Reveal><div className="two-col-900" style={{display:"flex",gap:14,flexWrap:"wrap"}}>
       {[[CHESS_WHITE,"White",wOps],[CHESS_BLACK,"Black",bOps]].map(([piece,label,ops])=>(
         <Card key={label} t={t} style={{flex:1,minWidth:250}}>
-          <SecTitle t={t} sub="Best weapon and biggest leak (3+ games)"><ChessIco size={16}>{piece}</ChessIco> {label} Repertoire</SecTitle>
+          <SecTitle t={t} sub={`Best weapon and biggest leak (${minInsight}+ games in range)`}><ChessIco size={16}>{piece}</ChessIco> {label} Repertoire</SecTitle>
           <div style={{display:"flex",flexDirection:"column",gap:9}}>
             {ops.best&&<div className="weapon-card" style={{background:`${t.win}0b`,border:`1px solid ${t.win}25`,borderRadius:12,padding:"11px 13px",animation:"slideInLeft .45s cubic-bezier(.22,1,.36,1) both"}}>
               <div style={{fontSize:10,color:t.win,textTransform:"uppercase",letterSpacing:".1em",fontWeight:800,marginBottom:4,display:"flex",alignItems:"center",gap:4}}><Ico size={10}>⭐</Ico> Weapon</div>
               <a href={openingLink(ops.best.opening,ops.best.openingUrl)} target="_blank" rel="noopener noreferrer" style={{fontSize:13,fontWeight:700,color:t.text,textDecoration:"none",overflowWrap:"anywhere"}}>{ops.best.opening}</a>
-              <div style={{fontSize:11,color:t.textDim,marginTop:3}}>{ops.best.winPct}% win · {ops.best.games} games{ops.best.eco!=="?"?` · ${ops.best.eco}`:""}</div>
+              <div style={{fontSize:11,color:t.textDim,marginTop:3}}>{formatRateSummary(ops.best,"win",games.length)}{ops.best.eco!=="?"?` · ${ops.best.eco}`:""}</div>
             </div>}
-            {ops.worst&&ops.worst.lossPct>=40&&<div className="weapon-card" style={{background:`${t.loss}0b`,border:`1px solid ${t.loss}25`,borderRadius:12,padding:"11px 13px",animation:"slideInRight .45s .06s cubic-bezier(.22,1,.36,1) both"}}>
+            {ops.worst&&<div className="weapon-card" style={{background:`${t.loss}0b`,border:`1px solid ${t.loss}25`,borderRadius:12,padding:"11px 13px",animation:"slideInRight .45s .06s cubic-bezier(.22,1,.36,1) both"}}>
               <div style={{fontSize:10,color:t.loss,textTransform:"uppercase",letterSpacing:".1em",fontWeight:800,marginBottom:4,display:"flex",alignItems:"center",gap:4}}><Ico size={10}>💀</Ico> Leak</div>
               <a href={openingLink(ops.worst.opening,ops.worst.openingUrl)} target="_blank" rel="noopener noreferrer" style={{fontSize:13,fontWeight:700,color:t.text,textDecoration:"none",overflowWrap:"anywhere"}}>{ops.worst.opening}</a>
-              <div style={{fontSize:11,color:t.textDim,marginTop:3}}>{ops.worst.lossPct}% loss · {ops.worst.games} games{ops.worst.eco!=="?"?` · ${ops.worst.eco}`:""}</div>
+              <div style={{fontSize:11,color:t.textDim,marginTop:3}}>{formatRateSummary(ops.worst,"loss",games.length)}{ops.worst.eco!=="?"?` · ${ops.worst.eco}`:""}</div>
             </div>}
             {!ops.best&&!ops.worst&&<div style={{color:t.textDim,fontSize:13}}>Not enough repeated openings with this color yet.</div>}
           </div>
@@ -2064,7 +2149,7 @@ function CompareTab({p1,p2,l1,l2,p2In,setP2In,loadP2,e2,months,t,onChangeP2}) {
   const p1openMap=Object.fromEntries(aggOpenings(p1.games).map(o=>[o.opening,o]));
   const p2openMap=Object.fromEntries(aggOpenings(p2.games).map(o=>[o.opening,o]));
   const shared=Object.keys({...p1openMap,...p2openMap})
-    .filter(name=>p1openMap[name]&&p2openMap[name]&&p1openMap[name].games>=2&&p2openMap[name].games>=2)
+    .filter(name=>p1openMap[name]&&p2openMap[name]&&p1openMap[name].games>=8&&p2openMap[name].games>=8)
     .map(name=>({opening:name.length>18?name.slice(0,16)+"…":name,[u1]:p1openMap[name].winPct,[u2]:p2openMap[name].winPct,total:p1openMap[name].games+p2openMap[name].games}))
     .sort((a,b)=>b.total-a.total)
     .slice(0,8);
@@ -2095,7 +2180,7 @@ function CompareTab({p1,p2,l1,l2,p2In,setP2In,loadP2,e2,months,t,onChangeP2}) {
       </div>
       {dna&&<div style={{display:"flex",alignItems:"center",gap:6,marginBottom:10,background:`${accent}0c`,border:`1px solid ${accent}22`,borderRadius:8,padding:"5px 10px"}}>
         {renderIcon(dna.icon,14)}
-        <span style={{fontSize:11,fontWeight:700,color:accent,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{dna.title}</span>
+        <span style={{fontSize:11,fontWeight:700,color:accent,overflowWrap:"anywhere",lineHeight:1.3}}>{dna.title}</span>
       </div>}
       {getAllRatings(p.stats).map(r=>(
         <div key={r.tc} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:`1px solid ${t.cardBorder}40`,fontSize:13}}>
@@ -2154,7 +2239,7 @@ function CompareTab({p1,p2,l1,l2,p2In,setP2In,loadP2,e2,months,t,onChangeP2}) {
     </Card>
 
     <Card t={t} className="stagger-4">
-      <SecTitle t={t} sub={shared.length?"Openings both players have played (2+ games each)":"No shared openings with enough games"}>Shared Opening Win%</SecTitle>
+      <SecTitle t={t} sub={shared.length?"Openings both players have played (8+ games each)":"No shared openings with enough games"}>Shared Opening Win%</SecTitle>
       {shared.length ? <ResponsiveContainer width="100%" height={Math.max(180,shared.length*34)}>
         <BarChart data={shared} layout="vertical" margin={{left:125}}>
           <XAxis type="number" domain={[0,100]} tick={{fill:t.textDim,fontSize:10}} axisLine={false} tickLine={false}/>
@@ -2524,8 +2609,8 @@ function DnaTab({games,stats,loading,t,profile}) {
       <div style={{position:"relative",display:"flex",gap:24,alignItems:"flex-start",flexWrap:"wrap"}}>
         <div style={{fontSize:72,lineHeight:1,filter:`drop-shadow(0 0 24px ${c}70)`,animation:"float 3s ease-in-out infinite"}}><Ico size={72}>{p.icon}</Ico></div>
         <div style={{flex:1,minWidth:200}}>
-          <div style={{fontSize:11,color:c,textTransform:"uppercase",letterSpacing:".2em",fontWeight:800,marginBottom:6}}>ChessDNA · {p.dnaCode}</div>
-          <div style={{fontFamily:t.headingFont,fontSize:"clamp(32px,6vw,52px)",fontWeight:900,color:c,lineHeight:1.05,letterSpacing:"-.03em"}}>{p.title}</div>
+          <div style={{fontSize:11,color:c,textTransform:"uppercase",letterSpacing:".1em",fontWeight:800,marginBottom:6,overflowWrap:"anywhere"}}>ChessDNA · {p.dnaCode}</div>
+          <div style={{fontFamily:t.headingFont,fontSize:"clamp(28px,5.5vw,52px)",fontWeight:900,color:c,lineHeight:1.1,letterSpacing:"-.03em",overflowWrap:"anywhere"}}>{p.title}</div>
           <div style={{display:"inline-flex",alignItems:"center",gap:8,background:`${c}14`,border:`1px solid ${c}35`,borderRadius:999,padding:"5px 14px",marginTop:10}}>
             <span style={{width:6,height:6,borderRadius:"50%",background:c,boxShadow:`0 0 10px ${c}`}}/>
             <span style={{fontSize:11,color:c,fontWeight:800,letterSpacing:".08em",textTransform:"uppercase"}}>{p.archetype}</span>
@@ -2537,7 +2622,7 @@ function DnaTab({games,stats,loading,t,profile}) {
             {[["Win rate",`${p.winPct}%`,t.win],["Format",p.favTC,t.accent],["Openings",p.uniqueOpenings,t.hl],["Recent",`${p.recentWinPct}%`,p.recentWinPct>=p.winPct?t.win:t.loss]].map(([label,val,col],i)=>(
               <div key={label} style={{background:`${col}0c`,border:`1px solid ${col}22`,borderRadius:12,padding:"10px 12px",textAlign:"center",animation:`scaleIn .4s ${.08+i*.06}s cubic-bezier(.22,1,.36,1) both`}}>
                 <div style={{fontSize:9,color:t.textDim,textTransform:"uppercase",letterSpacing:".08em",fontWeight:700}}>{label}</div>
-                <div style={{fontFamily:t.headingFont,fontSize:22,fontWeight:900,color:col,marginTop:4,textTransform:"capitalize"}}>{val}</div>
+                <div style={{fontFamily:t.headingFont,fontSize:22,fontWeight:900,color:col,marginTop:4,textTransform:label==="Format"?"capitalize":"none",overflowWrap:"anywhere",lineHeight:1.1}}>{val}</div>
               </div>
             ))}
           </div>
@@ -2898,9 +2983,9 @@ export default function App() {
     <div style={{position:"relative",zIndex:1,isolation:"isolate",maxWidth:1120,margin:"0 auto",padding:"0 16px 80px"}}>
 
       {/* ── Hero section ── */}
-      <div className="hero-pad" style={{textAlign:"center",padding:"70px 0 46px",animation:"fadeInUp .6s ease both",position:"relative",overflow:"hidden"}}>
-        {[["♜",12,8,0],["♞",88,18,2.5],["♝",6,72,1.2],["♛",92,65,3.8]].map(([piece,x,y,delay],i)=>(
-          <span key={i} className="hero-float-piece chess-ico" style={{left:`${x}%`,top:`${y}%`,fontSize:[28,22,24,20][i],animationDelay:`${delay}s`,animationDuration:`${6.5+i}s`}}>{piece}</span>
+      <div className="hero-pad" style={{textAlign:"center",padding:"70px 0 46px",animation:"fadeInUp .6s ease both",position:"relative",overflow:"visible"}}>
+        {[["♜",2,6,0],["♞",96,10,1.8],["♝",4,42,0.6],["♛",95,58,2.4],["♟",50,3,3.2],["♚",8,88,1.2],["♞",88,78,2.8],["♝",18,22,0.3],["♜",72,92,3.6]].map(([piece,x,y,delay],i)=>(
+          <span key={i} className="hero-float-piece chess-ico" style={{left:`${x}%`,top:`${y}%`,fontSize:[26,20,22,18,24,22,20,18,24][i],animationDelay:`${delay}s`,animationDuration:`${7+i*.8}s`}}>{piece}</span>
         ))}
         <div style={{position:"relative"}}>
         <div className="hero-emoji" style={{fontSize:76,marginBottom:12,animation:"heroChess 4s ease-in-out infinite",display:"inline-block",filter:`drop-shadow(0 0 34px ${t.glowC})`}}><ChessIco size={76}>♟</ChessIco></div>
